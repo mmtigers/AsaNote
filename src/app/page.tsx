@@ -305,7 +305,8 @@ export default function HomePage() {
         reasonTags: prevIsSmooth === nextIsSmooth ? f.reasonTags : [],
       };
     });
-    setDetailOpen(false);
+    // 「行き渋った」を選んだときは、出発時刻もその場で入力できるよう詳細欄を開いておく。
+    setDetailOpen(next === "reluctant");
     goToStep("reason", "forward");
   }
 
@@ -507,6 +508,7 @@ export default function HomePage() {
                     <input
                       id="departTime"
                       type="time"
+                      autoComplete="off"
                       value={form.departTime}
                       onChange={(e) => setForm((f) => ({ ...f, departTime: e.target.value }))}
                       className="rounded-lg border border-[var(--line)] bg-[var(--surface-2)] px-2.5 py-1.5 text-base font-medium tabular-nums"
