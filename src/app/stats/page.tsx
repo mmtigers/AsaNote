@@ -58,11 +58,23 @@ export default function StatsPage() {
         })()
       : null;
 
+    // 「渋ったか」を選んで保存した記録のみが対象(古い記録・未選択分は集計から除く)。
+    const classified = records.filter((r) => r.struggled === true || r.struggled === false);
+    const smoothRecords = classified.filter((r) => r.struggled === false);
+    const smoothCount = smoothRecords.length;
+    const smoothRate = classified.length ? Math.round((smoothCount / classified.length) * 100) : null;
+
     return {
       total,
       handoffCount,
       aloneCount,
       avgWake,
+      smoothCount,
+      smoothTotal: classified.length,
+      smoothRate,
+      // 渋った日と違い、うまくいった日は「様子」タグを集めないため、代わりに
+      // 常に入力される同行者を「よく出る傾向」として集計する。
+      smoothCompanions: countTags(smoothRecords, (r) => (r.companion ? [r.companion] : [])),
       triggers: countTags(records, (r) => r.triggerTags.filter((t) => t !== "特になし")),
       reasons: countTags(records, (r) => r.reasonTags),
       responses: countTags(records, (r) => r.responseTags),
@@ -103,6 +115,25 @@ export default function StatsPage() {
             </div>
           </section>
 
+          {summary.smoothTotal > 0 && (
+            <section className="rounded-2xl border border-[var(--line)] bg-[var(--accent-soft)] p-4">
+              <h2 className="mb-1 text-sm font-bold">😊 スムーズだった日</h2>
+              <p className="text-2xl font-bold tabular-nums text-[var(--accent)]">
+                {summary.smoothCount}
+                <span className="ml-1 text-sm font-medium">日</span>
+                <span className="ml-2 text-base font-medium">({summary.smoothRate}%)</span>
+              </p>
+              <p className="mt-1 text-[11px] text-[var(--sub)]">
+                「今日はどうだった？」を選んだ{summary.smoothTotal}日のうち
+              </p>
+            </section>
+          )}
+
+          <BarList
+            title="うまくいった日によく見られる同行スタイル"
+            data={summary.smoothCompanions}
+            total={summary.smoothCount}
+          />
           <BarList title="前日のきっかけ" data={summary.triggers} total={summary.total} />
           <BarList title="渋る理由" data={summary.reasons} total={summary.total} />
           <BarList title="親の対応" data={summary.responses} total={summary.total} />

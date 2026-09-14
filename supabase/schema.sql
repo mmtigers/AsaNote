@@ -6,6 +6,7 @@ create table if not exists records (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid not null references auth.users(id) on delete cascade,
   record_date date not null,
+  struggled boolean,
   wake_time time,
   wake_tags text[] not null default '{}',
   trigger_tags text[] not null default '{}',
@@ -18,6 +19,10 @@ create table if not exists records (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+-- 既存環境向け: create table if not existsは新規列を追加しないため、
+-- 登校を渋ったか(struggled)を後から入れられるようにここで個別に追加する。
+alter table records add column if not exists struggled boolean;
 
 create index if not exists idx_records_user_id on records(user_id);
 create index if not exists idx_records_record_date on records(record_date desc);

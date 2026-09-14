@@ -2,6 +2,8 @@
 export interface SchoolRecord {
   id: string;
   recordDate: string; // "YYYY-MM-DD"
+  // 登校を渋ったかどうか。未入力(結果を選ぶ前・過去の記録)はnull/undefined。
+  struggled?: boolean | null;
   wakeTime: string | null; // "HH:MM"
   wakeTags: string[];
   triggerTags: string[];
