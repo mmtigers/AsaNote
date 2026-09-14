@@ -1,0 +1,29 @@
+import { expect, test } from "@playwright/test";
+
+// 記録フォームの入力→保存→タイムライン反映の一連の流れ。ログイン不要な
+// オフライン専用の範囲のみを対象とする(ログイン前提のグループE2Eは別Issue)。
+test("記録フォームに入力して保存すると、ホームとタイムラインの両方に反映される", async ({ page }) => {
+  await page.goto("/");
+
+  await page.getByRole("button", { name: "今日の様子を記録する" }).click();
+
+  await page.getByRole("button", { name: /スムーズに行けた/ }).click();
+
+  await page.getByRole("button", { name: "早寝早起きできた", exact: true }).click();
+
+  await page.getByRole("button", { name: /詳細を追加/ }).click();
+  const memo = "E2Eテストからのメモ";
+  await page.getByLabel("振り返りメモ").fill(memo);
+
+  await page.getByRole("button", { name: "この日の記録を保存する" }).click();
+
+  // ホームへ戻り、記録済みの要約カードが表示される
+  await expect(page.getByRole("button", { name: "記録を編集する" })).toBeVisible();
+  await expect(page.getByText("スムーズに行けた")).toBeVisible();
+
+  // タイムラインにも反映される
+  await page.getByRole("link", { name: "これまで" }).click();
+  await expect(page).toHaveURL(/\/timeline$/);
+  await expect(page.getByText(memo)).toBeVisible();
+  await expect(page.getByText("早寝早起きできた")).toBeVisible();
+});
