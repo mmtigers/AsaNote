@@ -1,8 +1,3 @@
-// このファイルは `supabase gen types typescript` の出力そのものです。
-// 手で編集しないでください。supabase/schema.sqlを変更したら、
-// `npm run db:types`(要Docker)またはCIの db-types-check ジョブの
-// 出力で再生成し、差分をコミットしてください。
-
 export type Json =
   | string
   | number
@@ -344,3 +339,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+
