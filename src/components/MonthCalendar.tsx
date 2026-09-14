@@ -10,6 +10,13 @@ const STATUS_DOT_STYLES: Record<Outcome, string> = {
   absent: "bg-[var(--calm)]",
 };
 
+// 入力済みの日を一目で分かるように、セル自体にも結果に応じた淡い背景色を付ける。
+const STATUS_BG_STYLES: Record<Outcome, string> = {
+  smooth: "bg-[var(--accent-soft)]",
+  reluctant: "bg-[var(--amber-soft)]",
+  absent: "bg-[var(--calm-soft)]",
+};
+
 function pad2(n: number): string {
   return String(n).padStart(2, "0");
 }
@@ -109,8 +116,8 @@ export function MonthCalendar({
                 isSelected
                   ? "bg-[var(--accent)] font-bold text-[var(--accent-ink)]"
                   : isToday
-                    ? "border border-[var(--accent)] text-[var(--ink)]"
-                    : "text-[var(--ink)]"
+                    ? `border border-[var(--accent)] text-[var(--ink)] ${status ? STATUS_BG_STYLES[status] : ""}`
+                    : `text-[var(--ink)] ${status ? STATUS_BG_STYLES[status] : ""}`
               }`}
             >
               <span>{day}</span>

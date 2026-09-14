@@ -78,6 +78,10 @@ function emptyForm(): FormState {
 
 type Step = "home" | "result" | "reason";
 
+// 各ステップがホームから何回分の画面遷移(=ブラウザ履歴のpushState)を経ているか。
+// スマホのバックボタンでホームまで一気に戻したいときに history.go(-depth) で使う。
+const STEP_DEPTH: Record<Step, number> = { home: 0, result: 1, reason: 2 };
+
 interface Draft {
   date: string;
   step: Step;
@@ -138,6 +142,36 @@ export default function HomePage() {
     seq: 0,
   });
 
+  // ステップ遷移(home→result→reason)をブラウザ履歴に積んでおき、スマホ/ブラウザの
+  // 戻るボタンでアプリごと閉じてしまわず一つ前のステップに戻れるようにする。
+  // 初回マウント時に現在の履歴エントリを「home」として登録しておく(以降の
+  // goToStep("forward")呼び出しで、この上にresult→reasonを積んでいく)。
+  useEffect(() => {
+    window.history.replaceState({ ...(window.history.state ?? {}), appStep: "home" }, "");
+  }, []);
+
+  useEffect(() => {
+    function onPopState(e: PopStateEvent) {
+      const state = e.state as { appStep?: Step } | null;
+      const nextStep: Step = state?.appStep ?? "home";
+      setStepTransition((t) => ({ direction: "backward", seq: t.seq + 1 }));
+      setStep(nextStep);
+    }
+    window.addEventListener("popstate", onPopState);
+    return () => window.removeEventListener("popstate", onPopState);
+  }, []);
+
+  // draft復元・編集リンクからの自動遷移など、ユーザー操作を介さずにステップを進める場合も、
+  // 上と同じ理由でその分の履歴エントリを積んでおく。
+  function pushHistoryToStep(target: Step) {
+    if (target === "result" || target === "reason") {
+      window.history.pushState({ appStep: "result" }, "");
+    }
+    if (target === "reason") {
+      window.history.pushState({ appStep: "reason" }, "");
+    }
+  }
+
   // タイムラインの「編集する」から日付指定で遷移してきた場合は、その日付を開いた上で
   // 記録内容に応じたステップまで自動で進める(一度きり)。
   const cameFromEditLink = useRef(false);
@@ -168,6 +202,7 @@ export default function HomePage() {
     const draft = loadDraft();
     if (draft && draft.date === date) {
       setForm(draft.form);
+      pushHistoryToStep(draft.step);
       setStep(draft.step);
       setDetailOpen(draft.detailOpen);
       setLoaded(true);
@@ -197,7 +232,9 @@ export default function HomePage() {
       }
       if (cameFromEditLink.current) {
         cameFromEditLink.current = false;
-        setStep(existing?.outcome ? "reason" : "result");
+        const target: Step = existing?.outcome ? "reason" : "result";
+        pushHistoryToStep(target);
+        setStep(target);
         setDetailOpen(!!(existing?.departTime || existing?.memo));
       }
       setLoaded(true);
@@ -249,6 +286,9 @@ export default function HomePage() {
   function goToStep(next: Step, direction: "forward" | "backward") {
     setStepTransition((t) => ({ direction, seq: t.seq + 1 }));
     setStep(next);
+    if (direction === "forward") {
+      window.history.pushState({ appStep: next }, "");
+    }
   }
 
   function startRecording() {
@@ -270,8 +310,9 @@ export default function HomePage() {
   }
 
   function goBack() {
-    if (step === "reason") goToStep("result", "backward");
-    else if (step === "result") goToStep("home", "backward");
+    // ブラウザ履歴を1つ戻す。実際のステップの切り替えはpopstateハンドラが行うことで、
+    // このボタンとスマホ/ブラウザの戻るボタンの挙動を一致させる。
+    window.history.back();
   }
 
   const reasonOptions = useMemo(() => {
@@ -307,10 +348,16 @@ export default function HomePage() {
     });
     setToast(true);
     setTimeout(() => setToast(false), 1800);
-    goToStep("home", "backward");
+    // 積んであるステップ分の履歴をまとめて戻す(popstateハンドラがhomeへの遷移を処理する)。
+    const depth = STEP_DEPTH[step];
+    if (depth > 0) window.history.go(-depth);
+    else goToStep("home", "backward");
   }
 
   const selectedOutcome = OUTCOME_OPTIONS.find((o) => o.value === form.outcome);
+  // 選択中の日付が今日かどうかで、「今日は/その日は」の文言を出し分ける
+  // (過去日を選んでいるのに「今日の様子」と表示されるのはおかしいため)。
+  const isTodaySelected = date === todayValue;
 
   return (
     <div className="mx-auto max-w-md">
@@ -397,8 +444,12 @@ export default function HomePage() {
                     className="flex w-full flex-col items-center gap-2 rounded-3xl border-2 border-dashed border-[var(--accent)] bg-[var(--accent-soft)] px-6 py-10 text-center shadow-sm active:scale-[0.98]"
                   >
                     <span className="text-5xl">📝</span>
-                    <span className="text-base font-bold text-[var(--accent)]">今日の様子を記録する</span>
-                    <span className="text-[12px] text-[var(--sub)]">タップして、今日はどうだったか選んでね</span>
+                    <span className="text-base font-bold text-[var(--accent)]">
+                      {isTodaySelected ? "今日の様子を記録する" : "この日の様子を記録する"}
+                    </span>
+                    <span className="text-[12px] text-[var(--sub)]">
+                      {isTodaySelected ? "タップして、今日はどうだったか選んでね" : "タップして、この日はどうだったか選んでね"}
+                    </span>
                     <span className="text-[11px] text-[var(--sub)]">← 左右にスワイプで日付を切り替え →</span>
                   </button>
                 )}
@@ -407,7 +458,7 @@ export default function HomePage() {
 
           {step === "result" && (
             <>
-              <h2 className="text-[15px] font-bold">今日はどうだった？</h2>
+              <h2 className="text-[15px] font-bold">{isTodaySelected ? "今日はどうだった？" : "この日はどうだった？"}</h2>
               <div className="flex flex-col gap-3">
                 {OUTCOME_OPTIONS.map((opt) => (
                   <button
