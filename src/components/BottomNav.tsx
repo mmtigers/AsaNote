@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { usePendingSyncCount } from "@/lib/db/queries";
+import { useHasDraft } from "@/lib/draft";
 
 const items = [
   { href: "/", label: "記録する", icon: "📝" },
@@ -11,26 +11,25 @@ const items = [
   { href: "/group", label: "共有", icon: "👨‍👩‍👧" },
 ] as const;
 
-function NavBadge({ count }: { count: number }) {
-  if (count <= 0) return null;
+// 入力途中の記録があることを示す小さなドット。件数に意味はないので数字は出さない。
+function DraftBadge({ show }: { show: boolean }) {
+  if (!show) return null;
   return (
-    <span className="absolute -right-1.5 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-[var(--accent)] px-1 text-[10px] font-bold leading-none text-[var(--accent-ink)]">
-      {count > 99 ? "99+" : count}
-    </span>
+    <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-[var(--surface)] bg-[var(--accent)]" />
   );
 }
 
 // 片手操作前提のため画面下部に固定。iOSのホームインジケーター分もセーフエリアで確保する。
 export function BottomNav() {
   const pathname = usePathname();
-  const pendingCount = usePendingSyncCount();
+  const hasDraft = useHasDraft();
 
   return (
     <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--line)] bg-[var(--surface)]/95 backdrop-blur-sm [padding-bottom:env(safe-area-inset-bottom)]">
       <ul className="mx-auto flex max-w-md gap-1 px-2 py-1.5">
         {items.map((item) => {
           const active = pathname === item.href;
-          const badgeCount = item.href === "/" ? (pendingCount ?? 0) : 0;
+          const showDraftBadge = item.href === "/" && hasDraft;
           return (
             <li key={item.href} className="flex-1">
               <Link
@@ -41,7 +40,7 @@ export function BottomNav() {
               >
                 <span className="relative text-lg leading-none">
                   {item.icon}
-                  <NavBadge count={badgeCount} />
+                  <DraftBadge show={showDraftBadge} />
                 </span>
                 {item.label}
               </Link>

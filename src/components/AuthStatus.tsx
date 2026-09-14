@@ -41,13 +41,13 @@ export function AuthStatus() {
   }
 
   return (
-    <div className="flex items-center gap-2 text-xs text-[var(--sub)]">
-      <span>{session.user.email}</span>
-      {!!pendingCount && <span className="text-[var(--accent)]">未同期{pendingCount}件</span>}
+    <div className="flex flex-wrap items-center justify-end gap-x-2 gap-y-0.5 text-xs text-[var(--sub)]">
+      <span className="whitespace-nowrap">{session.user.email}</span>
+      {!!pendingCount && <span className="whitespace-nowrap text-[var(--accent)]">未同期{pendingCount}件</span>}
       <button
         type="button"
         onClick={handleLogout}
-        className="underline underline-offset-2 focus:ring-2 focus:ring-[var(--accent)]"
+        className="whitespace-nowrap underline underline-offset-2 focus:ring-2 focus:ring-[var(--accent)]"
       >
         ログアウト
       </button>

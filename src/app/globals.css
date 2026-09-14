@@ -75,3 +75,34 @@ h3 {
     animation-duration: 0.001ms !important;
   }
 }
+
+/* 記録フローで次の項目に進む/戻るときのスライド演出 */
+@keyframes step-slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes step-slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.step-enter-right {
+  animation: step-slide-in-right 0.26s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.step-enter-left {
+  animation: step-slide-in-left 0.26s cubic-bezier(0.16, 1, 0.3, 1) both;
+}

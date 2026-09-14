@@ -6,6 +6,7 @@ import { AuthStatus } from "@/components/AuthStatus";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { findLatestOwnRecordForDate, saveRecord } from "@/lib/db/records";
 import { NEGATIVE_REASON_TAGS, OUTCOME_OPTIONS, POSITIVE_REASON_TAGS, type Outcome } from "@/constants/choices";
+import { DRAFT_STORAGE_KEY, notifyDraftChanged } from "@/lib/draft";
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 
@@ -68,8 +69,6 @@ interface Draft {
   form: FormState;
 }
 
-const DRAFT_STORAGE_KEY = "asa-note:draft";
-
 // 記録の途中でタイムラインなど他の画面を見に行っても、戻ってきたときに入力が
 // 消えていないようlocalStorageに一時保存する(保存が完了したら消す使い捨ての下書き)。
 function loadDraft(): Draft | null {
@@ -84,6 +83,7 @@ function loadDraft(): Draft | null {
 function saveDraft(draft: Draft) {
   try {
     window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
+    notifyDraftChanged();
   } catch {
     // プライベートブラウジング等で書き込めない場合はあきらめる(入力自体は継続できる)
   }
@@ -92,6 +92,7 @@ function saveDraft(draft: Draft) {
 function clearDraft() {
   try {
     window.localStorage.removeItem(DRAFT_STORAGE_KEY);
+    notifyDraftChanged();
   } catch {
     // 同上
   }
@@ -103,6 +104,13 @@ export default function HomePage() {
   const [date, setDate] = useState(todayValue);
   const [step, setStep] = useState<Step>("home");
   const [detailOpen, setDetailOpen] = useState(false);
+  // ステップ間の画面遷移アニメーション用。次の項目へ進むときは右から、
+  // 前のステップへ戻るときは左からスライドインさせる。seqは同じステップへ
+  // 戻ってきたときでもアニメーションを再生させるためのキー。
+  const [stepTransition, setStepTransition] = useState<{ direction: "forward" | "backward"; seq: number }>({
+    direction: "forward",
+    seq: 0,
+  });
 
   // タイムラインの「編集する」から日付指定で遷移してきた場合は、その日付を開いた上で
   // 記録内容に応じたステップまで自動で進める(一度きり)。
@@ -190,8 +198,13 @@ export default function HomePage() {
     setDate(toDateInputValue(d));
   }
 
+  function goToStep(next: Step, direction: "forward" | "backward") {
+    setStepTransition((t) => ({ direction, seq: t.seq + 1 }));
+    setStep(next);
+  }
+
   function startRecording() {
-    setStep("result");
+    goToStep("result", "forward");
   }
 
   function selectOutcome(next: Outcome) {
@@ -205,12 +218,12 @@ export default function HomePage() {
       };
     });
     setDetailOpen(false);
-    setStep("reason");
+    goToStep("reason", "forward");
   }
 
   function goBack() {
-    if (step === "reason") setStep("result");
-    else if (step === "result") setStep("home");
+    if (step === "reason") goToStep("result", "backward");
+    else if (step === "result") goToStep("home", "backward");
   }
 
   const reasonOptions = useMemo(() => {
@@ -246,7 +259,7 @@ export default function HomePage() {
     });
     setToast(true);
     setTimeout(() => setToast(false), 1800);
-    setStep("home");
+    goToStep("home", "backward");
   }
 
   const selectedOutcome = OUTCOME_OPTIONS.find((o) => o.value === form.outcome);
@@ -254,14 +267,13 @@ export default function HomePage() {
   return (
     <div className="mx-auto max-w-md">
       <header className="sticky top-0 z-10 border-b border-[var(--line)] bg-[var(--bg)]/95 px-4 pt-5 pb-3 backdrop-blur-sm">
-        <div className="flex items-baseline justify-between gap-3">
-          <h1 className="text-xl font-bold">🌸 あさノート</h1>
+        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+          <h1 className="whitespace-nowrap text-xl font-bold">🌸 あさノート</h1>
           <AuthStatus />
         </div>
 
         {step === "home" ? (
           <>
-            <p className="mt-1 text-xs text-[var(--sub)]">今日のようすを、タップだけでサッと記録</p>
             <div className="mt-3 flex items-center gap-2">
               <button
                 type="button"
@@ -305,129 +317,140 @@ export default function HomePage() {
         )}
       </header>
 
-      <main className="flex min-h-[70vh] flex-col justify-end gap-3.5 px-4 py-5">
-        {step === "home" &&
-          (!loaded ? (
-            <div className="h-40 animate-pulse rounded-3xl bg-[var(--surface-2)]" />
-          ) : selectedOutcome ? (
-            <section className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm">
-              <div className="flex items-center gap-3">
-                <span className="text-3xl">{selectedOutcome.emoji}</span>
-                <div className="min-w-0 flex-1">
-                  <p className="font-bold">{selectedOutcome.label}</p>
-                  {form.reasonTags.length > 0 && (
-                    <p className="mt-0.5 truncate text-[12px] text-[var(--sub)]">
-                      理由: {form.reasonTags.join("・")}
-                    </p>
-                  )}
+      <main className="flex min-h-[70vh] flex-col overflow-x-hidden px-4 py-5">
+        <div
+          key={`${step}-${stepTransition.seq}`}
+          className={`flex flex-1 flex-col justify-end gap-3.5 ${
+            stepTransition.seq === 0
+              ? ""
+              : stepTransition.direction === "forward"
+                ? "step-enter-right"
+                : "step-enter-left"
+          }`}
+        >
+          {step === "home" &&
+            (!loaded ? (
+              <div className="h-40 animate-pulse rounded-3xl bg-[var(--surface-2)]" />
+            ) : selectedOutcome ? (
+              <section className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl">{selectedOutcome.emoji}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold">{selectedOutcome.label}</p>
+                    {form.reasonTags.length > 0 && (
+                      <p className="mt-0.5 truncate text-[12px] text-[var(--sub)]">
+                        理由: {form.reasonTags.join("・")}
+                      </p>
+                    )}
+                  </div>
                 </div>
-              </div>
+                <button
+                  type="button"
+                  onClick={() => goToStep("result", "forward")}
+                  className="mt-4 w-full rounded-full border border-[var(--line)] bg-[var(--surface-2)] py-2.5 text-sm font-semibold text-[var(--ink)]"
+                >
+                  ✏️ 記録を編集する
+                </button>
+              </section>
+            ) : (
               <button
                 type="button"
-                onClick={() => setStep("result")}
-                className="mt-4 w-full rounded-full border border-[var(--line)] bg-[var(--surface-2)] py-2.5 text-sm font-semibold text-[var(--ink)]"
+                onClick={startRecording}
+                className="flex flex-col items-center gap-2 rounded-3xl border-2 border-dashed border-[var(--accent)] bg-[var(--accent-soft)] px-6 py-10 text-center shadow-sm active:scale-[0.98]"
               >
-                ✏️ 記録を編集する
+                <span className="text-5xl">📝</span>
+                <span className="text-base font-bold text-[var(--accent)]">今日の様子を記録する</span>
+                <span className="text-[12px] text-[var(--sub)]">タップして、今日はどうだったか選んでね</span>
               </button>
-            </section>
-          ) : (
-            <button
-              type="button"
-              onClick={startRecording}
-              className="flex flex-col items-center gap-2 rounded-3xl border-2 border-dashed border-[var(--accent)] bg-[var(--accent-soft)] px-6 py-10 text-center shadow-sm active:scale-[0.98]"
-            >
-              <span className="text-5xl">📝</span>
-              <span className="text-base font-bold text-[var(--accent)]">今日の様子を記録する</span>
-              <span className="text-[12px] text-[var(--sub)]">タップして、今日はどうだったか選んでね</span>
-            </button>
-          ))}
+            ))}
 
-        {step === "result" && (
-          <>
-            <h2 className="text-[15px] font-bold">今日はどうだった？</h2>
-            <div className="flex flex-col gap-3">
-              {OUTCOME_OPTIONS.map((opt) => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => selectOutcome(opt.value)}
-                  className={`flex items-center gap-4 rounded-3xl border-2 px-5 py-5 text-left shadow-sm active:scale-[0.98] ${OUTCOME_STYLES[opt.value]}`}
-                >
-                  <span className="text-4xl">{opt.emoji}</span>
-                  <span className="text-base font-bold">{opt.label}</span>
-                </button>
-              ))}
-            </div>
-          </>
-        )}
+          {step === "result" && (
+            <>
+              <h2 className="text-[15px] font-bold">今日はどうだった？</h2>
+              <div className="flex flex-col gap-3">
+                {OUTCOME_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => selectOutcome(opt.value)}
+                    className={`flex items-center gap-4 rounded-3xl border-2 px-5 py-5 text-left shadow-sm active:scale-[0.98] ${OUTCOME_STYLES[opt.value]}`}
+                  >
+                    <span className="text-4xl">{opt.emoji}</span>
+                    <span className="text-base font-bold">{opt.label}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
 
-        {step === "reason" && form.outcome && (
-          <>
-            <section className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm">
-              <h2 className="mb-1 text-[15px] font-bold">
-                {form.outcome === "smooth" ? "😊 よかった理由は？" : "😣 気になる理由は？"}
-              </h2>
-              <p className="mb-3 text-[12px] text-[var(--sub)]">思い当たるものを選んでね。無ければ書き足してもOK</p>
-              <TagChips
-                options={reasonOptions}
-                value={form.reasonTags}
-                onChange={(next) => setForm((f) => ({ ...f, reasonTags: next }))}
-                onAddCustom={(tag) => setCustomReasonTags((prev) => [...prev, tag])}
-              />
-            </section>
-
-            <button
-              type="button"
-              onClick={() => setDetailOpen((v) => !v)}
-              className="flex items-center justify-center gap-1.5 rounded-full border border-dashed border-[var(--line)] py-2 text-[12px] text-[var(--sub)]"
-            >
-              詳細を追加(任意) {detailOpen ? "▲" : "▼"}
-            </button>
-
-            {detailOpen && (
+          {step === "reason" && form.outcome && (
+            <>
               <section className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm">
-                <div className="mb-3 flex items-center gap-2.5">
-                  <label className="w-16 flex-none text-xs text-[var(--sub)]" htmlFor="departTime">
-                    出発時刻
-                  </label>
-                  <input
-                    id="departTime"
-                    type="time"
-                    value={form.departTime}
-                    onChange={(e) => setForm((f) => ({ ...f, departTime: e.target.value }))}
-                    className="rounded-lg border border-[var(--line)] bg-[var(--surface-2)] px-2.5 py-1.5 text-base font-medium tabular-nums"
-                  />
-                </div>
-                <label className="mb-1.5 block text-xs text-[var(--sub)]" htmlFor="memo">
-                  振り返りメモ
-                </label>
-                <textarea
-                  id="memo"
-                  value={form.memo}
-                  onChange={(e) => setForm((f) => ({ ...f, memo: e.target.value }))}
-                  placeholder="気づいたこと、次に試したいことなど"
-                  className="min-h-16 w-full rounded-lg border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2.5 text-sm leading-relaxed outline-none"
+                <h2 className="mb-1 text-[15px] font-bold">
+                  {form.outcome === "smooth" ? "😊 よかった理由は？" : "😣 気になる理由は？"}
+                </h2>
+                <p className="mb-3 text-[12px] text-[var(--sub)]">思い当たるものを選んでね。無ければ書き足してもOK</p>
+                <TagChips
+                  options={reasonOptions}
+                  value={form.reasonTags}
+                  onChange={(next) => setForm((f) => ({ ...f, reasonTags: next }))}
+                  onAddCustom={(tag) => setCustomReasonTags((prev) => [...prev, tag])}
                 />
               </section>
-            )}
 
-            <section className="rounded-3xl border border-dashed border-[var(--line)] bg-[var(--surface-2)] p-4">
-              <span className="mb-1.5 block text-[11px] uppercase tracking-wide text-[var(--sub)]">
-                記録プレビュー
-              </span>
-              <p className="text-[14.5px] leading-[1.85]">{preview}</p>
-            </section>
+              <button
+                type="button"
+                onClick={() => setDetailOpen((v) => !v)}
+                className="flex items-center justify-center gap-1.5 rounded-full border border-dashed border-[var(--line)] py-2 text-[12px] text-[var(--sub)]"
+              >
+                詳細を追加(任意) {detailOpen ? "▲" : "▼"}
+              </button>
 
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={!loaded}
-              className="sticky bottom-4 z-20 mt-1 flex w-full items-center justify-center gap-2 rounded-full bg-[var(--accent)] py-3.5 text-base font-bold text-[var(--accent-ink)] shadow-lg disabled:opacity-60"
-            >
-              ✓ この日の記録を保存する
-            </button>
-          </>
-        )}
+              {detailOpen && (
+                <section className="step-enter-right rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm">
+                  <div className="mb-3 flex items-center gap-2.5">
+                    <label className="w-16 flex-none text-xs text-[var(--sub)]" htmlFor="departTime">
+                      出発時刻
+                    </label>
+                    <input
+                      id="departTime"
+                      type="time"
+                      value={form.departTime}
+                      onChange={(e) => setForm((f) => ({ ...f, departTime: e.target.value }))}
+                      className="rounded-lg border border-[var(--line)] bg-[var(--surface-2)] px-2.5 py-1.5 text-base font-medium tabular-nums"
+                    />
+                  </div>
+                  <label className="mb-1.5 block text-xs text-[var(--sub)]" htmlFor="memo">
+                    振り返りメモ
+                  </label>
+                  <textarea
+                    id="memo"
+                    value={form.memo}
+                    onChange={(e) => setForm((f) => ({ ...f, memo: e.target.value }))}
+                    placeholder="気づいたこと、次に試したいことなど"
+                    className="min-h-16 w-full rounded-lg border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2.5 text-sm leading-relaxed outline-none"
+                  />
+                </section>
+              )}
+
+              <section className="rounded-3xl border border-dashed border-[var(--line)] bg-[var(--surface-2)] p-4">
+                <span className="mb-1.5 block text-[11px] uppercase tracking-wide text-[var(--sub)]">
+                  記録プレビュー
+                </span>
+                <p className="text-[14.5px] leading-[1.85]">{preview}</p>
+              </section>
+
+              <button
+                type="button"
+                onClick={handleSave}
+                disabled={!loaded}
+                className="sticky bottom-4 z-20 mt-1 flex w-full items-center justify-center gap-2 rounded-full bg-[var(--accent)] py-3.5 text-base font-bold text-[var(--accent-ink)] shadow-lg disabled:opacity-60"
+              >
+                ✓ この日の記録を保存する
+              </button>
+            </>
+          )}
+        </div>
       </main>
 
       <div
