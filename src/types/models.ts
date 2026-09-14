@@ -1,9 +1,11 @@
+import type { Outcome } from "@/constants/choices";
+
 // 登校渋りの朝の様子を1日1〜数件記録するレコード。
 export interface SchoolRecord {
   id: string;
   recordDate: string; // "YYYY-MM-DD"
-  // 登校を渋ったかどうか。未入力(結果を選ぶ前・過去の記録)はnull/undefined。
-  struggled?: boolean | null;
+  // 登校の結果(スムーズ/行き渋り/お休み)。未入力(結果を選ぶ前・過去の記録)はnull/undefined。
+  outcome?: Outcome | null;
   wakeTime: string | null; // "HH:MM"
   wakeTags: string[];
   triggerTags: string[];

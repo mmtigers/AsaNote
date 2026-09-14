@@ -26,8 +26,8 @@ export function BottomNav() {
   const pendingCount = usePendingSyncCount();
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--line)] bg-[var(--bg)]/95 backdrop-blur-sm [padding-bottom:env(safe-area-inset-bottom)]">
-      <ul className="mx-auto flex max-w-md">
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--line)] bg-[var(--surface)]/95 backdrop-blur-sm [padding-bottom:env(safe-area-inset-bottom)]">
+      <ul className="mx-auto flex max-w-md gap-1 px-2 py-1.5">
         {items.map((item) => {
           const active = pathname === item.href;
           const badgeCount = item.href === "/" ? (pendingCount ?? 0) : 0;
@@ -35,8 +35,8 @@ export function BottomNav() {
             <li key={item.href} className="flex-1">
               <Link
                 href={item.href}
-                className={`flex flex-col items-center gap-0.5 py-2.5 text-[11px] focus:ring-2 focus:ring-[var(--accent)] ${
-                  active ? "text-[var(--accent)] font-semibold" : "text-[var(--sub)]"
+                className={`flex flex-col items-center gap-0.5 rounded-2xl py-2 text-[11px] focus:ring-2 focus:ring-[var(--accent)] ${
+                  active ? "bg-[var(--accent-soft)] font-semibold text-[var(--accent)]" : "text-[var(--sub)]"
                 }`}
               >
                 <span className="relative text-lg leading-none">

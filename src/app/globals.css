@@ -2,56 +2,65 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #f6f3ec;
+  --bg: #fff5f6;
   --surface: #ffffff;
-  --surface-2: #fbf7ef;
-  --ink: #2a2823;
-  --sub: #71695d;
-  --line: #e7dfcf;
-  --accent: #2f7a6e;
+  --surface-2: #fdecef;
+  --ink: #4a3640;
+  --sub: #9c7f89;
+  --line: #f6dbe1;
+  --accent: #e0668a;
   --accent-ink: #ffffff;
-  --accent-soft: #dceee9;
-  --amber: #b96a2c;
-  --amber-soft: #f3e1ce;
+  --accent-soft: #fbdfe7;
+  --amber: #e08a4f;
+  --amber-soft: #fbe6d5;
+  --calm: #9081d1;
+  --calm-soft: #e9e4f9;
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #1b1d1a;
-    --surface: #242723;
-    --surface-2: #2a2d28;
-    --ink: #ece8de;
-    --sub: #a69e90;
-    --line: #3a3d36;
-    --accent: #63b3a2;
-    --accent-ink: #0f231e;
-    --accent-soft: #243733;
-    --amber: #e3a568;
-    --amber-soft: #3a2e20;
+    --bg: #241821;
+    --surface: #2f2029;
+    --surface-2: #3a2530;
+    --ink: #f6e7eb;
+    --sub: #cba7b2;
+    --line: #4b3340;
+    --accent: #f18ba9;
+    --accent-ink: #2b121a;
+    --accent-soft: #4a2835;
+    --amber: #f0aa77;
+    --amber-soft: #4a3325;
+    --calm: #b3a6f0;
+    --calm-soft: #362f52;
     color-scheme: dark;
   }
 }
 
 :root[data-theme="dark"] {
-  --bg: #1b1d1a;
-  --surface: #242723;
-  --surface-2: #2a2d28;
-  --ink: #ece8de;
-  --sub: #a69e90;
-  --line: #3a3d36;
-  --accent: #63b3a2;
-  --accent-ink: #0f231e;
-  --accent-soft: #243733;
-  --amber: #e3a568;
-  --amber-soft: #3a2e20;
+  --bg: #241821;
+  --surface: #2f2029;
+  --surface-2: #3a2530;
+  --ink: #f6e7eb;
+  --sub: #cba7b2;
+  --line: #4b3340;
+  --accent: #f18ba9;
+  --accent-ink: #2b121a;
+  --accent-soft: #4a2835;
+  --amber: #f0aa77;
+  --amber-soft: #4a3325;
+  --calm: #b3a6f0;
+  --calm-soft: #362f52;
   color-scheme: dark;
 }
 
 body {
-  background: var(--bg);
+  background:
+    radial-gradient(circle at 15% 0%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 55%),
+    radial-gradient(circle at 100% 20%, color-mix(in srgb, var(--calm) 12%, transparent), transparent 45%),
+    var(--bg);
   color: var(--ink);
-  font-family: "Noto Sans JP", system-ui, sans-serif;
+  font-family: "Zen Maru Gothic", "Noto Sans JP", system-ui, sans-serif;
 }
 
 h1,

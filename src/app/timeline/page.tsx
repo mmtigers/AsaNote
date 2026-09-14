@@ -10,21 +10,26 @@ import { buildMemberEmailMap, isOwnRecord, useGroupMembers } from "@/lib/db/grou
 import { deleteRecord } from "@/lib/db/records";
 import { useRecordsTimeline } from "@/lib/db/queries";
 import type { LocalRecord } from "@/lib/db/localDb";
+import { OUTCOME_OPTIONS } from "@/constants/choices";
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
+
+const OUTCOME_BADGE_STYLES = {
+  accent: "bg-[var(--accent-soft)] text-[var(--accent)]",
+  amber: "bg-[var(--amber-soft)] text-[var(--amber)]",
+  calm: "bg-[var(--calm-soft)] text-[var(--calm)]",
+} as const;
 
 function formatDate(value: string): string {
   const d = new Date(`${value}T00:00:00`);
   return `${d.getMonth() + 1}/${d.getDate()}(${WEEKDAYS[d.getDay()]})`;
 }
 
-function outcomeBadge(record: LocalRecord): { label: string; tone: "ok" | "handoff" } | null {
-  if (record.handoff && record.handoff !== "なし") {
-    return { label: `${record.handoff}に引き渡し`, tone: "handoff" };
-  }
-  if (record.companion) {
-    return { label: `${record.companion}登校`, tone: "ok" };
-  }
+// 旧フォーム(〜v1)の記録には引き渡し先・同行者のみ入っていることがあるため、
+// その名残として表示する。新しい記録では通常つかない。
+function legacyBadge(record: LocalRecord): string | null {
+  if (record.handoff && record.handoff !== "なし") return `${record.handoff}に引き渡し`;
+  if (record.companion) return `${record.companion}登校`;
   return null;
 }
 
@@ -58,7 +63,8 @@ export default function TimelinePage() {
         <ul className="flex flex-col gap-2.5">
           {records.map((record) => {
             const own = isOwnRecord(record, session?.user.id, authLoading);
-            const badge = outcomeBadge(record);
+            const outcome = OUTCOME_OPTIONS.find((o) => o.value === record.outcome);
+            const legacy = legacyBadge(record);
             const allTags = [
               ...record.wakeTags,
               ...record.triggerTags,
@@ -77,21 +83,17 @@ export default function TimelinePage() {
                       {record.wakeTime}起床
                     </span>
                   )}
-                  {record.struggled === false && (
-                    <span className="rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[11px] font-bold text-[var(--accent)]">
-                      😊 スムーズ
+                  {outcome && (
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${OUTCOME_BADGE_STYLES[outcome.color]}`}
+                    >
+                      {outcome.emoji} {outcome.label}
                     </span>
                   )}
                   {!own && <PartnerAvatar email={emailMap.get(record.userId ?? "")} />}
-                  {badge && (
-                    <span
-                      className={`ml-auto rounded-full px-2.5 py-1 text-[11px] font-bold ${
-                        badge.tone === "handoff"
-                          ? "bg-[var(--amber-soft)] text-[var(--amber)]"
-                          : "bg-[var(--accent-soft)] text-[var(--accent)]"
-                      }`}
-                    >
-                      {badge.label}
+                  {legacy && (
+                    <span className="ml-auto rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-bold text-[var(--sub)]">
+                      {legacy}
                     </span>
                   )}
                 </div>

@@ -1,10 +1,11 @@
+import type { Outcome } from "@/constants/choices";
 import { localDb, type LocalRecord } from "./localDb";
 import { syncPendingChanges } from "./sync";
 
 export interface RecordFormInput {
   id: string;
   recordDate: string;
-  struggled?: boolean | null;
+  outcome?: Outcome | null;
   wakeTime: string | null;
   wakeTags: string[];
   triggerTags: string[];

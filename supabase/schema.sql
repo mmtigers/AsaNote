@@ -7,6 +7,7 @@ create table if not exists records (
   user_id uuid not null references auth.users(id) on delete cascade,
   record_date date not null,
   struggled boolean,
+  outcome text,
   wake_time time,
   wake_tags text[] not null default '{}',
   trigger_tags text[] not null default '{}',
@@ -22,7 +23,12 @@ create table if not exists records (
 
 -- 既存環境向け: create table if not existsは新規列を追加しないため、
 -- 登校を渋ったか(struggled)を後から入れられるようにここで個別に追加する。
+-- outcome(スムーズ/行き渋り/お休みの3値)導入後は使われないが、過去データを
+-- 保持するため列自体は残す(破壊的なdropは行わない)。
 alter table records add column if not exists struggled boolean;
+
+-- 登校の結果。'smooth' | 'reluctant' | 'absent'。
+alter table records add column if not exists outcome text;
 
 create index if not exists idx_records_user_id on records(user_id);
 create index if not exists idx_records_record_date on records(record_date desc);

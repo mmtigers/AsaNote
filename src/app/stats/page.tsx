@@ -4,6 +4,13 @@ import { useMemo } from "react";
 import { SkeletonList } from "@/components/Skeleton";
 import { useRecordsTimeline } from "@/lib/db/queries";
 import type { LocalRecord } from "@/lib/db/localDb";
+import { OUTCOME_OPTIONS, type Outcome } from "@/constants/choices";
+
+const OUTCOME_BAR_STYLES: Record<Outcome, string> = {
+  smooth: "bg-[var(--accent)]",
+  reluctant: "bg-[var(--amber)]",
+  absent: "bg-[var(--calm)]",
+};
 
 function countTags(records: LocalRecord[], pick: (r: LocalRecord) => string[]): [string, number][] {
   const counts = new Map<string, number>();
@@ -16,7 +23,7 @@ function countTags(records: LocalRecord[], pick: (r: LocalRecord) => string[]): 
 function BarList({ title, data, total }: { title: string; data: [string, number][]; total: number }) {
   if (data.length === 0) return null;
   return (
-    <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
+    <section className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm">
       <h2 className="mb-3 text-sm font-bold">{title}</h2>
       <div className="flex flex-col gap-2.5">
         {data.slice(0, 6).map(([label, count]) => (
@@ -44,99 +51,86 @@ export default function StatsPage() {
   const summary = useMemo(() => {
     if (!records) return null;
     const total = records.length;
-    const handoffCount = records.filter((r) => r.handoff && r.handoff !== "なし").length;
-    const aloneCount = records.filter((r) => r.companion === "一人で").length;
-    const wakeTimes = records.map((r) => r.wakeTime).filter((t): t is string => !!t);
-    const avgWake = wakeTimes.length
-      ? (() => {
-          const totalMin = wakeTimes.reduce((sum, t) => {
-            const [h, m] = t.split(":").map(Number);
-            return sum + h * 60 + m;
-          }, 0);
-          const avg = Math.round(totalMin / wakeTimes.length);
-          return `${String(Math.floor(avg / 60)).padStart(2, "0")}:${String(avg % 60).padStart(2, "0")}`;
-        })()
-      : null;
 
-    // 「渋ったか」を選んで保存した記録のみが対象(古い記録・未選択分は集計から除く)。
-    const classified = records.filter((r) => r.struggled === true || r.struggled === false);
-    const smoothRecords = classified.filter((r) => r.struggled === false);
-    const smoothCount = smoothRecords.length;
-    const smoothRate = classified.length ? Math.round((smoothCount / classified.length) * 100) : null;
+    // 「今日はどうだった？」を選んで保存した記録のみが対象(未選択・旧形式の記録は除く)。
+    const classified = records.filter((r): r is LocalRecord & { outcome: Outcome } => !!r.outcome);
+    const byOutcome = OUTCOME_OPTIONS.map((opt) => {
+      const matched = classified.filter((r) => r.outcome === opt.value);
+      return {
+        ...opt,
+        count: matched.length,
+        rate: classified.length ? Math.round((matched.length / classified.length) * 100) : 0,
+        records: matched,
+      };
+    });
+
+    const smoothRecords = byOutcome.find((o) => o.value === "smooth")?.records ?? [];
+    const notSmoothRecords = classified.filter((r) => r.outcome !== "smooth");
 
     return {
       total,
-      handoffCount,
-      aloneCount,
-      avgWake,
-      smoothCount,
-      smoothTotal: classified.length,
-      smoothRate,
-      // 渋った日と違い、うまくいった日は「様子」タグを集めないため、代わりに
-      // 常に入力される同行者を「よく出る傾向」として集計する。
-      smoothCompanions: countTags(smoothRecords, (r) => (r.companion ? [r.companion] : [])),
-      triggers: countTags(records, (r) => r.triggerTags.filter((t) => t !== "特になし")),
-      reasons: countTags(records, (r) => r.reasonTags),
-      responses: countTags(records, (r) => r.responseTags),
+      classifiedTotal: classified.length,
+      byOutcome,
+      positiveReasons: countTags(smoothRecords, (r) => r.reasonTags),
+      negativeReasons: countTags(notSmoothRecords, (r) => r.reasonTags),
     };
   }, [records]);
 
   return (
     <main className="mx-auto flex max-w-md flex-col gap-3 px-4 pt-6">
       <header>
-        <h1 className="text-lg font-bold">傾向</h1>
+        <h1 className="text-lg font-bold">🌷 傾向</h1>
         <p className="mt-1 text-xs text-[var(--sub)]">
-          これまでの記録から、よくある「きっかけ」「理由」「対応」を集計しています。
+          いい日も気になる日も、どちらも振り返れるようにまとめています。
         </p>
       </header>
 
       {!summary ? (
         <SkeletonList rows={3} />
       ) : summary.total === 0 ? (
-        <p className="rounded-2xl bg-[var(--surface-2)] px-4 py-6 text-center text-sm text-[var(--sub)]">
+        <p className="rounded-3xl bg-[var(--surface-2)] px-4 py-6 text-center text-sm text-[var(--sub)]">
           記録がまだ無いので、ここには何も表示されません。
         </p>
       ) : (
         <>
-          <section className="grid grid-cols-3 gap-2.5">
-            <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-3 text-center">
-              <p className="text-[11px] text-[var(--sub)]">記録数</p>
-              <p className="mt-1 text-xl font-bold tabular-nums">{summary.total}</p>
+          <section className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm">
+            <div className="flex items-baseline justify-between">
+              <h2 className="text-sm font-bold">これまでの内訳</h2>
+              <span className="text-[11px] text-[var(--sub)]">全{summary.total}件</span>
             </div>
-            <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-3 text-center">
-              <p className="text-[11px] text-[var(--sub)]">平均起床</p>
-              <p className="mt-1 text-xl font-bold tabular-nums">{summary.avgWake ?? "-"}</p>
-            </div>
-            <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-3 text-center">
-              <p className="text-[11px] text-[var(--sub)]">引き渡し</p>
-              <p className="mt-1 text-xl font-bold tabular-nums text-[var(--amber)]">
-                {summary.handoffCount}
+
+            {summary.classifiedTotal > 0 ? (
+              <>
+                <div className="mt-3 flex h-3 overflow-hidden rounded-full bg-[var(--surface-2)]">
+                  {summary.byOutcome.map((o) =>
+                    o.count > 0 ? (
+                      <div
+                        key={o.value}
+                        className={OUTCOME_BAR_STYLES[o.value]}
+                        style={{ width: `${o.rate}%` }}
+                      />
+                    ) : null
+                  )}
+                </div>
+                <div className="mt-3 grid grid-cols-3 gap-2">
+                  {summary.byOutcome.map((o) => (
+                    <div key={o.value} className="text-center">
+                      <p className="text-lg leading-none">{o.emoji}</p>
+                      <p className="mt-1 text-lg font-bold tabular-nums">{o.count}</p>
+                      <p className="text-[11px] text-[var(--sub)]">{o.label}({o.rate}%)</p>
+                    </div>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p className="mt-2 text-[12px] text-[var(--sub)]">
+                「今日はどうだった？」を選んで記録すると、ここに内訳が出ます。
               </p>
-            </div>
+            )}
           </section>
 
-          {summary.smoothTotal > 0 && (
-            <section className="rounded-2xl border border-[var(--line)] bg-[var(--accent-soft)] p-4">
-              <h2 className="mb-1 text-sm font-bold">😊 スムーズだった日</h2>
-              <p className="text-2xl font-bold tabular-nums text-[var(--accent)]">
-                {summary.smoothCount}
-                <span className="ml-1 text-sm font-medium">日</span>
-                <span className="ml-2 text-base font-medium">({summary.smoothRate}%)</span>
-              </p>
-              <p className="mt-1 text-[11px] text-[var(--sub)]">
-                「今日はどうだった？」を選んだ{summary.smoothTotal}日のうち
-              </p>
-            </section>
-          )}
-
-          <BarList
-            title="うまくいった日によく見られる同行スタイル"
-            data={summary.smoothCompanions}
-            total={summary.smoothCount}
-          />
-          <BarList title="前日のきっかけ" data={summary.triggers} total={summary.total} />
-          <BarList title="渋る理由" data={summary.reasons} total={summary.total} />
-          <BarList title="親の対応" data={summary.responses} total={summary.total} />
+          <BarList title="😊 よかった日によく見られる理由" data={summary.positiveReasons} total={summary.total} />
+          <BarList title="😣 気になる日によく見られる理由" data={summary.negativeReasons} total={summary.total} />
         </>
       )}
     </main>
