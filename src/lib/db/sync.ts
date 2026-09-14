@@ -82,12 +82,12 @@ export async function syncPendingChanges() {
         // 一括upsertは1件でもエラーになると全体が失敗するため、失敗時のみ1件ずつ
         // 再試行し、問題のない他のレコードまで巻き込まれないようにする。
         console.warn(`records一括同期に失敗しました(${pendingRecords.length}件)。1件ずつ再試行します:`, error);
-        for (let i = 0; i < pendingRecords.length; i++) {
-          const { error: rowError } = await supabase.from("records").upsert(rows[i]);
+        for (const record of pendingRecords) {
+          const { error: rowError } = await supabase.from("records").upsert(toRecordRow(record, userId));
           if (rowError) {
-            console.warn(`record同期に失敗しました(id=${pendingRecords[i].id}):`, rowError);
+            console.warn(`record同期に失敗しました(id=${record.id}):`, rowError);
           } else {
-            await localDb.records.update(pendingRecords[i].id, { syncStatus: "synced" });
+            await localDb.records.update(record.id, { syncStatus: "synced" });
           }
         }
       }
