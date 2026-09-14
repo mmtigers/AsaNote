@@ -1,0 +1,68 @@
+@import url("https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&family=Noto+Sans+JP:wght@400;500;700&display=swap");
+@import "tailwindcss";
+
+:root {
+  --bg: #f6f3ec;
+  --surface: #ffffff;
+  --surface-2: #fbf7ef;
+  --ink: #2a2823;
+  --sub: #71695d;
+  --line: #e7dfcf;
+  --accent: #2f7a6e;
+  --accent-ink: #ffffff;
+  --accent-soft: #dceee9;
+  --amber: #b96a2c;
+  --amber-soft: #f3e1ce;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1b1d1a;
+    --surface: #242723;
+    --surface-2: #2a2d28;
+    --ink: #ece8de;
+    --sub: #a69e90;
+    --line: #3a3d36;
+    --accent: #63b3a2;
+    --accent-ink: #0f231e;
+    --accent-soft: #243733;
+    --amber: #e3a568;
+    --amber-soft: #3a2e20;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #1b1d1a;
+  --surface: #242723;
+  --surface-2: #2a2d28;
+  --ink: #ece8de;
+  --sub: #a69e90;
+  --line: #3a3d36;
+  --accent: #63b3a2;
+  --accent-ink: #0f231e;
+  --accent-soft: #243733;
+  --amber: #e3a568;
+  --amber-soft: #3a2e20;
+  color-scheme: dark;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Noto Sans JP", system-ui, sans-serif;
+}
+
+h1,
+h2,
+h3 {
+  font-family: "Zen Maru Gothic", "Noto Sans JP", sans-serif;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.001ms !important;
+    animation-duration: 0.001ms !important;
+  }
+}
