@@ -1,4 +1,5 @@
 import { getSupabaseClient } from "@/lib/supabase/client";
+import type { Outcome } from "@/constants/choices";
 import type { SchoolRecord } from "@/types/models";
 import { localDb, type LocalRecord } from "./localDb";
 
@@ -11,7 +12,7 @@ function toRecordRow(record: LocalRecord, userId: string) {
     id: record.id,
     user_id: userId,
     record_date: record.recordDate,
-    struggled: record.struggled ?? null,
+    outcome: record.outcome ?? null,
     wake_time: record.wakeTime,
     wake_tags: record.wakeTags,
     trigger_tags: record.triggerTags,
@@ -30,7 +31,7 @@ interface CloudRecordRow {
   id: string;
   user_id: string;
   record_date: string;
-  struggled: boolean | null;
+  outcome: Outcome | null;
   wake_time: string | null;
   wake_tags: string[] | null;
   trigger_tags: string[] | null;
@@ -48,7 +49,7 @@ function fromRecordRow(row: CloudRecordRow): LocalRecord {
   const record: SchoolRecord = {
     id: row.id,
     recordDate: row.record_date,
-    struggled: row.struggled,
+    outcome: row.outcome,
     wakeTime: row.wake_time,
     wakeTags: row.wake_tags ?? [],
     triggerTags: row.trigger_tags ?? [],
