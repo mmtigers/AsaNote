@@ -175,6 +175,11 @@ export default function HomePage() {
   // タイムラインの「編集する」から日付指定で遷移してきた場合は、その日付を開いた上で
   // 記録内容に応じたステップまで自動で進める(一度きり)。
   const cameFromEditLink = useRef(false);
+  // 下書き復元によるステップ・履歴の復元は、日付ごとに最初の1回だけ行う。
+  // (session?.user.idの解決などでこのeffectが再実行されても、その都度
+  // pushHistoryToStepを呼ぶとブラウザ履歴に同じステップが重複して積まれ、
+  // 「もどる」を押しても1つ前が同じ画面のままになってしまうため)
+  const draftRestoredDateRef = useRef<string | null>(null);
   useEffect(() => {
     const requested = new URLSearchParams(window.location.search).get("date");
     if (requested) {
@@ -202,9 +207,12 @@ export default function HomePage() {
     const draft = loadDraft();
     if (draft && draft.date === date) {
       setForm(draft.form);
-      pushHistoryToStep(draft.step);
-      setStep(draft.step);
-      setDetailOpen(draft.detailOpen);
+      if (draftRestoredDateRef.current !== date) {
+        draftRestoredDateRef.current = date;
+        pushHistoryToStep(draft.step);
+        setStep(draft.step);
+        setDetailOpen(draft.detailOpen);
+      }
       setLoaded(true);
       return () => {
         active = false;
@@ -232,6 +240,7 @@ export default function HomePage() {
       }
       if (cameFromEditLink.current) {
         cameFromEditLink.current = false;
+        draftRestoredDateRef.current = date;
         const target: Step = existing?.outcome ? "reason" : "result";
         pushHistoryToStep(target);
         setStep(target);
