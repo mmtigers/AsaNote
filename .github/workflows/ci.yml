@@ -32,7 +32,8 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
         run: npm run build
 
-  db-types-bootstrap:
+  db-types-check:
+    name: Supabase type drift check
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -60,5 +61,12 @@ jobs:
         with:
           version: latest
 
-      - name: Generate types (print only, bootstrapping the committed snapshot)
-        run: supabase gen types typescript --db-url postgresql://postgres:postgres@localhost:5432/postgres
+      - name: Generate types
+        run: supabase gen types typescript --db-url postgresql://postgres:postgres@localhost:5432/postgres > /tmp/database.types.ts
+
+      - name: Check for type drift
+        run: |
+          if ! diff -u src/lib/db/database.types.ts /tmp/database.types.ts; then
+            echo "::error::supabase/schema.sqlの変更がsrc/lib/db/database.types.tsへ反映されていません。'npm run db:types'(要Docker)で再生成し、差分をコミットしてください。"
+            exit 1
+          fi
