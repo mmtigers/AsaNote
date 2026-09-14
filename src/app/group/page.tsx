@@ -15,8 +15,8 @@ import {
   leaveGroup,
 } from "@/lib/db/groups";
 import { pullFromCloud } from "@/lib/db/sync";
-import { describeErrorForUser } from "@/lib/errors";
 import type { Group, GroupInvite, GroupMemberProfile } from "@/types/models";
+import { runAction, runSilently } from "./runAction";
 
 const SHARE_COPIED_VISIBLE_MS = 2000;
 
@@ -59,12 +59,7 @@ export default function GroupPage() {
       setLoading(false);
       return;
     }
-    refresh()
-      .catch((error) => {
-        console.error(error);
-        setErrorMessage(describeErrorForUser(error, "共有設定の取得に失敗しました"));
-      })
-      .finally(() => setLoading(false));
+    runAction(refresh, "共有設定の取得に失敗しました", setErrorMessage).finally(() => setLoading(false));
   }, [authLoading, session, refresh]);
 
   useEffect(() => {
@@ -77,70 +72,54 @@ export default function GroupPage() {
     if (creating) return;
     setErrorMessage(null);
     setCreating(true);
-    let newGroup: Group;
-    try {
-      newGroup = await createGroup();
-      setGroup(newGroup);
-    } catch (error) {
-      console.error(error);
-      setErrorMessage(describeErrorForUser(error, "グループの作成に失敗しました"));
+
+    const created = await runAction(createGroup, "グループの作成に失敗しました", setErrorMessage);
+    if (!created.ok) {
       setCreating(false);
       return;
     }
-    try {
-      setMembers(await getGroupMembers());
-    } catch (error) {
-      console.error(error);
-    }
-    try {
-      setInvite(await createInvite(newGroup.id));
-    } catch (error) {
-      console.error(error);
-      setErrorMessage(
-        describeErrorForUser(
-          error,
-          "グループを作成しましたが、招待コードの発行に失敗しました。下のボタンから発行し直してください"
-        )
-      );
-    } finally {
-      setCreating(false);
-    }
+    const newGroup = created.value;
+    setGroup(newGroup);
+
+    await runSilently(async () => setMembers(await getGroupMembers()));
+    await runAction(
+      async () => setInvite(await createInvite(newGroup.id)),
+      "グループを作成しましたが、招待コードの発行に失敗しました。下のボタンから発行し直してください",
+      setErrorMessage
+    );
+    setCreating(false);
   }
 
   async function handleJoinGroup() {
     setErrorMessage(null);
     setJoining(true);
-    try {
-      await joinGroupByCode(joinCodeInput);
-      setJoinCodeInput("");
-    } catch (error) {
-      console.error(error);
-      setErrorMessage(describeErrorForUser(error, "参加に失敗しました"));
+
+    const joined = await runAction(
+      async () => {
+        await joinGroupByCode(joinCodeInput);
+        setJoinCodeInput("");
+      },
+      "参加に失敗しました",
+      setErrorMessage
+    );
+    if (!joined.ok) {
       setJoining(false);
       return;
     }
-    try {
+
+    await runSilently(async () => {
       await refresh();
       void pullFromCloud();
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setJoining(false);
-    }
+    });
+    setJoining(false);
   }
 
   async function handleIssueInvite() {
     if (!group) return;
     setErrorMessage(null);
     setIssuingInvite(true);
-    try {
-      setInvite(await createInvite(group.id));
-    } catch (error) {
-      console.error(error);
-      setErrorMessage(describeErrorForUser(error, "招待コードの発行に失敗しました"));
-    } finally {
-      setIssuingInvite(false);
-    }
+    await runAction(async () => setInvite(await createInvite(group.id)), "招待コードの発行に失敗しました", setErrorMessage);
+    setIssuingInvite(false);
   }
 
   async function handleShareInvite() {
@@ -164,18 +143,18 @@ export default function GroupPage() {
     setConfirmingLeave(false);
     setLeaving(true);
     setErrorMessage(null);
-    try {
-      await leaveGroup();
-      setGroup(null);
-      setMembers([]);
-      setInvite(null);
-      void pullFromCloud();
-    } catch (error) {
-      console.error(error);
-      setErrorMessage(describeErrorForUser(error, "グループを抜ける処理に失敗しました"));
-    } finally {
-      setLeaving(false);
-    }
+    await runAction(
+      async () => {
+        await leaveGroup();
+        setGroup(null);
+        setMembers([]);
+        setInvite(null);
+        void pullFromCloud();
+      },
+      "グループを抜ける処理に失敗しました",
+      setErrorMessage
+    );
+    setLeaving(false);
   }
 
   if (authLoading || loading) {
