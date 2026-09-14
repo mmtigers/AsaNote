@@ -1,6 +1,7 @@
 import { getSupabaseClient } from "@/lib/supabase/client";
 import type { Outcome } from "@/constants/choices";
 import type { SchoolRecord } from "@/types/models";
+import type { Database } from "./database.types";
 import { localDb, type LocalRecord } from "./localDb";
 
 let syncing = false;
@@ -27,29 +28,17 @@ function toRecordRow(record: LocalRecord, userId: string) {
   };
 }
 
-interface CloudRecordRow {
-  id: string;
-  user_id: string;
-  record_date: string;
-  outcome: Outcome | null;
-  wake_time: string | null;
-  wake_tags: string[] | null;
-  trigger_tags: string[] | null;
-  reason_tags: string[] | null;
-  response_tags: string[] | null;
-  depart_time: string | null;
-  companion: string | null;
-  handoff: string | null;
-  memo: string | null;
-  created_at: string;
-  updated_at: string;
-}
+// supabase/schema.sqlとの型のズレを防ぐため、手書きせずsupabase gen types
+// typescript(database.types.ts)から導出する。outcomeはDB上はただのtext列
+// (アプリ側だけがOutcomeの3値に制限している)なので、生成された`string | null`
+// をここでOutcomeへ絞り込む。
+type CloudRecordRow = Database["public"]["Tables"]["records"]["Row"];
 
 function fromRecordRow(row: CloudRecordRow): LocalRecord {
   const record: SchoolRecord = {
     id: row.id,
     recordDate: row.record_date,
-    outcome: row.outcome,
+    outcome: row.outcome as Outcome | null,
     wakeTime: row.wake_time,
     wakeTags: row.wake_tags ?? [],
     triggerTags: row.trigger_tags ?? [],
