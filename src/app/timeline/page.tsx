@@ -11,19 +11,13 @@ import { deleteRecord } from "@/lib/db/records";
 import { useRecordsTimeline } from "@/lib/db/queries";
 import type { LocalRecord } from "@/lib/db/localDb";
 import { OUTCOME_OPTIONS } from "@/constants/choices";
-
-const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
+import { formatDateShort } from "@/lib/date";
 
 const OUTCOME_BADGE_STYLES = {
   accent: "bg-[var(--accent-soft)] text-[var(--accent)]",
   amber: "bg-[var(--amber-soft)] text-[var(--amber)]",
   calm: "bg-[var(--calm-soft)] text-[var(--calm)]",
 } as const;
-
-function formatDate(value: string): string {
-  const d = new Date(`${value}T00:00:00`);
-  return `${d.getMonth() + 1}/${d.getDate()}(${WEEKDAYS[d.getDay()]})`;
-}
 
 // 旧フォーム(〜v1)の記録には引き渡し先・同行者のみ入っていることがあるため、
 // その名残として表示する。新しい記録では通常つかない。
@@ -77,7 +71,7 @@ export default function TimelinePage() {
                 className="rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3.5 py-3"
               >
                 <div className="mb-1.5 flex items-center gap-2">
-                  <span className="text-sm font-bold">{formatDate(record.recordDate)}</span>
+                  <span className="text-sm font-bold">{formatDateShort(record.recordDate)}</span>
                   {record.wakeTime && (
                     <span className="text-xs tabular-nums text-[var(--sub)]">
                       {record.wakeTime}起床

@@ -11,7 +11,7 @@ import { ReasonStepView } from "./_home/ReasonStepView";
 import { useStepNavigation } from "./_home/useStepNavigation";
 import { useRecordForm } from "./_home/useRecordForm";
 import { useDraftPersistence } from "./_home/useDraftPersistence";
-import { addDays, formatDateLabel, toDateInputValue, toMonthOf } from "./_home/dateUtils";
+import { addDays, formatDateLabel, toDateInputValue, toMonthOf } from "@/lib/date";
 
 // 記録ボタンのスワイプ判定に使う最小移動距離(px)。これ未満は誤操作防止のため無視する。
 const SWIPE_THRESHOLD = 50;
