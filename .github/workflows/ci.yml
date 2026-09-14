@@ -31,3 +31,34 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
         run: npm run build
+
+  db-types-bootstrap:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Apply schema to scratch database
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql -h localhost -U postgres -d postgres -f supabase/ci/auth-stub.sql
+          psql -h localhost -U postgres -d postgres -f supabase/schema.sql
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Generate types (print only, bootstrapping the committed snapshot)
+        run: supabase gen types typescript --db-url postgresql://postgres:postgres@localhost:5432/postgres
