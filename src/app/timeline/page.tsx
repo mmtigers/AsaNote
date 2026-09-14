@@ -77,6 +77,11 @@ export default function TimelinePage() {
                       {record.wakeTime}起床
                     </span>
                   )}
+                  {record.struggled === false && (
+                    <span className="rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[11px] font-bold text-[var(--accent)]">
+                      😊 スムーズ
+                    </span>
+                  )}
                   {!own && <PartnerAvatar email={emailMap.get(record.userId ?? "")} />}
                   {badge && (
                     <span

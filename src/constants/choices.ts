@@ -2,6 +2,20 @@
 // ユーザーはアプリ内で「＋追加」からその場でカスタムタグを増やせるため、ここは
 // あくまで初期セット(よくあるもの)に過ぎない。
 
+// 起床時刻の選択肢。6:00〜8:00を15分刻みで用意する(自由入力にしない)。
+export const WAKE_TIME_OPTIONS: string[] = (() => {
+  const times: string[] = [];
+  for (let h = 6; h <= 8; h++) {
+    for (let m = 0; m < 60; m += 15) {
+      if (h === 8 && m > 0) break;
+      times.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
+    }
+  }
+  return times;
+})();
+
+export const RESULT_OPTIONS = ["スムーズに行けた", "渋った"] as const;
+
 export const WAKE_TAGS = [
   "すんなり起床",
   "渋々起床",

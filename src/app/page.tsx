@@ -10,8 +10,10 @@ import {
   HANDOFF_OPTIONS,
   REASON_TAGS,
   RESPONSE_TAGS,
+  RESULT_OPTIONS,
   TRIGGER_TAGS,
   WAKE_TAGS,
+  WAKE_TIME_OPTIONS,
 } from "@/constants/choices";
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
@@ -30,6 +32,7 @@ function formatDateLabel(value: string): string {
 
 interface FormState {
   id: string;
+  struggled: boolean | null;
   wakeTime: string;
   wakeTags: string[];
   triggerTags: string[];
@@ -44,6 +47,7 @@ interface FormState {
 function emptyForm(): FormState {
   return {
     id: crypto.randomUUID(),
+    struggled: null,
     wakeTime: "",
     wakeTags: [],
     triggerTags: [],
@@ -76,6 +80,15 @@ export default function HomePage() {
   const [responseOptions, setResponseOptions] = useState<string[]>([...RESPONSE_TAGS]);
   const [toast, setToast] = useState(false);
 
+  // 6:00〜8:00・15分刻みの選択肢に加え、範囲外の値(過去記録の自由入力分など)が
+  // あればそれも選べるようにして表示崩れ・データ消失を防ぐ。
+  const wakeTimeOptions = useMemo(() => {
+    if (form.wakeTime && !WAKE_TIME_OPTIONS.includes(form.wakeTime)) {
+      return [...WAKE_TIME_OPTIONS, form.wakeTime].sort();
+    }
+    return WAKE_TIME_OPTIONS;
+  }, [form.wakeTime]);
+
   useEffect(() => {
     let active = true;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 日付切り替え直後に前の日付のフォーム内容を一瞬でも出さないための同期リセット
@@ -85,6 +98,7 @@ export default function HomePage() {
       if (existing) {
         setForm({
           id: existing.id,
+          struggled: existing.struggled ?? null,
           wakeTime: existing.wakeTime ?? "",
           wakeTags: existing.wakeTags,
           triggerTags: existing.triggerTags,
@@ -120,22 +134,20 @@ export default function HomePage() {
 
   const preview = useMemo(() => {
     const segs: string[] = [];
-    if (form.wakeTime) {
-      let seg = `${form.wakeTime} 起床`;
-      if (form.wakeTags.length) seg += `（${form.wakeTags.join("・")}）`;
-      segs.push(seg);
-    } else if (form.wakeTags.length) {
-      segs.push(`起床時は${form.wakeTags.join("・")}`);
-    }
-    const trig = form.triggerTags.filter((t) => t !== "特になし");
-    if (trig.length) segs.push(`前日「${trig.join("・")}」があった様子`);
-    if (form.reasonTags.length) segs.push(`「${form.reasonTags.join("・")}」と登校を渋る`);
-    if (form.responseTags.length) segs.push(`「${form.responseTags.join("・")}」で対応`);
+    if (form.struggled !== null) segs.push(form.struggled ? "登校を渋った" : "スムーズに登校できた");
     let resultSeg = "";
     if (form.departTime) resultSeg += `${form.departTime}に`;
     if (form.companion) resultSeg += `${form.companion}登校`;
     if (resultSeg) segs.push(resultSeg);
     if (form.handoff && form.handoff !== "なし") segs.push(`${form.handoff}に引き渡し`);
+    if (form.wakeTime) segs.push(`${form.wakeTime} 起床`);
+    if (form.struggled) {
+      if (form.wakeTags.length) segs.push(`様子は「${form.wakeTags.join("・")}」`);
+      const trig = form.triggerTags.filter((t) => t !== "特になし");
+      if (trig.length) segs.push(`前日「${trig.join("・")}」があった様子`);
+      if (form.reasonTags.length) segs.push(`「${form.reasonTags.join("・")}」が要因`);
+      if (form.responseTags.length) segs.push(`「${form.responseTags.join("・")}」で対応`);
+    }
     if (form.memo) segs.push(form.memo);
     return segs.length ? segs.join("。") + "。" : "項目を選ぶと、ここに記録文のプレビューが表示されます。";
   }, [form]);
@@ -144,6 +156,7 @@ export default function HomePage() {
     await saveRecord({
       id: form.id,
       recordDate: date,
+      struggled: form.struggled,
       wakeTime: form.wakeTime || null,
       wakeTags: form.wakeTags,
       triggerTags: form.triggerTags,
@@ -199,59 +212,21 @@ export default function HomePage() {
 
       <main className="flex flex-col gap-3.5 px-4 py-4">
         <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm">
-          <h2 className="mb-3 text-sm font-bold">☀️ 起床</h2>
-          <div className="mb-3 flex items-center gap-2.5">
-            <label className="w-16 flex-none text-xs text-[var(--sub)]" htmlFor="wakeTime">
-              起床時刻
-            </label>
-            <input
-              id="wakeTime"
-              type="time"
-              value={form.wakeTime}
-              onChange={(e) => setForm((f) => ({ ...f, wakeTime: e.target.value }))}
-              className="rounded-lg border border-[var(--line)] bg-[var(--surface-2)] px-2.5 py-1.5 text-base font-medium tabular-nums"
+          <h2 className="mb-3 text-sm font-bold">🚶 登校の結果</h2>
+          <p className="mb-1.5 text-xs text-[var(--sub)]">今日はどうだった？</p>
+          <div className="mb-3">
+            <TagChips
+              options={[...RESULT_OPTIONS]}
+              value={form.struggled === null ? [] : [form.struggled ? "渋った" : "スムーズに行けた"]}
+              onChange={(next) =>
+                setForm((f) => ({
+                  ...f,
+                  struggled: next[0] === undefined ? null : next[0] === "渋った",
+                }))
+              }
+              multiple={false}
             />
           </div>
-          <TagChips
-            options={wakeOptions}
-            value={form.wakeTags}
-            onChange={(next) => setForm((f) => ({ ...f, wakeTags: next }))}
-            onAddCustom={(tag) => setWakeOptions((prev) => [...prev, tag])}
-          />
-        </section>
-
-        <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm">
-          <h2 className="mb-3 text-sm font-bold">💬 前日のきっかけ</h2>
-          <TagChips
-            options={triggerOptions}
-            value={form.triggerTags}
-            onChange={(next) => setForm((f) => ({ ...f, triggerTags: next }))}
-            onAddCustom={(tag) => setTriggerOptions((prev) => [...prev, tag])}
-          />
-        </section>
-
-        <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm">
-          <h2 className="mb-3 text-sm font-bold">✨ 渋る理由</h2>
-          <TagChips
-            options={reasonOptions}
-            value={form.reasonTags}
-            onChange={(next) => setForm((f) => ({ ...f, reasonTags: next }))}
-            onAddCustom={(tag) => setReasonOptions((prev) => [...prev, tag])}
-          />
-        </section>
-
-        <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm">
-          <h2 className="mb-3 text-sm font-bold">💚 親の対応</h2>
-          <TagChips
-            options={responseOptions}
-            value={form.responseTags}
-            onChange={(next) => setForm((f) => ({ ...f, responseTags: next }))}
-            onAddCustom={(tag) => setResponseOptions((prev) => [...prev, tag])}
-          />
-        </section>
-
-        <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm">
-          <h2 className="mb-3 text-sm font-bold">🚶 登校の結果</h2>
           <div className="mb-3 flex items-center gap-2.5">
             <label className="w-16 flex-none text-xs text-[var(--sub)]" htmlFor="departTime">
               出発時刻
@@ -281,6 +256,72 @@ export default function HomePage() {
             multiple={false}
           />
         </section>
+
+        <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm">
+          <h2 className="mb-3 text-sm font-bold">☀️ 起床時刻</h2>
+          <div className="flex items-center gap-2.5">
+            <label className="w-16 flex-none text-xs text-[var(--sub)]" htmlFor="wakeTime">
+              起床時刻
+            </label>
+            <select
+              id="wakeTime"
+              value={form.wakeTime}
+              onChange={(e) => setForm((f) => ({ ...f, wakeTime: e.target.value }))}
+              className="rounded-lg border border-[var(--line)] bg-[var(--surface-2)] px-2.5 py-1.5 text-base font-medium tabular-nums"
+            >
+              <option value="">未選択</option>
+              {wakeTimeOptions.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </div>
+        </section>
+
+        {form.struggled && (
+          <>
+            <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm">
+              <h2 className="mb-3 text-sm font-bold">😟 渋ったときの様子</h2>
+              <TagChips
+                options={wakeOptions}
+                value={form.wakeTags}
+                onChange={(next) => setForm((f) => ({ ...f, wakeTags: next }))}
+                onAddCustom={(tag) => setWakeOptions((prev) => [...prev, tag])}
+              />
+            </section>
+
+            <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm">
+              <h2 className="mb-3 text-sm font-bold">💭 考えられる要因</h2>
+              <p className="mb-1.5 text-xs text-[var(--sub)]">前日のきっかけ</p>
+              <div className="mb-3">
+                <TagChips
+                  options={triggerOptions}
+                  value={form.triggerTags}
+                  onChange={(next) => setForm((f) => ({ ...f, triggerTags: next }))}
+                  onAddCustom={(tag) => setTriggerOptions((prev) => [...prev, tag])}
+                />
+              </div>
+              <p className="mb-1.5 text-xs text-[var(--sub)]">渋る理由</p>
+              <TagChips
+                options={reasonOptions}
+                value={form.reasonTags}
+                onChange={(next) => setForm((f) => ({ ...f, reasonTags: next }))}
+                onAddCustom={(tag) => setReasonOptions((prev) => [...prev, tag])}
+              />
+            </section>
+
+            <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm">
+              <h2 className="mb-3 text-sm font-bold">💚 親の対応</h2>
+              <TagChips
+                options={responseOptions}
+                value={form.responseTags}
+                onChange={(next) => setForm((f) => ({ ...f, responseTags: next }))}
+                onAddCustom={(tag) => setResponseOptions((prev) => [...prev, tag])}
+              />
+            </section>
+          </>
+        )}
 
         <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm">
           <h2 className="mb-3 text-sm font-bold">🚩 振り返りメモ（任意）</h2>

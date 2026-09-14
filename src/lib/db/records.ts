@@ -4,6 +4,7 @@ import { syncPendingChanges } from "./sync";
 export interface RecordFormInput {
   id: string;
   recordDate: string;
+  struggled?: boolean | null;
   wakeTime: string | null;
   wakeTags: string[];
   triggerTags: string[];
