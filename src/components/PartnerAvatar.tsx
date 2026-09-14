@@ -4,7 +4,7 @@
 // メールアドレスの先頭1文字を丸バッジで表示する軽量な代替アバター。
 export function PartnerAvatar({ email }: { email: string | null | undefined }) {
   const trimmed = (email ?? "").trim();
-  const initial = trimmed ? trimmed[0].toUpperCase() : "?";
+  const initial = trimmed ? trimmed.charAt(0).toUpperCase() : "?";
 
   return (
     <span
