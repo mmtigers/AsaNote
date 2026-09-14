@@ -3,6 +3,7 @@ import type { Outcome } from "@/constants/choices";
 import type { SchoolRecord } from "@/types/models";
 import type { Database } from "./database.types";
 import { localDb, type LocalRecord } from "./localDb";
+import { reportSyncOutcome } from "./syncStatus";
 
 let syncing = false;
 let pulling = false;
@@ -62,6 +63,10 @@ export async function syncPendingChanges() {
   if (typeof navigator !== "undefined" && !navigator.onLine) return;
 
   syncing = true;
+  // 実際に送信を試みた場合だけ結果を報告する(未ログイン/送るものが無い場合は
+  // 「同期に失敗している」わけではないため、失敗カウントに影響させない)。
+  let hadWork = false;
+  let hadError = false;
   try {
     const supabase = getSupabaseClient();
     const { data: userData } = await supabase.auth.getUser();
@@ -71,6 +76,7 @@ export async function syncPendingChanges() {
     const pendingRecords = await localDb.records.where("syncStatus").equals("pending").toArray();
 
     if (pendingRecords.length > 0) {
+      hadWork = true;
       const rows = pendingRecords.map((r) => toRecordRow(r, userId));
       const { error } = await supabase.from("records").upsert(rows);
 
@@ -86,6 +92,7 @@ export async function syncPendingChanges() {
           const { error: rowError } = await supabase.from("records").upsert(toRecordRow(record, userId));
           if (rowError) {
             console.warn(`record同期に失敗しました(id=${record.id}):`, rowError);
+            hadError = true;
           } else {
             await localDb.records.update(record.id, { syncStatus: "synced" });
           }
@@ -95,19 +102,24 @@ export async function syncPendingChanges() {
 
     const pendingDeletes = await localDb.pendingRecordDeletes.toArray();
     if (pendingDeletes.length > 0) {
+      hadWork = true;
       const ids = pendingDeletes.map((d) => d.id);
       const { error } = await supabase.from("records").delete().in("id", ids);
 
       if (error) {
         console.warn(`records削除の同期に失敗しました(${ids.length}件):`, error);
+        hadError = true;
       } else {
         await localDb.pendingRecordDeletes.bulkDelete(ids);
       }
     }
   } catch (error) {
     console.warn("Supabaseへの同期をスキップしました:", error);
+    hadWork = true;
+    hadError = true;
   } finally {
     syncing = false;
+    if (hadWork) reportSyncOutcome(!hadError);
   }
 }
 
@@ -123,15 +135,19 @@ export async function pullFromCloud() {
   if (typeof navigator !== "undefined" && !navigator.onLine) return;
 
   pulling = true;
+  let hadWork = false;
+  let hadError = false;
   try {
     const supabase = getSupabaseClient();
     const { data: userData } = await supabase.auth.getUser();
     const userId = userData.user?.id;
     if (!userId) return;
 
+    hadWork = true;
     const { data, error } = await supabase.from("records").select("*");
     if (error) {
       console.warn("recordsのpullに失敗しました:", error);
+      hadError = true;
       return;
     }
     const remoteRecords = (data ?? []) as CloudRecordRow[];
@@ -157,8 +173,11 @@ export async function pullFromCloud() {
     }
   } catch (error) {
     console.warn("Supabaseからの取り込みをスキップしました:", error);
+    hadWork = true;
+    hadError = true;
   } finally {
     pulling = false;
+    if (hadWork) reportSyncOutcome(!hadError);
   }
 }
 

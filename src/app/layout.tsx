@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { BottomNav } from "@/components/BottomNav";
+import { SyncFailureNotice } from "@/components/SyncFailureNotice";
 import { AuthProvider } from "@/lib/auth/AuthProvider";
 import "./globals.css";
 
@@ -37,6 +38,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <ServiceWorkerRegister />
         <AuthProvider>
           <div className="flex-1 pb-20">{children}</div>
+          <SyncFailureNotice />
           <BottomNav />
         </AuthProvider>
       </body>
