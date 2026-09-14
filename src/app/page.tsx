@@ -61,6 +61,42 @@ function emptyForm(): FormState {
 
 type Step = "home" | "result" | "reason";
 
+interface Draft {
+  date: string;
+  step: Step;
+  detailOpen: boolean;
+  form: FormState;
+}
+
+const DRAFT_STORAGE_KEY = "asa-note:draft";
+
+// 記録の途中でタイムラインなど他の画面を見に行っても、戻ってきたときに入力が
+// 消えていないようlocalStorageに一時保存する(保存が完了したら消す使い捨ての下書き)。
+function loadDraft(): Draft | null {
+  try {
+    const raw = window.localStorage.getItem(DRAFT_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as Draft) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveDraft(draft: Draft) {
+  try {
+    window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
+  } catch {
+    // プライベートブラウジング等で書き込めない場合はあきらめる(入力自体は継続できる)
+  }
+}
+
+function clearDraft() {
+  try {
+    window.localStorage.removeItem(DRAFT_STORAGE_KEY);
+  } catch {
+    // 同上
+  }
+}
+
 export default function HomePage() {
   const { session } = useAuth();
   const todayValue = useMemo(() => toDateInputValue(new Date()), []);
@@ -89,6 +125,20 @@ export default function HomePage() {
     let active = true;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 日付切り替え直後に前の日付のフォーム内容を一瞬でも出さないための同期リセット
     setLoaded(false);
+
+    // 保存前の下書きがこの日付のものなら、Dexieの内容より優先して復元する
+    // (他の画面を見て戻ってきても、入力途中のデータを失わないため)。
+    const draft = loadDraft();
+    if (draft && draft.date === date) {
+      setForm(draft.form);
+      setStep(draft.step);
+      setDetailOpen(draft.detailOpen);
+      setLoaded(true);
+      return () => {
+        active = false;
+      };
+    }
+
     findLatestOwnRecordForDate(date, session?.user.id ?? null).then((existing) => {
       if (!active) return;
       if (existing) {
@@ -119,6 +169,17 @@ export default function HomePage() {
       active = false;
     };
   }, [date, session?.user.id]);
+
+  // 結果選択・理由入力ステップにいる間は、入力内容を下書きとして保存し続ける。
+  // ホームに戻ったとき(保存完了後を含む)は不要になるので下書きを消す。
+  useEffect(() => {
+    if (!loaded) return;
+    if (step === "home") {
+      clearDraft();
+      return;
+    }
+    saveDraft({ date, step, detailOpen, form });
+  }, [loaded, step, detailOpen, form, date]);
 
   function jumpToday() {
     setDate(todayValue);
@@ -244,7 +305,7 @@ export default function HomePage() {
         )}
       </header>
 
-      <main className="flex flex-col gap-3.5 px-4 py-5">
+      <main className="flex min-h-[70vh] flex-col justify-end gap-3.5 px-4 py-5">
         {step === "home" &&
           (!loaded ? (
             <div className="h-40 animate-pulse rounded-3xl bg-[var(--surface-2)]" />
@@ -361,7 +422,7 @@ export default function HomePage() {
               type="button"
               onClick={handleSave}
               disabled={!loaded}
-              className="mt-1 flex w-full items-center justify-center gap-2 rounded-full bg-[var(--accent)] py-3.5 text-base font-bold text-[var(--accent-ink)] shadow-md disabled:opacity-60"
+              className="sticky bottom-4 z-20 mt-1 flex w-full items-center justify-center gap-2 rounded-full bg-[var(--accent)] py-3.5 text-base font-bold text-[var(--accent-ink)] shadow-lg disabled:opacity-60"
             >
               ✓ この日の記録を保存する
             </button>
