@@ -4,12 +4,17 @@ import { pullFromCloud, syncPendingChanges } from "./sync";
 
 const authGetUser = vi.fn();
 const fromMock = vi.fn();
+const reportSyncOutcome = vi.fn();
 
 vi.mock("@/lib/supabase/client", () => ({
   getSupabaseClient: () => ({
     auth: { getUser: authGetUser },
     from: fromMock,
   }),
+}));
+
+vi.mock("./syncStatus", () => ({
+  reportSyncOutcome: (...args: unknown[]) => reportSyncOutcome(...args),
 }));
 
 function makeLocalRecord(overrides: Partial<LocalRecord> = {}): LocalRecord {
@@ -74,6 +79,7 @@ beforeEach(async () => {
   await clearLocalData();
   authGetUser.mockReset();
   fromMock.mockReset();
+  reportSyncOutcome.mockReset();
   setOnline(true);
   authGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
 });
@@ -87,6 +93,7 @@ describe("syncPendingChanges", () => {
 
     expect(fromMock).not.toHaveBeenCalled();
     expect((await localDb.records.get("r1"))?.syncStatus).toBe("pending");
+    expect(reportSyncOutcome).not.toHaveBeenCalled();
   });
 
   it("未ログインの場合は同期を行わない", async () => {
@@ -96,9 +103,16 @@ describe("syncPendingChanges", () => {
     await syncPendingChanges();
 
     expect(fromMock).not.toHaveBeenCalled();
+    expect(reportSyncOutcome).not.toHaveBeenCalled();
   });
 
-  it("一括upsertが成功した場合、pendingの記録をsyncedへ更新する", async () => {
+  it("送信するものが無い場合は結果を報告しない", async () => {
+    await syncPendingChanges();
+
+    expect(reportSyncOutcome).not.toHaveBeenCalled();
+  });
+
+  it("一括upsertが成功した場合、pendingの記録をsyncedへ更新し、成功を報告する", async () => {
     await localDb.records.add(makeLocalRecord({ id: "r1" }));
     await localDb.records.add(makeLocalRecord({ id: "r2" }));
     const upsert = vi.fn().mockResolvedValue({ error: null });
@@ -109,9 +123,10 @@ describe("syncPendingChanges", () => {
     expect(upsert).toHaveBeenCalledTimes(1);
     expect((await localDb.records.get("r1"))?.syncStatus).toBe("synced");
     expect((await localDb.records.get("r2"))?.syncStatus).toBe("synced");
+    expect(reportSyncOutcome).toHaveBeenCalledWith(true);
   });
 
-  it("一括upsertが失敗した場合、1件ずつ再試行し、失敗した行だけpendingのまま残す", async () => {
+  it("一括upsertが失敗した場合、1件ずつ再試行し、失敗した行だけpendingのまま残し、失敗を報告する", async () => {
     await localDb.records.add(makeLocalRecord({ id: "ok" }));
     await localDb.records.add(makeLocalRecord({ id: "ng" }));
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -130,6 +145,7 @@ describe("syncPendingChanges", () => {
     expect((await localDb.records.get("ok"))?.syncStatus).toBe("synced");
     expect((await localDb.records.get("ng"))?.syncStatus).toBe("pending");
     expect(warnSpy).toHaveBeenCalled();
+    expect(reportSyncOutcome).toHaveBeenCalledWith(false);
     warnSpy.mockRestore();
   });
 
@@ -144,7 +160,7 @@ describe("syncPendingChanges", () => {
     expect(await localDb.pendingRecordDeletes.count()).toBe(0);
   });
 
-  it("削除の同期が失敗した場合、pendingRecordDeletesに残したまま再試行できるようにする", async () => {
+  it("削除の同期が失敗した場合、pendingRecordDeletesに残したまま再試行できるようにし、失敗を報告する", async () => {
     await localDb.pendingRecordDeletes.add({ id: "del-1" });
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     const del = vi.fn().mockResolvedValue({ error: new Error("delete failed") });
@@ -153,6 +169,7 @@ describe("syncPendingChanges", () => {
     await syncPendingChanges();
 
     expect(await localDb.pendingRecordDeletes.get("del-1")).toEqual({ id: "del-1" });
+    expect(reportSyncOutcome).toHaveBeenCalledWith(false);
     warnSpy.mockRestore();
   });
 
@@ -219,7 +236,7 @@ describe("pullFromCloud", () => {
     expect(await localDb.records.get("own-draft")).toBeDefined();
   });
 
-  it("クラウドの記録をローカルへ取り込む", async () => {
+  it("クラウドの記録をローカルへ取り込み、成功を報告する", async () => {
     mockRecordsTable({
       select: vi.fn().mockResolvedValue({
         data: [makeCloudRow({ id: "cloud-1", user_id: "user-2", outcome: "smooth" })],
@@ -232,13 +249,36 @@ describe("pullFromCloud", () => {
     const stored = await localDb.records.get("cloud-1");
     expect(stored?.syncStatus).toBe("synced");
     expect(stored?.userId).toBe("user-2");
+    expect(reportSyncOutcome).toHaveBeenCalledWith(true);
   });
 
-  it("オフライン時はSupabaseを呼ばない", async () => {
+  it("pullが失敗した場合、失敗を報告する", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    mockRecordsTable({
+      select: vi.fn().mockResolvedValue({ data: null, error: new Error("select failed") }),
+    });
+
+    await pullFromCloud();
+
+    expect(reportSyncOutcome).toHaveBeenCalledWith(false);
+    warnSpy.mockRestore();
+  });
+
+  it("オフライン時はSupabaseを呼ばず、結果も報告しない", async () => {
     setOnline(false);
 
     await pullFromCloud();
 
     expect(fromMock).not.toHaveBeenCalled();
+    expect(reportSyncOutcome).not.toHaveBeenCalled();
+  });
+
+  it("未ログインの場合は結果を報告しない", async () => {
+    authGetUser.mockResolvedValue({ data: { user: null } });
+
+    await pullFromCloud();
+
+    expect(fromMock).not.toHaveBeenCalled();
+    expect(reportSyncOutcome).not.toHaveBeenCalled();
   });
 });
