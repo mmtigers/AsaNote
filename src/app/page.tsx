@@ -3,12 +3,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { TagChips } from "@/components/TagChips";
 import { AuthStatus } from "@/components/AuthStatus";
+import { MonthCalendar } from "@/components/MonthCalendar";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { findLatestOwnRecordForDate, saveRecord } from "@/lib/db/records";
+import { useRecordStatusForMonth } from "@/lib/db/queries";
 import { NEGATIVE_REASON_TAGS, OUTCOME_OPTIONS, POSITIVE_REASON_TAGS, type Outcome } from "@/constants/choices";
 import { DRAFT_STORAGE_KEY, notifyDraftChanged } from "@/lib/draft";
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
+
+// 記録ボタンのスワイプ判定に使う最小移動距離(px)。これ未満は誤操作防止のため無視する。
+const SWIPE_THRESHOLD = 50;
 
 const OUTCOME_STYLES: Record<Outcome, string> = {
   smooth: "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]",
@@ -26,6 +31,17 @@ function toDateInputValue(d: Date): string {
 function formatDateLabel(value: string): string {
   const d = new Date(`${value}T00:00:00`);
   return `${d.getMonth() + 1}月${d.getDate()}日(${WEEKDAYS[d.getDay()]})`;
+}
+
+function toMonthOf(value: string): { year: number; month: number } {
+  const d = new Date(`${value}T00:00:00`);
+  return { year: d.getFullYear(), month: d.getMonth() + 1 };
+}
+
+function addDays(value: string, delta: number): string {
+  const d = new Date(`${value}T00:00:00`);
+  d.setDate(d.getDate() + delta);
+  return toDateInputValue(d);
 }
 
 interface FormState {
@@ -102,8 +118,18 @@ export default function HomePage() {
   const { session } = useAuth();
   const todayValue = useMemo(() => toDateInputValue(new Date()), []);
   const [date, setDate] = useState(todayValue);
+  // カレンダーに表示中の月。通常は選択中の日付(date)の月と一致するが、
+  // カレンダーの◀▶で日付を変えずに月だけ閲覧できるよう別のstateにしている。
+  const [displayMonth, setDisplayMonth] = useState(() => toMonthOf(todayValue));
   const [step, setStep] = useState<Step>("home");
   const [detailOpen, setDetailOpen] = useState(false);
+
+  // 選択中の日付を変える(カレンダーのタップ・記録ボタンのスワイプ・「今日」ショートカット
+  // から呼ぶ)。表示中の月も選択した日付に合わせて追従させる。
+  function changeDate(next: string) {
+    setDate(next);
+    setDisplayMonth(toMonthOf(next));
+  }
   // ステップ間の画面遷移アニメーション用。次の項目へ進むときは右から、
   // 前のステップへ戻るときは左からスライドインさせる。seqは同じステップへ
   // 戻ってきたときでもアニメーションを再生させるためのキー。
@@ -119,7 +145,7 @@ export default function HomePage() {
     const requested = new URLSearchParams(window.location.search).get("date");
     if (requested) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- URLの初期パラメータをstateへ反映する、マウント時一度きりの初期化
-      setDate(requested);
+      changeDate(requested);
       cameFromEditLink.current = true;
     }
   }, []);
@@ -128,6 +154,9 @@ export default function HomePage() {
   const [loaded, setLoaded] = useState(false);
   const [customReasonTags, setCustomReasonTags] = useState<string[]>([]);
   const [toast, setToast] = useState(false);
+
+  const monthKey = `${displayMonth.year}-${String(displayMonth.month).padStart(2, "0")}`;
+  const statusByDate = useRecordStatusForMonth(monthKey, session?.user.id ?? null);
 
   useEffect(() => {
     let active = true;
@@ -189,13 +218,32 @@ export default function HomePage() {
     saveDraft({ date, step, detailOpen, form });
   }, [loaded, step, detailOpen, form, date]);
 
-  function jumpToday() {
-    setDate(todayValue);
+  // 記録ボタンの左右スワイプで前日/翌日に切り替える。左スワイプ→翌日、右スワイプ→前日
+  // (紙のカレンダーをめくる感覚)。スワイプが成立した後の合成クリックでボタンの本来の
+  // 動作(記録開始・編集画面を開く等)が誤発火しないよう、suppressClickRefで一度だけ抑制する。
+  const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
+  const suppressClickRef = useRef(false);
+
+  function handleRecordPointerDown(e: React.PointerEvent) {
+    swipeStartRef.current = { x: e.clientX, y: e.clientY };
   }
-  function jumpYesterday() {
-    const d = new Date();
-    d.setDate(d.getDate() - 1);
-    setDate(toDateInputValue(d));
+  function handleRecordPointerUp(e: React.PointerEvent) {
+    const start = swipeStartRef.current;
+    swipeStartRef.current = null;
+    if (!start) return;
+    const dx = e.clientX - start.x;
+    const dy = e.clientY - start.y;
+    if (Math.abs(dx) >= SWIPE_THRESHOLD && Math.abs(dx) > Math.abs(dy)) {
+      suppressClickRef.current = true;
+      changeDate(addDays(date, dx < 0 ? 1 : -1));
+    }
+  }
+  function handleRecordClick(action: () => void) {
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      return;
+    }
+    action();
   }
 
   function goToStep(next: Step, direction: "forward" | "backward") {
@@ -273,36 +321,7 @@ export default function HomePage() {
         </div>
 
         {step === "home" ? (
-          <>
-            <div className="mt-3 flex items-center gap-2">
-              <button
-                type="button"
-                onClick={jumpToday}
-                aria-pressed={date === todayValue}
-                className={`rounded-full border px-3.5 py-1.5 text-[13px] font-medium ${
-                  date === todayValue
-                    ? "border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-ink)]"
-                    : "border-[var(--line)] bg-[var(--surface)] text-[var(--ink)]"
-                }`}
-              >
-                今日
-              </button>
-              <button
-                type="button"
-                onClick={jumpYesterday}
-                className="rounded-full border border-[var(--line)] bg-[var(--surface)] px-3.5 py-1.5 text-[13px] font-medium text-[var(--ink)]"
-              >
-                きのう
-              </button>
-              <input
-                type="date"
-                value={date}
-                onChange={(e) => e.target.value && setDate(e.target.value)}
-                className="rounded-full border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1.5 text-[13px] text-[var(--sub)]"
-              />
-            </div>
-            <p className="mt-2 text-[15px] font-bold">{formatDateLabel(date)}のきろく</p>
-          </>
+          <p className="mt-3 text-[15px] font-bold">{formatDateLabel(date)}のきろく</p>
         ) : (
           <div className="mt-3 flex items-center gap-2.5">
             <button
@@ -318,6 +337,19 @@ export default function HomePage() {
       </header>
 
       <main className="flex min-h-[70vh] flex-col overflow-x-hidden px-4 py-5">
+        {step === "home" && (
+          <div className="mb-4">
+            <MonthCalendar
+              year={displayMonth.year}
+              month={displayMonth.month}
+              selectedDate={date}
+              todayValue={todayValue}
+              statusByDate={statusByDate}
+              onSelectDate={changeDate}
+              onMonthChange={(year, month) => setDisplayMonth({ year, month })}
+            />
+          </div>
+        )}
         <div
           key={`${step}-${stepTransition.seq}`}
           className={`flex flex-1 flex-col justify-end gap-3.5 ${
@@ -331,37 +363,46 @@ export default function HomePage() {
           {step === "home" &&
             (!loaded ? (
               <div className="h-40 animate-pulse rounded-3xl bg-[var(--surface-2)]" />
-            ) : selectedOutcome ? (
-              <section className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm">
-                <div className="flex items-center gap-3">
-                  <span className="text-3xl">{selectedOutcome.emoji}</span>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-bold">{selectedOutcome.label}</p>
-                    {form.reasonTags.length > 0 && (
-                      <p className="mt-0.5 truncate text-[12px] text-[var(--sub)]">
-                        理由: {form.reasonTags.join("・")}
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => goToStep("result", "forward")}
-                  className="mt-4 w-full rounded-full border border-[var(--line)] bg-[var(--surface-2)] py-2.5 text-sm font-semibold text-[var(--ink)]"
-                >
-                  ✏️ 記録を編集する
-                </button>
-              </section>
             ) : (
-              <button
-                type="button"
-                onClick={startRecording}
-                className="flex flex-col items-center gap-2 rounded-3xl border-2 border-dashed border-[var(--accent)] bg-[var(--accent-soft)] px-6 py-10 text-center shadow-sm active:scale-[0.98]"
+              <div
+                onPointerDown={handleRecordPointerDown}
+                onPointerUp={handleRecordPointerUp}
+                className="touch-pan-y"
               >
-                <span className="text-5xl">📝</span>
-                <span className="text-base font-bold text-[var(--accent)]">今日の様子を記録する</span>
-                <span className="text-[12px] text-[var(--sub)]">タップして、今日はどうだったか選んでね</span>
-              </button>
+                {selectedOutcome ? (
+                  <section className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm">
+                    <div className="flex items-center gap-3">
+                      <span className="text-3xl">{selectedOutcome.emoji}</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold">{selectedOutcome.label}</p>
+                        {form.reasonTags.length > 0 && (
+                          <p className="mt-0.5 truncate text-[12px] text-[var(--sub)]">
+                            理由: {form.reasonTags.join("・")}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRecordClick(() => goToStep("result", "forward"))}
+                      className="mt-4 w-full rounded-full border border-[var(--line)] bg-[var(--surface-2)] py-2.5 text-sm font-semibold text-[var(--ink)]"
+                    >
+                      ✏️ 記録を編集する
+                    </button>
+                  </section>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => handleRecordClick(startRecording)}
+                    className="flex w-full flex-col items-center gap-2 rounded-3xl border-2 border-dashed border-[var(--accent)] bg-[var(--accent-soft)] px-6 py-10 text-center shadow-sm active:scale-[0.98]"
+                  >
+                    <span className="text-5xl">📝</span>
+                    <span className="text-base font-bold text-[var(--accent)]">今日の様子を記録する</span>
+                    <span className="text-[12px] text-[var(--sub)]">タップして、今日はどうだったか選んでね</span>
+                    <span className="text-[11px] text-[var(--sub)]">← 左右にスワイプで日付を切り替え →</span>
+                  </button>
+                )}
+              </div>
             ))}
 
           {step === "result" && (
