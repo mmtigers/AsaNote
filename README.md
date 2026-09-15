@@ -7,6 +7,8 @@
 - 夫婦・家族単位でグループを作ると、どちらが記録しても両方のスマホから見える
 - オフラインでも記録でき、通信が回復すると自動で同期する
 
+詳細な仕様は [docs/SPEC.md](./docs/SPEC.md) を参照。
+
 ## 技術スタック
 
 - Next.js (App Router, TypeScript, Tailwind CSS)
