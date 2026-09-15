@@ -9,6 +9,27 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      children: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       group_invites: {
         Row: {
           code: string
@@ -99,6 +120,7 @@ export type Database = {
       }
       records: {
         Row: {
+          child_id: string | null
           companion: string | null
           created_at: string
           depart_time: string | null
@@ -117,6 +139,7 @@ export type Database = {
           wake_time: string | null
         }
         Insert: {
+          child_id?: string | null
           companion?: string | null
           created_at?: string
           depart_time?: string | null
@@ -135,6 +158,7 @@ export type Database = {
           wake_time?: string | null
         }
         Update: {
+          child_id?: string | null
           companion?: string | null
           created_at?: string
           depart_time?: string | null
@@ -152,7 +176,15 @@ export type Database = {
           wake_tags?: string[]
           wake_time?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "records_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

@@ -126,6 +126,26 @@ describe("syncPendingChanges", () => {
     expect(reportSyncOutcome).toHaveBeenCalledWith(true);
   });
 
+  it("childIdをchild_idとして送信する(複数の子ども対応 #3)", async () => {
+    await localDb.records.add(makeLocalRecord({ id: "r1", childId: "child-1" }));
+    const upsert = vi.fn().mockResolvedValue({ error: null });
+    mockRecordsTable({ upsert });
+
+    await syncPendingChanges();
+
+    expect(upsert).toHaveBeenCalledWith([expect.objectContaining({ id: "r1", child_id: "child-1" })]);
+  });
+
+  it("childId未設定の記録はchild_id: nullとして送信する", async () => {
+    await localDb.records.add(makeLocalRecord({ id: "r1" }));
+    const upsert = vi.fn().mockResolvedValue({ error: null });
+    mockRecordsTable({ upsert });
+
+    await syncPendingChanges();
+
+    expect(upsert).toHaveBeenCalledWith([expect.objectContaining({ id: "r1", child_id: null })]);
+  });
+
   it("一括upsertが失敗した場合、1件ずつ再試行し、失敗した行だけpendingのまま残し、失敗を報告する", async () => {
     await localDb.records.add(makeLocalRecord({ id: "ok" }));
     await localDb.records.add(makeLocalRecord({ id: "ng" }));
@@ -234,6 +254,19 @@ describe("pullFromCloud", () => {
     await pullFromCloud();
 
     expect(await localDb.records.get("own-draft")).toBeDefined();
+  });
+
+  it("クラウドのchild_idをローカルのchildIdとして取り込む(複数の子ども対応 #3)", async () => {
+    mockRecordsTable({
+      select: vi.fn().mockResolvedValue({
+        data: [makeCloudRow({ id: "cloud-1", child_id: "child-1" })],
+        error: null,
+      }),
+    });
+
+    await pullFromCloud();
+
+    expect((await localDb.records.get("cloud-1"))?.childId).toBe("child-1");
   });
 
   it("クラウドの記録をローカルへ取り込み、成功を報告する", async () => {

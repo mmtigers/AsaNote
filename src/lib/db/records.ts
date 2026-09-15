@@ -16,6 +16,7 @@ export interface RecordFormInput {
   handoff: string | null;
   memo: string | null;
   userId?: string | null;
+  childId?: string | null;
 }
 
 // 「記録する」操作は即座にDexie(IndexedDB)へ書き込み、その後バックグラウンドで
@@ -49,12 +50,15 @@ export async function deleteRecord(id: string): Promise<void> {
 
 // ホーム画面で「今日の記録」を開いたときに、その日付の自分の記録が既にあれば
 // 編集対象として読み込む(無ければ新規作成)。同じ日付に複数件あれば直近のものを使う。
+// childIdは複数の子ども対応(#3)向け。子どもを登録していない家庭では常にnullで、
+// その場合はchildId未設定(旧来)の記録のみを対象にする。
 export async function findLatestOwnRecordForDate(
   recordDate: string,
-  userId: string | null
+  userId: string | null,
+  childId: string | null = null
 ): Promise<LocalRecord | undefined> {
   const candidates = await localDb.records.where("recordDate").equals(recordDate).toArray();
-  const own = candidates.filter((r) => !r.userId || r.userId === userId);
+  const own = candidates.filter((r) => (!r.userId || r.userId === userId) && (r.childId ?? null) === childId);
   own.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   return own[0];
 }

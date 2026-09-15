@@ -58,6 +58,22 @@ describe("findLatestOwnRecordForDate", () => {
     const found = await findLatestOwnRecordForDate("2026-09-14", "user-1");
     expect(found?.id).toBe("own");
   });
+
+  it("childId省略時はchildId未設定の記録のみ対象にする(複数の子ども対応 #3)", async () => {
+    await saveRecord({ id: "unclassified", recordDate: "2026-09-14", ...base, userId: "user-1", childId: null });
+    await saveRecord({ id: "for-child", recordDate: "2026-09-14", ...base, userId: "user-1", childId: "c1" });
+
+    const found = await findLatestOwnRecordForDate("2026-09-14", "user-1");
+    expect(found?.id).toBe("unclassified");
+  });
+
+  it("childIdを指定すると、その子どもの記録のみを返す", async () => {
+    await saveRecord({ id: "for-c1", recordDate: "2026-09-14", ...base, userId: "user-1", childId: "c1" });
+    await saveRecord({ id: "for-c2", recordDate: "2026-09-14", ...base, userId: "user-1", childId: "c2" });
+
+    const found = await findLatestOwnRecordForDate("2026-09-14", "user-1", "c2");
+    expect(found?.id).toBe("for-c2");
+  });
 });
 
 describe("deleteRecord", () => {

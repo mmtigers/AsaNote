@@ -18,6 +18,9 @@ export interface SchoolRecord {
   // クラウド未同期のうちは未設定(=自分の記録として扱う)。同期・pull後はSupabaseの
   // user_idが入り、パートナーの記録かどうかの判定(グループ共有機能)に使う。
   userId?: string | null;
+  // 複数の子どもがいる家庭向け(#3)。子どもを登録していない(0〜1人の)家庭では
+  // 常にnull("未分類")のまま。
+  childId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -52,5 +55,13 @@ export interface GroupInvite {
   expires_at: string;
   used_at: string | null;
   used_by: string | null;
+  created_at: string;
+}
+
+// 複数の子ども対応(#3)。groups同様、作成者+同じグループのメンバーが共有する。
+export interface Child {
+  id: string;
+  created_by: string;
+  name: string;
   created_at: string;
 }

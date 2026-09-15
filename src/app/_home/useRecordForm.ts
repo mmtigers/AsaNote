@@ -10,6 +10,8 @@ import { emptyForm, type Step } from "./types";
 interface Options {
   date: string;
   userId: string | null | undefined;
+  // 複数の子ども対応(#3)。子どもを登録していない家庭では常にnull。
+  childId: string | null;
   // タイムラインの「編集する」からの遷移かどうか。true→false化とrefの寿命は
   // 呼び出し側(URLの?date=パラメータを読むeffect)が管理する。
   cameFromEditLink: RefObject<boolean>;
@@ -22,18 +24,19 @@ interface Options {
 // 保存前の下書き(localStorage)があればそれを優先し、無ければDexieの既存記録
 // (無ければ空フォーム)を読み込む。タイムラインの「編集する」から来た場合は、
 // 読み込んだ内容に応じたステップまで自動で進める。
-export function useRecordForm({ date, userId, cameFromEditLink, goToStep, restoreStep, goHome }: Options) {
+export function useRecordForm({ date, userId, childId, cameFromEditLink, goToStep, restoreStep, goHome }: Options) {
   const [form, setForm] = useState(emptyForm);
   const [loaded, setLoaded] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [customReasonTags, setCustomReasonTags] = useState<string[]>([]);
   const [toast, setToast] = useState(false);
 
-  // 下書き復元によるステップ・履歴の復元は、日付ごとに最初の1回だけ行う。
-  // (session?.user.idの解決などでこのeffectが再実行されても、その都度
-  // restoreStepを呼ぶとブラウザ履歴に同じステップが重複して積まれ、
+  // 下書き復元によるステップ・履歴の復元は、日付+子どもの組み合わせごとに最初の
+  // 1回だけ行う。(session?.user.idの解決などでこのeffectが再実行されても、
+  // その都度restoreStepを呼ぶとブラウザ履歴に同じステップが重複して積まれ、
   // 「もどる」を押しても1つ前が同じ画面のままになってしまうため)
-  const draftRestoredDateRef = useRef<string | null>(null);
+  const draftRestoredKeyRef = useRef<string | null>(null);
+  const restoreKey = `${date}:${childId ?? ""}`;
 
   useEffect(() => {
     let active = true;
@@ -45,8 +48,8 @@ export function useRecordForm({ date, userId, cameFromEditLink, goToStep, restor
     const draft = loadDraft();
     if (draft && draft.date === date) {
       setForm(draft.form);
-      if (draftRestoredDateRef.current !== date) {
-        draftRestoredDateRef.current = date;
+      if (draftRestoredKeyRef.current !== restoreKey) {
+        draftRestoredKeyRef.current = restoreKey;
         restoreStep(draft.step);
         setDetailOpen(draft.detailOpen);
       }
@@ -56,7 +59,7 @@ export function useRecordForm({ date, userId, cameFromEditLink, goToStep, restor
       };
     }
 
-    findLatestOwnRecordForDate(date, userId ?? null).then((existing) => {
+    findLatestOwnRecordForDate(date, userId ?? null, childId).then((existing) => {
       if (!active) return;
       if (existing) {
         setForm({
@@ -77,7 +80,7 @@ export function useRecordForm({ date, userId, cameFromEditLink, goToStep, restor
       }
       if (cameFromEditLink.current) {
         cameFromEditLink.current = false;
-        draftRestoredDateRef.current = date;
+        draftRestoredKeyRef.current = restoreKey;
         const target: Step = existing?.outcome ? "reason" : "result";
         restoreStep(target);
         setDetailOpen(!!(existing?.departTime || existing?.memo));
@@ -88,7 +91,7 @@ export function useRecordForm({ date, userId, cameFromEditLink, goToStep, restor
       active = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- cameFromEditLink/restoreStepは日付が変わるたびの再実行対象ではない(refと安定したコールバック)
-  }, [date, userId]);
+  }, [date, userId, childId, restoreKey]);
 
   const reasonOptions = useMemo(() => {
     const base = form.outcome === "smooth" ? POSITIVE_REASON_TAGS : NEGATIVE_REASON_TAGS;
@@ -130,6 +133,7 @@ export function useRecordForm({ date, userId, cameFromEditLink, goToStep, restor
       companion: form.companion || null,
       handoff: form.handoff || null,
       userId: userId ?? null,
+      childId,
     });
     setToast(true);
     setTimeout(() => setToast(false), 1800);

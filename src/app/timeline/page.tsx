@@ -2,10 +2,12 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { ChildSwitcher } from "@/components/ChildSwitcher";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { PartnerAvatar } from "@/components/PartnerAvatar";
 import { SkeletonList } from "@/components/Skeleton";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { useChildren } from "@/lib/db/children";
 import { buildMemberEmailMap, isOwnRecord, useGroupMembers } from "@/lib/db/groups";
 import { deleteRecord } from "@/lib/db/records";
 import { useRecordsTimeline } from "@/lib/db/queries";
@@ -32,7 +34,13 @@ export default function TimelinePage() {
   const records = useRecordsTimeline();
   const members = useGroupMembers();
   const emailMap = buildMemberEmailMap(members);
+  const children = useChildren();
+  // タイムラインの絞り込みはホーム画面の「今記録している子」とは独立させ、常に
+  // 「すべて」から始める(子どもを追加した直後に、既存の未分類の記録が見えなくなるのを防ぐ)。
+  const [filterChildId, setFilterChildId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+
+  const visibleRecords = records?.filter((r) => filterChildId === null || r.childId === filterChildId);
 
   async function handleConfirmDelete() {
     if (!deleteTarget) return;
@@ -55,15 +63,19 @@ export default function TimelinePage() {
         </Link>
       </header>
 
-      {records === undefined ? (
+      {children && children.length > 1 && (
+        <ChildSwitcher childList={children} selectedId={filterChildId} onSelect={setFilterChildId} allowAll />
+      )}
+
+      {visibleRecords === undefined ? (
         <SkeletonList rows={4} />
-      ) : records.length === 0 ? (
+      ) : visibleRecords.length === 0 ? (
         <p className="rounded-2xl bg-[var(--surface-2)] px-4 py-6 text-center text-sm text-[var(--sub)]">
           まだ記録がありません。「記録する」タブから入力してみましょう。
         </p>
       ) : (
         <ul className="flex flex-col gap-2.5">
-          {records.map((record) => {
+          {visibleRecords.map((record) => {
             const own = isOwnRecord(record, session?.user.id, authLoading);
             const outcome = OUTCOME_OPTIONS.find((o) => o.value === record.outcome);
             const legacy = legacyBadge(record);
@@ -117,7 +129,11 @@ export default function TimelinePage() {
                 {own && (
                   <div className="flex gap-3 text-xs">
                     <Link
-                      href={`/?date=${record.recordDate}`}
+                      href={
+                        record.childId
+                          ? `/?date=${record.recordDate}&childId=${record.childId}`
+                          : `/?date=${record.recordDate}`
+                      }
                       className="text-[var(--accent)] underline underline-offset-2"
                     >
                       編集する

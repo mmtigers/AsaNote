@@ -42,7 +42,9 @@ function makeExisting(overrides: Partial<LocalRecord> = {}): LocalRecord {
   };
 }
 
-function renderUseRecordForm(overrides: Partial<{ date: string; userId: string | null; cameFromEditLink: boolean }> = {}) {
+function renderUseRecordForm(
+  overrides: Partial<{ date: string; userId: string | null; childId: string | null; cameFromEditLink: boolean }> = {}
+) {
   const goToStep = vi.fn();
   const restoreStep = vi.fn();
   const goHome = vi.fn();
@@ -52,6 +54,7 @@ function renderUseRecordForm(overrides: Partial<{ date: string; userId: string |
     useRecordForm({
       date: overrides.date ?? "2025-09-14",
       userId: overrides.userId ?? "user-1",
+      childId: overrides.childId ?? null,
       cameFromEditLink,
       goToStep,
       restoreStep,

@@ -24,6 +24,7 @@ function toRecordRow(record: LocalRecord, userId: string) {
     companion: record.companion,
     handoff: record.handoff,
     memo: record.memo,
+    child_id: record.childId ?? null,
     created_at: record.createdAt,
     updated_at: record.updatedAt,
   };
@@ -50,6 +51,7 @@ function fromRecordRow(row: CloudRecordRow): LocalRecord {
     handoff: row.handoff,
     memo: row.memo,
     userId: row.user_id,
+    childId: row.child_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
