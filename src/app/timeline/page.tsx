@@ -42,9 +42,17 @@ export default function TimelinePage() {
 
   return (
     <main className="mx-auto flex max-w-md flex-col gap-3 px-4 pt-6">
-      <header>
-        <h1 className="text-lg font-bold">これまでの記録</h1>
-        <p className="mt-1 text-xs text-[var(--sub)]">新しい順に表示しています。</p>
+      <header className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-lg font-bold">これまでの記録</h1>
+          <p className="mt-1 text-xs text-[var(--sub)]">新しい順に表示しています。</p>
+        </div>
+        <Link
+          href="/export"
+          className="mt-0.5 flex-none whitespace-nowrap text-xs text-[var(--accent)] underline underline-offset-2"
+        >
+          📄 エクスポート
+        </Link>
       </header>
 
       {records === undefined ? (
