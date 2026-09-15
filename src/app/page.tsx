@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { MonthCalendar } from "@/components/MonthCalendar";
+import { ChildSwitcher } from "@/components/ChildSwitcher";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { useChildren, useEffectiveChildId } from "@/lib/db/children";
+import { setSelectedChildId } from "@/lib/db/selectedChild";
 import { useRecordStatusForMonth } from "@/lib/db/queries";
 import { RecordHeader } from "./_home/RecordHeader";
 import { HomeStepView } from "./_home/HomeStepView";
@@ -33,20 +36,41 @@ export default function HomePage() {
 
   const { step, stepTransition, goToStep, restoreStep, goBack, goHome } = useStepNavigation();
 
-  // タイムラインの「編集する」から日付指定で遷移してきた場合は、その日付を開いた上で
-  // 記録内容に応じたステップまで自動で進める(一度きり)。
+  // タイムラインの「編集する」から日付指定で遷移してきた場合は、その日付(+子ども)を
+  // 開いた上で記録内容に応じたステップまで自動で進める(一度きり)。
+  // editChildIdOverrideは、子ども一覧の取得(非同期)が完了する前でも正しい子どもで
+  // 記録を検索できるようにするための同期的な上書き値(useEffectiveChildIdは
+  // useChildren()の読み込み中はnullを返してしまうため)。
   const cameFromEditLink = useRef(false);
+  const [editChildIdOverride, setEditChildIdOverride] = useState<string | null>(null);
   useEffect(() => {
-    const requested = new URLSearchParams(window.location.search).get("date");
-    if (requested) {
+    const params = new URLSearchParams(window.location.search);
+    const requestedDate = params.get("date");
+    const requestedChildId = params.get("childId");
+    if (requestedDate) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- URLの初期パラメータをstateへ反映する、マウント時一度きりの初期化
-      changeDate(requested);
+      changeDate(requestedDate);
+      if (requestedChildId) {
+        setEditChildIdOverride(requestedChildId);
+        setSelectedChildId(requestedChildId);
+      }
       cameFromEditLink.current = true;
     }
   }, []);
 
+  const children = useChildren();
+  const resolvedChildId = useEffectiveChildId();
+  const effectiveChildId = editChildIdOverride ?? resolvedChildId;
+
+  // 子ども切り替えUIを直接操作したら、編集リンク由来の上書きは役目を終える
+  // (以後は通常通りuseEffectiveChildIdの解決結果に従う)。
+  function handleSelectChild(id: string | null) {
+    setEditChildIdOverride(null);
+    setSelectedChildId(id);
+  }
+
   const monthKey = `${displayMonth.year}-${String(displayMonth.month).padStart(2, "0")}`;
-  const statusByDate = useRecordStatusForMonth(monthKey, session?.user.id ?? null);
+  const statusByDate = useRecordStatusForMonth(monthKey, session?.user.id ?? null, effectiveChildId);
 
   const {
     form,
@@ -64,6 +88,7 @@ export default function HomePage() {
   } = useRecordForm({
     date,
     userId: session?.user.id,
+    childId: effectiveChildId,
     cameFromEditLink,
     goToStep,
     restoreStep,
@@ -113,6 +138,11 @@ export default function HomePage() {
       <RecordHeader step={step} dateLabel={formatDateLabel(date)} onBack={goBack} />
 
       <main className="flex min-h-[70vh] flex-col overflow-x-hidden px-4 py-5">
+        {step === "home" && children && children.length > 1 && (
+          <div className="mb-3">
+            <ChildSwitcher childList={children} selectedId={effectiveChildId} onSelect={handleSelectChild} />
+          </div>
+        )}
         {step === "home" && (
           <div className="mb-4">
             <MonthCalendar

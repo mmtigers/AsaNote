@@ -1,7 +1,9 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { ChildSwitcher } from "@/components/ChildSwitcher";
 import { SkeletonList } from "@/components/Skeleton";
+import { useChildren } from "@/lib/db/children";
 import { useRecordsTimeline } from "@/lib/db/queries";
 import type { LocalRecord } from "@/lib/db/localDb";
 import { OUTCOME_OPTIONS, type Outcome } from "@/constants/choices";
@@ -47,13 +49,20 @@ function BarList({ title, data, total }: { title: string; data: [string, number]
 
 export default function StatsPage() {
   const records = useRecordsTimeline();
+  const children = useChildren();
+  // タイムラインと同様、常に「すべて」から始める(独立したローカルstate)。
+  const [filterChildId, setFilterChildId] = useState<string | null>(null);
+  const filteredRecords = useMemo(
+    () => records?.filter((r) => filterChildId === null || r.childId === filterChildId),
+    [records, filterChildId]
+  );
 
   const summary = useMemo(() => {
-    if (!records) return null;
-    const total = records.length;
+    if (!filteredRecords) return null;
+    const total = filteredRecords.length;
 
     // 「今日はどうだった？」を選んで保存した記録のみが対象(未選択・旧形式の記録は除く)。
-    const classified = records.filter((r): r is LocalRecord & { outcome: Outcome } => !!r.outcome);
+    const classified = filteredRecords.filter((r): r is LocalRecord & { outcome: Outcome } => !!r.outcome);
     const byOutcome = OUTCOME_OPTIONS.map((opt) => {
       const matched = classified.filter((r) => r.outcome === opt.value);
       return {
@@ -74,7 +83,7 @@ export default function StatsPage() {
       positiveReasons: countTags(smoothRecords, (r) => r.reasonTags),
       negativeReasons: countTags(notSmoothRecords, (r) => r.reasonTags),
     };
-  }, [records]);
+  }, [filteredRecords]);
 
   return (
     <main className="mx-auto flex max-w-md flex-col gap-3 px-4 pt-6">
@@ -84,6 +93,10 @@ export default function StatsPage() {
           いい日も気になる日も、どちらも振り返れるようにまとめています。
         </p>
       </header>
+
+      {children && children.length > 1 && (
+        <ChildSwitcher childList={children} selectedId={filterChildId} onSelect={setFilterChildId} allowAll />
+      )}
 
       {!summary ? (
         <SkeletonList rows={3} />

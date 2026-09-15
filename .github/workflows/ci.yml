@@ -105,6 +105,9 @@ jobs:
       - name: Generate types
         run: supabase gen types typescript --db-url postgresql://postgres:postgres@localhost:5432/postgres > /tmp/database.types.ts
 
+      - name: Print generated types (temporary, for capture)
+        run: cat /tmp/database.types.ts
+
       - name: Check for type drift
         run: |
           if ! diff -u src/lib/db/database.types.ts /tmp/database.types.ts; then

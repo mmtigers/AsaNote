@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Skeleton } from "@/components/Skeleton";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { createChild, getChildren } from "@/lib/db/children";
 import {
   createGroup,
   createInvite,
@@ -15,7 +16,7 @@ import {
   leaveGroup,
 } from "@/lib/db/groups";
 import { pullFromCloud } from "@/lib/db/sync";
-import type { Group, GroupInvite, GroupMemberProfile } from "@/types/models";
+import type { Child, Group, GroupInvite, GroupMemberProfile } from "@/types/models";
 import { runAction, runSilently } from "./runAction";
 
 const SHARE_COPIED_VISIBLE_MS = 2000;
@@ -26,6 +27,7 @@ export default function GroupPage() {
   const [group, setGroup] = useState<Group | null>(null);
   const [members, setMembers] = useState<GroupMemberProfile[]>([]);
   const [invite, setInvite] = useState<GroupInvite | null>(null);
+  const [children, setChildren] = useState<Child[]>([]);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const [creating, setCreating] = useState(false);
@@ -35,6 +37,8 @@ export default function GroupPage() {
   const [shareCopied, setShareCopied] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [confirmingLeave, setConfirmingLeave] = useState(false);
+  const [childNameInput, setChildNameInput] = useState("");
+  const [addingChild, setAddingChild] = useState(false);
 
   const refresh = useCallback(async () => {
     const myGroup = await getMyGroup();
@@ -50,6 +54,7 @@ export default function GroupPage() {
       setMembers([]);
       setInvite(null);
     }
+    setChildren(await getChildren());
   }, []);
 
   useEffect(() => {
@@ -139,6 +144,21 @@ export default function GroupPage() {
     setShareCopied(true);
   }
 
+  async function handleAddChild() {
+    setErrorMessage(null);
+    setAddingChild(true);
+    const created = await runAction(
+      () => createChild(childNameInput),
+      "お子さまの追加に失敗しました",
+      setErrorMessage
+    );
+    if (created.ok) {
+      setChildren((prev) => [...prev, created.value]);
+      setChildNameInput("");
+    }
+    setAddingChild(false);
+  }
+
   async function handleConfirmLeave() {
     setConfirmingLeave(false);
     setLeaving(true);
@@ -194,6 +214,39 @@ export default function GroupPage() {
       {errorMessage && (
         <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">{errorMessage}</p>
       )}
+
+      <section className="flex flex-col gap-3 rounded-2xl bg-[var(--surface-2)] p-4">
+        <h2 className="text-sm font-semibold text-[var(--sub)]">お子さま</h2>
+        <p className="text-xs text-[var(--sub)]">
+          2人以上登録すると、記録・タイムライン・傾向で子どもごとに切り替えられるようになります。
+        </p>
+        {children.length > 0 && (
+          <ul className="flex flex-col gap-2">
+            {children.map((child) => (
+              <li key={child.id} className="rounded-xl bg-[var(--surface)] px-4 py-3 text-sm">
+                {child.name}
+              </li>
+            ))}
+          </ul>
+        )}
+        <div className="flex gap-2">
+          <input
+            value={childNameInput}
+            onChange={(event) => setChildNameInput(event.target.value)}
+            placeholder="お子さまの名前"
+            maxLength={50}
+            className="flex-1 rounded-xl bg-[var(--surface)] px-4 py-3 text-base outline-none placeholder:text-[var(--sub)] focus:ring-2 focus:ring-[var(--accent)]"
+          />
+          <button
+            type="button"
+            onClick={handleAddChild}
+            disabled={addingChild || !childNameInput.trim()}
+            className="flex-none rounded-full bg-[var(--accent)] px-4 py-3 text-sm font-semibold text-[var(--accent-ink)] focus:ring-2 focus:ring-[var(--accent)] disabled:opacity-60"
+          >
+            {addingChild ? "追加中..." : "＋追加"}
+          </button>
+        </div>
+      </section>
 
       {!group ? (
         <>

@@ -254,6 +254,61 @@ $$;
 
 grant execute on function get_group_members() to authenticated;
 
+-- 複数の子どもがいる家庭向け。groups同様「作成者 + 同じグループのメンバー」が
+-- 閲覧できる共有リストとして扱う(id はrecords.child_idから参照する)。
+create table if not exists children (
+  id uuid primary key default uuid_generate_v4(),
+  created_by uuid not null references auth.users(id) on delete cascade,
+  name text not null check (char_length(name) between 1 and 50),
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_children_created_by on children(created_by);
+
+-- 子どもが1人だけ(childrenが0〜1件)の家庭では入力を増やさないため、
+-- 記録フォーム側からは常にnullのまま保存する。子どもを削除した場合も記録自体は
+-- 残したいため、on delete set nullで「未分類」に戻す(記録を巻き込んで消さない)。
+alter table records add column if not exists child_id uuid references children(id) on delete set null;
+
+alter table children enable row level security;
+
+drop policy if exists "children are readable by creator or group members" on children;
+
+create policy "children are readable by creator or group members"
+  on children for select
+  to authenticated
+  using (
+    auth.uid() = created_by
+    or exists (
+      select 1
+      from group_members gm_self
+      join group_members gm_owner on gm_owner.group_id = gm_self.group_id
+      where gm_self.user_id = auth.uid()
+        and gm_owner.user_id = children.created_by
+    )
+  );
+
+drop policy if exists "children are insertable by creator" on children;
+
+create policy "children are insertable by creator"
+  on children for insert
+  to authenticated
+  with check (created_by = auth.uid());
+
+drop policy if exists "children are updatable by creator" on children;
+
+create policy "children are updatable by creator"
+  on children for update
+  to authenticated
+  using (created_by = auth.uid());
+
+drop policy if exists "children are deletable by creator" on children;
+
+create policy "children are deletable by creator"
+  on children for delete
+  to authenticated
+  using (created_by = auth.uid());
+
 -- records: 本人 + 同じグループのメンバーの記録を閲覧可能。編集・削除は本人のみ
 -- (パートナーの記録はタイムラインで「表示のみ」になる)。
 drop policy if exists "records are readable by owner or group members" on records;
