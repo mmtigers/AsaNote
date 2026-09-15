@@ -38,3 +38,12 @@ export function usePendingSyncCount() {
     []
   );
 }
+
+// 入力リマインダー(#6)用: 指定した日付の自分の記録が既に(outcomeまで)入力済みか。
+// 子どもごとの内訳は見ず、その日に何か1件でも記録していればリマインドしない。
+export function useHasTodayOwnRecord(recordDate: string, userId: string | null) {
+  return useLiveQuery(async () => {
+    const rows = await localDb.records.where("recordDate").equals(recordDate).toArray();
+    return rows.some((r) => (!r.userId || r.userId === userId) && !!r.outcome);
+  }, [recordDate, userId]);
+}
