@@ -1,7 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { BottomNav } from "@/components/BottomNav";
-import { RecordReminderNotice } from "@/components/RecordReminderNotice";
 import { SyncFailureNotice } from "@/components/SyncFailureNotice";
 import { AuthProvider } from "@/lib/auth/AuthProvider";
 import "./globals.css";
@@ -38,7 +37,6 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col bg-[var(--bg)] text-[var(--ink)]">
         <ServiceWorkerRegister />
         <AuthProvider>
-          <RecordReminderNotice />
           <div className="flex-1 pb-20">{children}</div>
           <SyncFailureNotice />
           <BottomNav />

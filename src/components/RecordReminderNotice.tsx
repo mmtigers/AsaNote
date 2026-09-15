@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useHasTodayOwnRecord } from "@/lib/db/queries";
 import { dismissReminderForToday, useDismissedDate } from "@/lib/db/reminderDismissal";
@@ -23,7 +22,13 @@ export function shouldShowReminder(options: {
   return now.getHours() >= REMINDER_HOUR;
 }
 
-export function RecordReminderNotice() {
+interface RecordReminderNoticeProps {
+  onStartRecording: () => void;
+}
+
+// ホーム画面のカレンダー下に埋め込むインラインの通知(#6)。固定表示のトースト類とは
+// 違い、記録ボタンや画面上部のヘッダーと重ならないよう、通常のブロックとして流し込む。
+export function RecordReminderNotice({ onStartRecording }: RecordReminderNoticeProps) {
   const { session } = useAuth();
   const now = new Date();
   const today = toDateInputValue(now);
@@ -35,13 +40,13 @@ export function RecordReminderNotice() {
   return (
     <div
       role="status"
-      className="fixed inset-x-0 top-0 z-30 flex items-center justify-between gap-3 bg-[var(--accent)] px-4 py-2 text-[13px] font-medium text-[var(--accent-ink)] [padding-top:env(safe-area-inset-top)] print:hidden"
+      className="mb-4 flex items-center justify-between gap-3 rounded-2xl bg-[var(--accent-soft)] px-4 py-3 text-[13px] font-medium text-[var(--accent)]"
     >
       <span>🔔 今日の記録がまだのようです</span>
       <div className="flex flex-none items-center gap-3">
-        <Link href="/" className="underline underline-offset-2">
+        <button type="button" onClick={onStartRecording} className="underline underline-offset-2">
           記録する
-        </Link>
+        </button>
         <button
           type="button"
           onClick={() => dismissReminderForToday(today)}

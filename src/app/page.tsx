@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { MonthCalendar } from "@/components/MonthCalendar";
 import { ChildSwitcher } from "@/components/ChildSwitcher";
+import { RecordReminderNotice } from "@/components/RecordReminderNotice";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useChildren, useEffectiveChildId } from "@/lib/db/children";
 import { setSelectedChildId } from "@/lib/db/selectedChild";
@@ -129,6 +130,13 @@ export default function HomePage() {
     goToStep("result", "forward");
   }
 
+  // リマインダーの「記録する」は常に「今日」の記録を指す(現在カレンダーで別の日を
+  // 見ていても、今日に切り替えてから記録画面へ進む)。
+  function handleReminderStartRecording() {
+    changeDate(todayValue);
+    startRecording();
+  }
+
   // 選択中の日付が今日かどうかで、「今日は/その日は」の文言を出し分ける
   // (過去日を選んでいるのに「今日の様子」と表示されるのはおかしいため)。
   const isTodaySelected = date === todayValue;
@@ -156,6 +164,7 @@ export default function HomePage() {
             />
           </div>
         )}
+        {step === "home" && <RecordReminderNotice onStartRecording={handleReminderStartRecording} />}
         <div
           key={`${step}-${stepTransition.seq}`}
           className={`flex flex-1 flex-col justify-end gap-3.5 ${
