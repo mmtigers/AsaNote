@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { findLatestOwnRecordForDate, saveRecord } from "@/lib/db/records";
 import { NEGATIVE_REASON_TAGS, OUTCOME_OPTIONS, POSITIVE_REASON_TAGS, type Outcome } from "@/constants/choices";
+import { buildDiaryText } from "@/lib/recordPreview";
 import { loadDraft } from "./draftStorage";
 import { emptyForm, type Step } from "./types";
 
@@ -96,12 +97,7 @@ export function useRecordForm({ date, userId, cameFromEditLink, goToStep, restor
 
   const preview = useMemo(() => {
     if (!form.outcome) return "「今日はどうだった？」から選んでね。";
-    const outcomeLabel = OUTCOME_OPTIONS.find((o) => o.value === form.outcome)?.label ?? "";
-    const segs: string[] = [outcomeLabel];
-    if (form.reasonTags.length) segs.push(`理由は「${form.reasonTags.join("・")}」`);
-    if (form.departTime) segs.push(`${form.departTime}に出発`);
-    if (form.memo) segs.push(form.memo);
-    return segs.join("。") + "。";
+    return buildDiaryText(form);
   }, [form]);
 
   function selectOutcome(next: Outcome) {

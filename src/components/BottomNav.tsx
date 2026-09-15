@@ -25,7 +25,7 @@ export function BottomNav() {
   const hasDraft = useHasDraft();
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--line)] bg-[var(--surface)]/95 backdrop-blur-sm [padding-bottom:env(safe-area-inset-bottom)]">
+    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--line)] bg-[var(--surface)]/95 backdrop-blur-sm [padding-bottom:env(safe-area-inset-bottom)] print:hidden">
       <ul className="mx-auto flex max-w-md gap-1 px-2 py-1.5">
         {items.map((item) => {
           const active = pathname === item.href;
