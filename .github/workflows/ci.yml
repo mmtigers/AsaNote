@@ -10,9 +10,14 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Issue #60: 明示しないとリポジトリ設定次第で write 権限のトークンが供給される。全ジョブ読み取り専用。
+permissions:
+  contents: read
+
 jobs:
   lint-build-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -36,8 +41,18 @@ jobs:
       - name: Type check
         run: npx tsc --noEmit
 
-      - name: Unit tests
-        run: npm run test
+      - name: Unit tests (with coverage)
+        # Issue #60: 以前は npm run test のみでカバレッジを CI で計測・保存していなかった。
+        # 閾値は設けず(vitest.config.mts のコメント参照)、成果物として残して推移を見る。
+        run: npm run test:coverage
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 14
 
       - name: Build
         env:
@@ -48,6 +63,7 @@ jobs:
   e2e-test:
     name: E2E test (Playwright)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -76,6 +92,7 @@ jobs:
   db-types-check:
     name: Supabase type drift check
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     services:
       postgres:
         image: postgres:16

@@ -67,9 +67,16 @@ supabase/
 ## テスト
 
 ```bash
-npm run lint       # ESLint
-npm run test       # Vitest（ユニットテスト）
-npm run build      # 型チェック込みの本番ビルド
+npm run lint            # ESLint
+npm run test            # Vitest（ユニットテスト）
+npm run test:coverage   # カバレッジ付き（CIと同じ。閾値は設けていない）
+npm run build           # 型チェック込みの本番ビルド
 ```
 
-push・PR毎に `.github/workflows/ci.yml` が上記3つを自動実行する。
+push・PR毎に `.github/workflows/ci.yml` が上記を自動実行する（`lint-build-test` / E2E の
+Playwright / Supabase型ドリフト検査の3ジョブ）。ワークフローは最小権限（`permissions: contents: read`）で
+動き、各ジョブに `timeout-minutes` を設定している。カバレッジは閾値でブロックせず、
+`coverage-report` 成果物として14日間保存し推移を見る（Issue #60）。
+
+依存更新は `.github/dependabot.yml` が週次で minor/patch をまとめた1本のPRとして起票する。
+メジャー更新（eslint・typescript・vitest・@types/node）は互換確認が必要なため個別PRのままにしてある。
