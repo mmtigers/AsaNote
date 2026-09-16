@@ -115,9 +115,12 @@ jobs:
           psql -h localhost -U postgres -d postgres -f supabase/ci/auth-stub.sql
           psql -h localhost -U postgres -d postgres -f supabase/schema.sql
 
+      # Issue #60: version: latest は CLI の破壊的変更で CI が突然落ちうるため固定する
+      # (2026-09-16 時点の最新。Dependabot は setup-cli の with.version までは更新しないため、
+      #  型生成が古びたら手で上げること)。
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.117.0
 
       - name: Generate types
         run: supabase gen types typescript --db-url postgresql://postgres:postgres@localhost:5432/postgres > /tmp/database.types.ts

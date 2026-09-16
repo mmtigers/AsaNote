@@ -91,7 +91,7 @@ supabase/
 - グループ作成 → 招待コード発行（有効期限24時間・1回限り使用）→ パートナーがコードを入力して参加、という流れ。
 - グループに参加すると、以後どちらが記録してもタイムライン等でお互いの記録が見える（編集・削除は記録した本人のみ）。
 - グループから脱退できる（確認ダイアログ経由）。
-- 複数の子ども（`children`）を登録・管理できる。子どもが0〜1人の家庭では入力を増やさないため、記録は常に「未分類」（`childId: null`）として保存される。子どもを削除しても、紐づく記録自体は残る。
+- 複数の子ども（`children`）を登録・管理できる（追加・名前の変更・削除。削除は確認ダイアログ経由、#59）。子どもが0〜1人の家庭では入力を増やさないため、記録は常に「未分類」（`childId: null`）として保存される。子どもを削除しても、紐づく記録自体は残る（`records.child_id` が `on delete set null` のため、割り当てだけが外れる）。
 
 ### 4.6 認証（ログイン `/login`）
 
@@ -109,7 +109,7 @@ supabase/
 | `id` | uuid | クライアント側でUUID生成。ローカル・クラウド間で同一IDを使い、同期を冪等にする。 |
 | `recordDate` | `YYYY-MM-DD` | 記録対象日。 |
 | `outcome` | `"smooth" \| "reluctant" \| "absent" \| null` | 登校の結果（3択）。未入力・旧形式はnull。 |
-| `wakeTime` / `departTime` | `HH:MM \| null` | 起床時刻／出発時刻。 |
+| `wakeTime` / `departTime` | `HH:MM \| null` | 起床時刻／出発時刻。DB 列は Postgres の `time` 型で `HH:MM:SS` として返るため、pull 時に先頭5文字へ正規化して `HH:MM` に揃える（#61。`src/lib/db/sync.ts` の `normalizeTimeValue`）。 |
 | `wakeTags` / `triggerTags` / `reasonTags` / `responseTags` | `string[]` | タグ群。`reasonTags`が現行フォームの理由タグ、他3つは旧フォーム（〜v1）由来で後方互換のため保持。 |
 | `companion` / `handoff` | `string \| null` | 旧フォーム由来（同行者／引き渡し先）。 |
 | `memo` | `string \| null`（最大2000字） | 自由記述メモ。 |
@@ -162,6 +162,8 @@ supabase/
 3. `pullFromCloud()` がログイン直後・起動時に一度、Supabase側の記録をDexieへ取り込む（他端末・パートラーの記録の反映、ローカルIndexedDBが空の場合の復元用）。ローカルに未送信の変更（`"pending"`）がある行は上書きしない。クラウド側（RLS）から見えなくなった`synced`行はローカルからも削除する（グループ脱退・相手による削除など）。取得は`record_date, id`順に`PULL_PAGE_SIZE`（500）件ずつの全ページ取得で、途中のページが失敗した場合は反映も削除も行わない（PostgRESTは1リクエストの行数上限を黙って切り捨てるため、ページングなしだと取得漏れ行を「見えなくなった」と誤判定して消してしまう）。
 4. IDはクライアント側でUUID生成し、ローカル・クラウドで同一IDを使うため、同期は冪等（idempotent）に行える。
 5. 同期の成功/失敗は `src/lib/db/syncStatus.ts` の `reportSyncOutcome()` で記録され、UI上に同期失敗の通知（`SyncFailureNotice`）を出す。
+6. **競合の解決方針（#61）**: `updatedAt` を比較する LWW ではなく、「ローカルが `pending` ならローカルを優先、それ以外はリモートで上書き」とする。したがって2端末で同じ記録をオフライン編集した場合は、**後から同期した側の内容が残る**（順序依存）。個人・夫婦間での利用を前提とした割り切りで、同時編集の自動マージは行わない。
+7. **同日に複数の記録がある場合（#61）**: DB に `(user_id, record_date, child_id)` の一意制約は無く、2端末でオフライン中に同じ日を新規作成すると2件になりうる。表示・編集の対象は `findLatestOwnRecordForDate()` が選ぶ直近の1件で、古い方はタイムラインに残る（自動的な統合・削除はしない）。
 
 ## 8. PWA / オフラインシェル
 
@@ -177,7 +179,11 @@ npm run build      # 型チェック込みの本番ビルド
 npm run test:e2e   # Playwright（E2E, 別途起動が必要）
 ```
 
-- push・PR毎に `.github/workflows/ci.yml` が lint / test / build を自動実行する。
+- push・PR毎に `.github/workflows/ci.yml` が3ジョブを自動実行する。
+  - `lint-build-test`: `npm audit` → `lint` → `next typegen` → `tsc --noEmit` → `test:coverage`（カバレッジは `coverage-report` 成果物として14日保存。閾値は設けない）→ `build`
+  - `e2e-test`: Playwright
+  - `db-types-check`: `supabase/schema.sql` を素の Postgres へ適用し、`supabase gen types` の出力と `database.types.ts` の差分を検査
+  - ワークフローは最小権限（`permissions: contents: read`）で動き、各ジョブに `timeout-minutes` を設定している。依存更新は `.github/dependabot.yml` が週次で minor/patch をまとめた1本の PR として起票する。
 - 主要ロジック（フォームの状態遷移、日付処理、同期処理、エクスポート抽出、グループ操作等）はほぼ全てユニットテストが付随している（`*.test.ts`）。
 - `e2e/record-flow.spec.ts` に記録フロー全体のE2Eテストがある。
 

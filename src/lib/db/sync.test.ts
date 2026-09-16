@@ -239,6 +239,36 @@ describe("pullFromCloud", () => {
     expect((await localDb.records.get("r1"))?.memo).toBe("ローカル未送信の変更");
   });
 
+  it("Postgres の time 列が HH:MM:SS で返っても HH:MM へ正規化する(#61)", async () => {
+    mockRecordsTable({
+      select: vi.fn().mockResolvedValue({
+        data: [makeCloudRow({ id: "r-time", wake_time: "06:45:00", depart_time: "07:30:00" })],
+        error: null,
+      }),
+    });
+
+    await pullFromCloud();
+
+    const saved = await localDb.records.get("r-time");
+    expect(saved?.wakeTime).toBe("06:45");
+    expect(saved?.departTime).toBe("07:30");
+  });
+
+  it("既に HH:MM で返る場合はそのまま保つ(#61)", async () => {
+    mockRecordsTable({
+      select: vi.fn().mockResolvedValue({
+        data: [makeCloudRow({ id: "r-short", wake_time: "06:45", depart_time: null })],
+        error: null,
+      }),
+    });
+
+    await pullFromCloud();
+
+    const saved = await localDb.records.get("r-short");
+    expect(saved?.wakeTime).toBe("06:45");
+    expect(saved?.departTime).toBeNull();
+  });
+
   it("削除待ち(pendingRecordDeletes)の行はクラウドの値で復元しない", async () => {
     await localDb.pendingRecordDeletes.add({ id: "r1" });
     mockRecordsTable({

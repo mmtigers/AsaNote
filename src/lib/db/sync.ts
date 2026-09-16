@@ -42,17 +42,28 @@ function toRecordRow(record: LocalRecord, userId: string) {
 // をここでOutcomeへ絞り込む。
 type CloudRecordRow = Database["public"]["Tables"]["records"]["Row"];
 
+/**
+ * Postgres の `time` 列は `HH:MM:SS`(場合により小数秒付き)で返るが、アプリ内の表現は
+ * SPEC 4.1 のとおり `HH:MM` で統一している(#61)。そのまま Dexie へ入れると
+ * `<input type="time">` やプレビュー文「07:30:00に出発」に秒が混入するため、pull 時に
+ * 先頭5文字へ正規化する。`HH:MM` のまま返ってきた場合は何も変わらない。
+ */
+function normalizeTimeValue(value: string | null): string | null {
+  if (!value) return value;
+  return /^\d{2}:\d{2}(:|$)/.test(value) ? value.slice(0, 5) : value;
+}
+
 function fromRecordRow(row: CloudRecordRow): LocalRecord {
   const record: SchoolRecord = {
     id: row.id,
     recordDate: row.record_date,
     outcome: row.outcome as Outcome | null,
-    wakeTime: row.wake_time,
+    wakeTime: normalizeTimeValue(row.wake_time),
     wakeTags: row.wake_tags ?? [],
     triggerTags: row.trigger_tags ?? [],
     reasonTags: row.reason_tags ?? [],
     responseTags: row.response_tags ?? [],
-    departTime: row.depart_time,
+    departTime: normalizeTimeValue(row.depart_time),
     companion: row.companion,
     handoff: row.handoff,
     memo: row.memo,
