@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { clearLocalData, localDb } from "./localDb";
-import { deleteRecord, findLatestOwnRecordForDate, saveRecord } from "./records";
+import { countUnsyncedChanges, deleteRecord, findLatestOwnRecordForDate, saveRecord } from "./records";
 
 beforeEach(async () => {
   await clearLocalData();
@@ -112,5 +112,19 @@ describe("deleteRecord", () => {
 
     expect(await localDb.records.get("r1")).toBeUndefined();
     expect(await localDb.pendingRecordDeletes.get("r1")).toEqual({ id: "r1" });
+  });
+});
+
+describe("countUnsyncedChanges", () => {
+  it("未送信の記録と未反映の削除の合計を返す(ログアウト前の確認 #58)", async () => {
+    expect(await countUnsyncedChanges()).toBe(0);
+
+    await saveRecord({ id: "p1", recordDate: "2026-09-14", ...base, userId: null });
+    await saveRecord({ id: "p2", recordDate: "2026-09-15", ...base, userId: null });
+    await saveRecord({ id: "s1", recordDate: "2026-09-13", ...base, userId: null });
+    await localDb.records.update("s1", { syncStatus: "synced" });
+    await deleteRecord("s1"); // 削除キューに1件
+
+    expect(await countUnsyncedChanges()).toBe(3);
   });
 });

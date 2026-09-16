@@ -65,3 +65,13 @@ export async function findLatestOwnRecordForDate(
   own.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   return own[0];
 }
+
+// ログアウト前の確認(#58)などで使う、この端末にだけ存在してクラウドへ未反映の変更の件数。
+// 未送信の記録(syncStatus: "pending")と、未反映の削除(pendingRecordDeletes)の合計。
+export async function countUnsyncedChanges(): Promise<number> {
+  const [pendingRecords, pendingDeletes] = await Promise.all([
+    localDb.records.where("syncStatus").equals("pending").count(),
+    localDb.pendingRecordDeletes.count(),
+  ]);
+  return pendingRecords + pendingDeletes;
+}

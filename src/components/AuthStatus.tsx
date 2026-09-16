@@ -1,16 +1,22 @@
 "use client";
 
 import Link from "next/link";
+import { useState } from "react";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { clearLocalData } from "@/lib/db/localDb";
 import { usePendingSyncCount } from "@/lib/db/queries";
+import { countUnsyncedChanges } from "@/lib/db/records";
+import { syncPendingChanges } from "@/lib/db/sync";
 import { getSupabaseClient } from "@/lib/supabase/client";
 
 export function AuthStatus() {
   const { session, loading } = useAuth();
   const pendingCount = usePendingSyncCount();
+  // #58: ログアウト時に消えてしまう未同期件数。null のときはダイアログ非表示。
+  const [unsyncedOnLogout, setUnsyncedOnLogout] = useState<number | null>(null);
 
-  async function handleLogout() {
+  async function signOutAndClear() {
     try {
       await getSupabaseClient().auth.signOut();
     } catch (error) {
@@ -25,6 +31,22 @@ export function AuthStatus() {
         console.error(error);
       }
     }
+  }
+
+  // #58: 以前は未同期(pending)の記録・削除があっても確認なしに全消去していた。
+  // まず最終同期を1回試み、それでも残る未同期があれば件数を示して確認を取る。
+  async function handleLogout() {
+    try {
+      await syncPendingChanges();
+    } catch (error) {
+      console.error(error);
+    }
+    const remaining = await countUnsyncedChanges();
+    if (remaining > 0) {
+      setUnsyncedOnLogout(remaining);
+      return;
+    }
+    await signOutAndClear();
   }
 
   if (loading) return null;
@@ -51,6 +73,17 @@ export function AuthStatus() {
       >
         ログアウト
       </button>
+      <ConfirmDialog
+        open={unsyncedOnLogout !== null}
+        message={`クラウドへ送れていない変更が${unsyncedOnLogout ?? 0}件あります。ログアウトするとこの端末から消えます。通信できる場所で再度お試しください。それでもログアウトしますか？`}
+        confirmLabel="消してログアウト"
+        cancelLabel="やめる"
+        onConfirm={async () => {
+          setUnsyncedOnLogout(null);
+          await signOutAndClear();
+        }}
+        onCancel={() => setUnsyncedOnLogout(null)}
+      />
     </div>
   );
 }
