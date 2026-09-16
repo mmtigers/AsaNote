@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { findLatestOwnRecordForDate, saveRecord } from "@/lib/db/records";
-import { NEGATIVE_REASON_TAGS, OUTCOME_OPTIONS, POSITIVE_REASON_TAGS, type Outcome } from "@/constants/choices";
+import { MEMO_MAX_LENGTH, NEGATIVE_REASON_TAGS, OUTCOME_OPTIONS, POSITIVE_REASON_TAGS, type Outcome } from "@/constants/choices";
 import { buildDiaryText } from "@/lib/recordPreview";
 import { loadDraft } from "./draftStorage";
 import { emptyForm, type Step } from "./types";
@@ -119,13 +119,16 @@ export function useRecordForm({ date, userId, childId, cameFromEditLink, goToSte
   }
 
   async function handleSave() {
+    // #57: textarea の maxLength をすり抜ける経路(貼り付け・下書き復元・IME)があっても、
+    // DB の CHECK 制約(2000字)を超えたメモを保存しない。超えると同期が永久に失敗し続ける。
+    const memo = form.memo.slice(0, MEMO_MAX_LENGTH);
     await saveRecord({
       id: form.id,
       recordDate: date,
       outcome: form.outcome,
       reasonTags: form.reasonTags,
       departTime: form.departTime || null,
-      memo: form.memo || null,
+      memo: memo || null,
       wakeTime: form.wakeTime || null,
       wakeTags: form.wakeTags,
       triggerTags: form.triggerTags,

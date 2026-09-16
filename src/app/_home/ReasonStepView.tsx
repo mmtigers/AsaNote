@@ -2,7 +2,7 @@
 
 import type { ChangeEvent } from "react";
 import { TagChips } from "@/components/TagChips";
-import type { Outcome } from "@/constants/choices";
+import { MEMO_MAX_LENGTH, type Outcome } from "@/constants/choices";
 
 interface ReasonStepViewProps {
   outcome: Outcome;
@@ -81,10 +81,14 @@ export function ReasonStepView({
           <textarea
             id="memo"
             value={memo}
+            maxLength={MEMO_MAX_LENGTH}
             onChange={(e: ChangeEvent<HTMLTextAreaElement>) => onMemoChange(e.target.value)}
             placeholder="気づいたこと、次に試したいことなど"
             className="min-h-16 w-full rounded-lg border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2.5 text-sm leading-relaxed outline-none"
           />
+          <p className="mt-1 text-right text-[11px] text-[var(--sub)]" aria-live="polite">
+            {memo.length} / {MEMO_MAX_LENGTH}
+          </p>
         </section>
       )}
 
