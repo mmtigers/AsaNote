@@ -77,12 +77,30 @@ describe("findLatestOwnRecordForDate", () => {
 });
 
 describe("deleteRecord", () => {
-  it("未同期(pending)の記録は削除キューに積まずそのまま消える", async () => {
+  it("未同期(pending)の記録も削除キューに積む(同期済みを編集→削除した記録がpullで復活しないように #56)", async () => {
     await saveRecord({ id: "r1", recordDate: "2026-09-14", ...base, userId: null });
 
     await deleteRecord("r1");
 
     expect(await localDb.records.get("r1")).toBeUndefined();
+    expect(await localDb.pendingRecordDeletes.get("r1")).toEqual({ id: "r1" });
+  });
+
+  it("同期済みの記録を編集(pendingに戻る)してから削除しても、リモート削除がキューされる(#56)", async () => {
+    await saveRecord({ id: "r1", recordDate: "2026-09-14", ...base, userId: null });
+    await localDb.records.update("r1", { syncStatus: "synced" });
+    // 編集で pending に戻る
+    await saveRecord({ id: "r1", recordDate: "2026-09-14", ...base, memo: "編集", userId: null });
+    expect((await localDb.records.get("r1"))?.syncStatus).toBe("pending");
+
+    await deleteRecord("r1");
+
+    expect(await localDb.records.get("r1")).toBeUndefined();
+    expect(await localDb.pendingRecordDeletes.get("r1")).toEqual({ id: "r1" });
+  });
+
+  it("存在しないidの削除は削除キューに積まない", async () => {
+    await deleteRecord("missing");
     expect(await localDb.pendingRecordDeletes.count()).toBe(0);
   });
 

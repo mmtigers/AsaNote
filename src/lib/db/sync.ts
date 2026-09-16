@@ -8,6 +8,12 @@ import { reportSyncOutcome } from "./syncStatus";
 let syncing = false;
 let pulling = false;
 
+// pullの1ページあたりの取得件数。PostgRESTは1リクエストの最大行数(既定 max-rows=1000)を
+// 黙って切り捨てるため、record_date, id の安定した順序でこの件数ずつ全ページ取得する(#55)。
+// 以前はページングが無く、取得できなかった行を「クラウドから見えなくなった」と誤判定して
+// ローカルから削除してしまう経路があった。
+export const PULL_PAGE_SIZE = 500;
+
 // user_idはRLSのINSERT/UPDATEポリシーが要求するため必須で付与する。
 function toRecordRow(record: LocalRecord, userId: string) {
   return {
@@ -125,13 +131,16 @@ export async function syncPendingChanges() {
   }
 }
 
-// クラウド→ローカルの取り込み(ログイン直後・起動時に一度実行)。他端末(パートナーの
-// 端末)で記録したデータや、この端末のIndexedDBが空になった場合(再インストール等)の
+// クラウド→ローカルの取り込み(ログイン直後・起動時・グループ参加/脱退後に実行)。他端末
+// (パートナーの端末)で記録したデータや、この端末のIndexedDBが空になった場合(再インストール等)の
 // 復元に使う。ローカルにまだ送信していない変更(syncStatus: "pending")がある行は、
 // クラウドの古い値で上書きしないようスキップする。
 //
 // recordsのSELECTポリシーは自分自身に加えて同じグループのメンバーの行も返すため、
 // user_idでの絞り込みは行わずRLSに委ねる(パートナーの記録もまとめてDexieへミラーする)。
+//
+// 取得はPULL_PAGE_SIZE件ずつの全ページ取得で、途中のページが失敗した場合はローカルへの反映も
+// 「見えなくなった行の削除」も行わない(部分的な結果で削除判定すると取得漏れ行が消えるため)。
 export async function pullFromCloud() {
   if (pulling) return;
   if (typeof navigator !== "undefined" && !navigator.onLine) return;
@@ -146,13 +155,23 @@ export async function pullFromCloud() {
     if (!userId) return;
 
     hadWork = true;
-    const { data, error } = await supabase.from("records").select("*");
-    if (error) {
-      console.warn("recordsのpullに失敗しました:", error);
-      hadError = true;
-      return;
+    const remoteRecords: CloudRecordRow[] = [];
+    for (let from = 0; ; from += PULL_PAGE_SIZE) {
+      const { data, error } = await supabase
+        .from("records")
+        .select("*")
+        .order("record_date", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, from + PULL_PAGE_SIZE - 1);
+      if (error) {
+        console.warn(`recordsのpullに失敗しました(offset=${from}):`, error);
+        hadError = true;
+        return;
+      }
+      const page = (data ?? []) as CloudRecordRow[];
+      remoteRecords.push(...page);
+      if (page.length < PULL_PAGE_SIZE) break;
     }
-    const remoteRecords = (data ?? []) as CloudRecordRow[];
 
     const pendingDeleteIds = new Set((await localDb.pendingRecordDeletes.toArray()).map((d) => d.id));
 

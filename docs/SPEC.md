@@ -157,8 +157,8 @@ supabase/
 1. 「記録する」操作は `src/lib/db/records.ts` を通じて即座にDexie(IndexedDB)へ書き込まれる（`syncStatus: "pending"`）。
 2. `src/lib/db/sync.ts` の `syncPendingChanges()` が起動時・オンライン復帰時（`window`の`online`イベント）に、`syncStatus: "pending"`のレコードをSupabaseへバッチ`upsert`し、成功したものを`"synced"`に更新する。
    - バッチ全体が失敗した場合は1件ずつ再試行し、問題のないレコードまで巻き込まれないようにする。
-   - 削除も同様に `pendingRecordDeletes` をキューし、オンライン復帰時にまとめて削除を反映する。
-3. `pullFromCloud()` がログイン直後・起動時に一度、Supabase側の記録をDexieへ取り込む（他端末・パートラーの記録の反映、ローカルIndexedDBが空の場合の復元用）。ローカルに未送信の変更（`"pending"`）がある行は上書きしない。クラウド側（RLS）から見えなくなった`synced`行はローカルからも削除する（グループ脱退・相手による削除など）。
+   - 削除も同様に `pendingRecordDeletes` をキューし、オンライン復帰時にまとめて削除を反映する。キューは`syncStatus`に関わらず必ず積む（同期済みの記録を編集すると`"pending"`に戻るため、`"synced"`のときだけ積むと「編集→削除」した記録のリモート削除が漏れ、次回の`pullFromCloud()`で復活していた）。一度もクラウドに存在しなかったidの削除はサーバー側で0件ヒットの無害な操作になる。
+3. `pullFromCloud()` がログイン直後・起動時に一度、Supabase側の記録をDexieへ取り込む（他端末・パートラーの記録の反映、ローカルIndexedDBが空の場合の復元用）。ローカルに未送信の変更（`"pending"`）がある行は上書きしない。クラウド側（RLS）から見えなくなった`synced`行はローカルからも削除する（グループ脱退・相手による削除など）。取得は`record_date, id`順に`PULL_PAGE_SIZE`（500）件ずつの全ページ取得で、途中のページが失敗した場合は反映も削除も行わない（PostgRESTは1リクエストの行数上限を黙って切り捨てるため、ページングなしだと取得漏れ行を「見えなくなった」と誤判定して消してしまう）。
 4. IDはクライアント側でUUID生成し、ローカル・クラウドで同一IDを使うため、同期は冪等（idempotent）に行える。
 5. 同期の成功/失敗は `src/lib/db/syncStatus.ts` の `reportSyncOutcome()` で記録され、UI上に同期失敗の通知（`SyncFailureNotice`）を出す。
 
