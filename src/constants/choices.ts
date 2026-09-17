@@ -7,18 +7,6 @@
 // 永久に失敗し続けていた)
 export const MEMO_MAX_LENGTH = 2000;
 
-// 起床時刻の選択肢。6:00〜8:00を15分刻みで用意する(自由入力にしない)。
-export const WAKE_TIME_OPTIONS: string[] = (() => {
-  const times: string[] = [];
-  for (let h = 6; h <= 8; h++) {
-    for (let m = 0; m < 60; m += 15) {
-      if (h === 8 && m > 0) break;
-      times.push(`${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`);
-    }
-  }
-  return times;
-})();
-
 // 登校の結果。3択(スムーズ/行き渋り/お休み)で、以降の「理由」の選択肢を出し分ける。
 export const OUTCOME_OPTIONS = [
   { value: "smooth", label: "スムーズに行けた", emoji: "😊", color: "accent" },

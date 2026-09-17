@@ -6,23 +6,21 @@ interface TagChipsProps {
   options: string[];
   value: string[];
   onChange: (next: string[]) => void;
-  multiple?: boolean;
   onAddCustom?: (tag: string) => void;
 }
 
-// 記録フォームの選択肢チップ。multiple=falseなら単一選択(もう一度押すと解除)、
-// trueなら複数選択。「＋追加」でその場でカスタムタグを増やせる。
-export function TagChips({ options, value, onChange, multiple = true, onAddCustom }: TagChipsProps) {
+// 記録フォームの選択肢チップ(複数選択。もう一度押すと解除)。
+// 「＋追加」でその場でカスタムタグを増やせる。
+//
+// 以前は multiple?: boolean を受けて単一選択にもできたが、渡している呼び出し元が
+// 一度も無く到達不能な分岐だったため撤去した(#62)。単一選択が必要になったら戻す。
+export function TagChips({ options, value, onChange, onAddCustom }: TagChipsProps) {
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
 
   function toggle(option: string) {
     const selected = value.includes(option);
-    if (multiple) {
-      onChange(selected ? value.filter((v) => v !== option) : [...value, option]);
-    } else {
-      onChange(selected ? [] : [option]);
-    }
+    onChange(selected ? value.filter((v) => v !== option) : [...value, option]);
   }
 
   function commitDraft() {
@@ -31,11 +29,7 @@ export function TagChips({ options, value, onChange, multiple = true, onAddCusto
     setDraft("");
     if (!trimmed) return;
     if (!options.includes(trimmed)) onAddCustom?.(trimmed);
-    if (multiple) {
-      if (!value.includes(trimmed)) onChange([...value, trimmed]);
-    } else {
-      onChange([trimmed]);
-    }
+    if (!value.includes(trimmed)) onChange([...value, trimmed]);
   }
 
   return (

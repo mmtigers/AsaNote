@@ -131,7 +131,7 @@ docs/SPEC.md              本書
 ### 5.2 `Group` / `GroupMember` / `GroupInvite` / `Child`
 
 - `Group`: `id`, `name`, `created_by`, `created_at`。
-- `GroupMember`: `group_id`, `user_id`（`unique`＝1ユーザー1グループ）, `joined_at`。
+- `group_members` テーブル: `group_id`, `user_id`（`unique`＝1ユーザー1グループ）, `joined_at`。対応する TypeScript の型は持たない（アプリがこの行をそのまま扱う箇所が無いため）。メンバー一覧の表示には、`SECURITY DEFINER` 関数 `get_group_members` 経由で email を含めて取得する `GroupMemberProfile` を使う。
 - `GroupInvite`: 招待コード。`expires_at`（発行から24時間）、`used_at`/`used_by`（1回限り使用）。
 - `Child`: `id`, `created_by`, `name`（1〜50文字）, `created_at`。
 
