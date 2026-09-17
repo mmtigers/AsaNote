@@ -4,18 +4,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { isNetworkError, NETWORK_ERROR_MESSAGE_JA } from "@/lib/errors";
+import { COOLDOWN_SECONDS, getRemainingCooldown, rememberSentAt } from "@/lib/otpCooldown";
 import { getSupabaseClient } from "@/lib/supabase/client";
-
-const COOLDOWN_SECONDS = 30;
-const LAST_SENT_KEY = "asa-note:lastOtpSentAt";
-
-// ページ再読み込みでもクールダウンが効くよう、送信時刻をlocalStorageに残して判定する。
-function getRemainingCooldown(): number {
-  const lastSent = Number(window.localStorage.getItem(LAST_SENT_KEY) ?? 0);
-  if (!Number.isFinite(lastSent)) return 0;
-  const elapsedSeconds = (Date.now() - lastSent) / 1000;
-  return Math.max(0, Math.ceil(COOLDOWN_SECONDS - elapsedSeconds));
-}
 
 export default function LoginPage() {
   const { session, loading } = useAuth();
@@ -59,7 +49,7 @@ export default function LoginPage() {
         options: { emailRedirectTo: window.location.origin },
       });
       if (error) throw error;
-      window.localStorage.setItem(LAST_SENT_KEY, String(Date.now()));
+      rememberSentAt();
       setCooldown(COOLDOWN_SECONDS);
       setSent(true);
     } catch (error) {
