@@ -41,6 +41,7 @@ src/
     auth/AuthProvider.tsx  認証状態のcontext
     db/                    Dexieローカルキャッシュ・オフライン同期ロジック
       ownership.ts           記録の所有判定（`isOwnRecord` / `canEditRecord`）の唯一の情報源
+      useAuthedList.ts       ログイン状態に応じて一覧を取得する共通フック（`useChildren` / `useGroupMembers` の実体）
       database.types.ts      `supabase gen types` の生成物。手で編集せず `scripts/gen-db-types.sh` で再生成する
     date.ts, draft.ts, recordPreview.ts, errors.ts  各種ユーティリティ
   constants/choices.ts    記録フォームの選択肢（タグ）の唯一の情報源

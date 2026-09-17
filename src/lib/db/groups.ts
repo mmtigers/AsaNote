@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
-import { useAuth } from "@/lib/auth/AuthProvider";
 import { getSupabaseClient } from "@/lib/supabase/client";
+import { useAuthedList } from "./useAuthedList";
 import type { Group, GroupInvite, GroupMemberProfile } from "@/types/models";
 
 // 紛らわしい文字(0/O, 1/I/L)を除いた招待コード用アルファベット。手入力・音声共有を想定。
@@ -125,31 +124,11 @@ export async function getGroupMembers(): Promise<GroupMemberProfile[]> {
 
 // タイムラインで「誰の記録か」を表示するための軽量フック。グループに所属していない
 // 場合は空配列を返す(RPCがRLS経由で自然に0件になる)。
+//
+// 未ログイン時は [] を返す(useChildren と違う点)。未ログインならパートナーは居ないと
+// 言い切れるため、「0件で確定」として扱ってよい。
 export function useGroupMembers(): GroupMemberProfile[] | null {
-  const { session, loading } = useAuth();
-  const [members, setMembers] = useState<GroupMemberProfile[] | null>(null);
-
-  useEffect(() => {
-    if (loading) return;
-    if (!session) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- 未ログイン確定後に一度だけ空配列を確定させる後始末で、フェッチ自体は発生しない
-      setMembers([]);
-      return;
-    }
-    let active = true;
-    getGroupMembers()
-      .then((data) => {
-        if (active) setMembers(data);
-      })
-      .catch(() => {
-        if (active) setMembers([]);
-      });
-    return () => {
-      active = false;
-    };
-  }, [loading, session]);
-
-  return members;
+  return useAuthedList(getGroupMembers, { whenSignedOut: "empty" });
 }
 
 // タイムラインでuser_id→emailを引くための軽量マップ。
