@@ -2,9 +2,10 @@
 
 import { useSyncExternalStore } from "react";
 
-// 記録フロー(src/app/page.tsx)がlocalStorageに保存する「入力途中の下書き」の
-// キーと存在確認を、BottomNavなど他のコンポーネントからも参照できるように
-// 共有しておくモジュール。実際の下書きの読み書きはpage.tsx側が行う。
+// 記録フローがlocalStorageに保存する「入力途中の下書き」のキーと存在確認を、
+// BottomNavなど他のコンポーネントからも参照できるように共有しておくモジュール。
+// 実際の読み書き(loadDraft / saveDraft / clearDraft)は src/app/_home/draftStorage.ts が
+// 行い、そちらがこのモジュールの DRAFT_STORAGE_KEY と notifyDraftChanged を使う。
 export const DRAFT_STORAGE_KEY = "asa-note:draft";
 
 const DRAFT_CHANGED_EVENT = "asa-note:draft-changed";

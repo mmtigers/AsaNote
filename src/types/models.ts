@@ -25,7 +25,8 @@ export interface SchoolRecord {
   updatedAt: string;
 }
 
-// 場所・訪問記録を共有する単位(夫婦・家族を想定)。1ユーザーは同時に1グループのみ所属可能。
+// 登校記録を共有する単位(夫婦・家族を想定)。1ユーザーは同時に1グループのみ所属可能。
+// (グループ共有の仕組み自体は別アプリ Matane と同型。詳細は supabase/schema.sql のコメント)
 export interface Group {
   id: string;
   name: string | null;

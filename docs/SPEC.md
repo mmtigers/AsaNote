@@ -21,7 +21,7 @@
 | ローカルキャッシュ | Dexie.js (IndexedDB) — `dexie-react-hooks` でライブクエリ |
 | オフライン | 手書き Service Worker (`public/sw.js`) による PWA オフラインシェル |
 | テスト | Vitest（ユニット） / Playwright（E2E, `e2e/record-flow.spec.ts`） |
-| Lint/CI | ESLint、`.github/workflows/ci.yml`（push・PR毎に lint / test / build） |
+| Lint/CI | ESLint、`.github/workflows/ci.yml`（push・PR毎に3ジョブ。詳細は §9） |
 
 ## 3. ディレクトリ構成
 
@@ -40,11 +40,17 @@ src/
     supabase/client.ts    Supabaseクライアント
     auth/AuthProvider.tsx  認証状態のcontext
     db/                    Dexieローカルキャッシュ・オフライン同期ロジック
+      ownership.ts           記録の所有判定（`isOwnRecord` / `canEditRecord`）の唯一の情報源
+      database.types.ts      `supabase gen types` の生成物。手で編集せず `scripts/gen-db-types.sh` で再生成する
     date.ts, draft.ts, recordPreview.ts, errors.ts  各種ユーティリティ
   constants/choices.ts    記録フォームの選択肢（タグ）の唯一の情報源
   types/models.ts         SchoolRecord / Group / Child などの型定義
 supabase/
   schema.sql              records / groups / children 等のテーブル・RLSポリシー
+  ci/auth-stub.sql        CI（`db-types-check`）で素のPostgresに `auth.uid()` 等を代替定義するスタブ
+scripts/gen-db-types.sh   `database.types.ts` の再生成スクリプト
+e2e/record-flow.spec.ts   Playwright のE2Eテスト
+docs/SPEC.md              本書
 ```
 
 ## 4. 主要機能
@@ -53,7 +59,7 @@ supabase/
 
 3ステップのフォームで、1日1件（子ども単位）の記録を作成・編集する。
 
-1. **home** — 月間カレンダーで日付を選ぶ。記録済みの日は状態（スムーズ/行き渋り/お休み）が視覚的に分かる。カレンダー下の「記録する」ボタンは左右スワイプで前日/翌日に切り替え可能。未記録のリマインダー通知を表示。
+1. **home** — 月間カレンダーで日付を選ぶ。記録済みの日は状態（スムーズ/行き渋り/お休み）が視覚的に分かる。カレンダー下の「記録する」ボタンは左右スワイプで前日/翌日に切り替え可能。未記録のリマインダー通知は、正午（12時）以降にアプリを開いた時点でその日の記録がまだ無い場合にのみ表示する（`src/components/RecordReminderNotice.tsx` の `REMINDER_HOUR`）。朝の記録前に催促しないための条件。
 2. **result** — 「今日はどうだった？」を3択で選ぶ：
    - `smooth`（😊 スムーズに行けた）
    - `reluctant`（😣 行き渋った）
@@ -120,6 +126,8 @@ supabase/
 
 ローカル専用の付加情報として `syncStatus`（`"pending" | "synced"`）を持つ（`LocalRecord`、`src/lib/db/localDb.ts`）。
 
+なお `records` テーブルには上表に対応しない `struggled`（`boolean`）列が残っている。旧フォーム（〜v1）の「登校を渋ったか」で、現在は `outcome` の3択に置き換わっている。**`SchoolRecord` / `LocalRecord` には対応するフィールドが無く、アプリは読み書きしない**（`supabase/schema.sql` と生成物の `src/lib/db/database.types.ts` にのみ現れる）。列の削除は #46 で2027年9月頃に旧タグ群とまとめて実施する方針。
+
 ### 5.2 `Group` / `GroupMember` / `GroupInvite` / `Child`
 
 - `Group`: `id`, `name`, `created_by`, `created_at`。
@@ -160,7 +168,7 @@ supabase/
 2. `src/lib/db/sync.ts` の `syncPendingChanges()` が起動時・オンライン復帰時（`window`の`online`イベント）に、`syncStatus: "pending"`のレコードをSupabaseへバッチ`upsert`し、成功したものを`"synced"`に更新する。
    - バッチ全体が失敗した場合は1件ずつ再試行し、問題のないレコードまで巻き込まれないようにする。
    - 削除も同様に `pendingRecordDeletes` をキューし、オンライン復帰時にまとめて削除を反映する。キューは`syncStatus`に関わらず必ず積む（同期済みの記録を編集すると`"pending"`に戻るため、`"synced"`のときだけ積むと「編集→削除」した記録のリモート削除が漏れ、次回の`pullFromCloud()`で復活していた）。一度もクラウドに存在しなかったidの削除はサーバー側で0件ヒットの無害な操作になる。
-3. `pullFromCloud()` がログイン直後・起動時に一度、Supabase側の記録をDexieへ取り込む（他端末・パートラーの記録の反映、ローカルIndexedDBが空の場合の復元用）。ローカルに未送信の変更（`"pending"`）がある行は上書きしない。クラウド側（RLS）から見えなくなった`synced`行はローカルからも削除する（グループ脱退・相手による削除など）。取得は`record_date, id`順に`PULL_PAGE_SIZE`（500）件ずつの全ページ取得で、途中のページが失敗した場合は反映も削除も行わない（PostgRESTは1リクエストの行数上限を黙って切り捨てるため、ページングなしだと取得漏れ行を「見えなくなった」と誤判定して消してしまう）。
+3. `pullFromCloud()` がSupabase側の記録をDexieへ取り込む（他端末・パートナーの記録の反映、ローカルIndexedDBが空の場合の復元用）。呼ばれるのはログイン直後・起動時に加えて、グループへの参加後と脱退後（`src/app/group/page.tsx`）。参加直後はパートナーの記録が、脱退直後はRLSで見えなくなった記録の削除が、それぞれ即座に反映される必要があるため。ローカルに未送信の変更（`"pending"`）がある行は上書きしない。クラウド側（RLS）から見えなくなった`synced`行はローカルからも削除する（グループ脱退・相手による削除など）。取得は`record_date, id`順に`PULL_PAGE_SIZE`（500）件ずつの全ページ取得で、途中のページが失敗した場合は反映も削除も行わない（PostgRESTは1リクエストの行数上限を黙って切り捨てるため、ページングなしだと取得漏れ行を「見えなくなった」と誤判定して消してしまう）。
 4. IDはクライアント側でUUID生成し、ローカル・クラウドで同一IDを使うため、同期は冪等（idempotent）に行える。
 5. 同期の成功/失敗は `src/lib/db/syncStatus.ts` の `reportSyncOutcome()` で記録され、UI上に同期失敗の通知（`SyncFailureNotice`）を出す。
 6. **競合の解決方針（#61）**: `updatedAt` を比較する LWW ではなく、「ローカルが `pending` ならローカルを優先、それ以外はリモートで上書き」とする。したがって2端末で同じ記録をオフライン編集した場合は、**後から同期した側の内容が残る**（順序依存）。個人・夫婦間での利用を前提とした割り切りで、同時編集の自動マージは行わない。
