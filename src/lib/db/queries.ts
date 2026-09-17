@@ -3,6 +3,7 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import type { Outcome } from "@/constants/choices";
 import { localDb } from "./localDb";
+import { isOwnRecord } from "./ownership";
 
 // タイムライン用: 日付の新しい順に並べた全記録(自分+グループメンバー)。
 export function useRecordsTimeline() {
@@ -21,7 +22,7 @@ export function useRecordsTimeline() {
 export function useRecordStatusForMonth(monthKey: string, userId: string | null, childId: string | null = null) {
   return useLiveQuery(async () => {
     const rows = await localDb.records.where("recordDate").startsWith(monthKey).toArray();
-    const own = rows.filter((r) => (!r.userId || r.userId === userId) && (r.childId ?? null) === childId);
+    const own = rows.filter((r) => isOwnRecord(r, userId) && (r.childId ?? null) === childId);
     own.sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
     const map = new Map<string, Outcome | null>();
     for (const r of own) {
@@ -44,6 +45,6 @@ export function usePendingSyncCount() {
 export function useHasTodayOwnRecord(recordDate: string, userId: string | null) {
   return useLiveQuery(async () => {
     const rows = await localDb.records.where("recordDate").equals(recordDate).toArray();
-    return rows.some((r) => (!r.userId || r.userId === userId) && !!r.outcome);
+    return rows.some((r) => isOwnRecord(r, userId) && !!r.outcome);
   }, [recordDate, userId]);
 }

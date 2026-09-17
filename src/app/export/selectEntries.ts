@@ -1,4 +1,4 @@
-import { isOwnRecord } from "@/lib/db/groups";
+import { isOwnRecord } from "@/lib/db/ownership";
 import type { Outcome } from "@/constants/choices";
 
 export interface ExportableRecord {
