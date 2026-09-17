@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useAuth } from "@/lib/auth/AuthProvider";
 import { getSupabaseClient } from "@/lib/supabase/client";
+import { useAuthedList } from "./useAuthedList";
 import type { Child } from "@/types/models";
 import { useSelectedChildId } from "./selectedChild";
 
@@ -66,31 +65,12 @@ export async function deleteChild(id: string): Promise<void> {
 
 // ホーム・タイムライン・傾向で使う、子ども一覧の軽量フック。未ログインの間はnull、
 // 取得できれば(0件含め)配列を返す。
+//
+// 未ログイン時に [] ではなく null を返すのは意図的。子ども一覧が未確定の間に
+// 「子ども0人」と解釈されると記録の絞り込みが誤るため、「まだ分からない」と同じ扱いにする
+// (src/app/page.tsx の editChildIdOverride はこの性質への同期的な回避策)。
 export function useChildren(): Child[] | null {
-  const { session, loading } = useAuth();
-  const [children, setChildren] = useState<Child[] | null>(null);
-
-  useEffect(() => {
-    if (loading) return;
-    if (!session) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- 未ログイン確定後に一度だけnullを確定させる後始末で、フェッチ自体は発生しない
-      setChildren(null);
-      return;
-    }
-    let active = true;
-    getChildren()
-      .then((data) => {
-        if (active) setChildren(data);
-      })
-      .catch(() => {
-        if (active) setChildren([]);
-      });
-    return () => {
-      active = false;
-    };
-  }, [loading, session]);
-
-  return children;
+  return useAuthedList(getChildren, { whenSignedOut: "null" });
 }
 
 // 選択中の子どもIDを、実際に存在する子ども一覧に照らして解決する。子どもが0〜1人の
