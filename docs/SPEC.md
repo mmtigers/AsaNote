@@ -33,7 +33,12 @@ src/
     timeline/page.tsx     これまでの記録一覧
     stats/page.tsx        傾向（集計・グラフ）
     export/page.tsx       期間指定エクスポート（印刷/PDF保存）
-    group/page.tsx        家族との共有（グループ・子ども管理）
+    group/                家族との共有（グループ・子ども管理）
+      page.tsx              ログイン状態の出し分けとセクションの組み立てのみ
+      useChildrenAdmin.ts   お子さまの追加・改名・削除の状態と操作
+      useGroupAdmin.ts      グループの作成・参加・招待・脱退の状態と操作
+      ChildrenSection.tsx, GroupOnboardingSections.tsx, GroupMemberSections.tsx  表示専用
+      runAction.ts          失敗時に console.error + ユーザー向けメッセージを出す定型
     login/page.tsx        マジックリンクログイン
   components/            共有UIコンポーネント（カレンダー、子ども切替、タグ選択 等）
   lib/
@@ -169,7 +174,7 @@ docs/SPEC.md              本書
 2. `src/lib/db/sync.ts` の `syncPendingChanges()` が起動時・オンライン復帰時（`window`の`online`イベント）に、`syncStatus: "pending"`のレコードをSupabaseへバッチ`upsert`し、成功したものを`"synced"`に更新する。
    - バッチ全体が失敗した場合は1件ずつ再試行し、問題のないレコードまで巻き込まれないようにする。
    - 削除も同様に `pendingRecordDeletes` をキューし、オンライン復帰時にまとめて削除を反映する。キューは`syncStatus`に関わらず必ず積む（同期済みの記録を編集すると`"pending"`に戻るため、`"synced"`のときだけ積むと「編集→削除」した記録のリモート削除が漏れ、次回の`pullFromCloud()`で復活していた）。一度もクラウドに存在しなかったidの削除はサーバー側で0件ヒットの無害な操作になる。
-3. `pullFromCloud()` がSupabase側の記録をDexieへ取り込む（他端末・パートナーの記録の反映、ローカルIndexedDBが空の場合の復元用）。呼ばれるのはログイン直後・起動時に加えて、グループへの参加後と脱退後（`src/app/group/page.tsx`）。参加直後はパートナーの記録が、脱退直後はRLSで見えなくなった記録の削除が、それぞれ即座に反映される必要があるため。ローカルに未送信の変更（`"pending"`）がある行は上書きしない。クラウド側（RLS）から見えなくなった`synced`行はローカルからも削除する（グループ脱退・相手による削除など）。取得は`record_date, id`順に`PULL_PAGE_SIZE`（500）件ずつの全ページ取得で、途中のページが失敗した場合は反映も削除も行わない（PostgRESTは1リクエストの行数上限を黙って切り捨てるため、ページングなしだと取得漏れ行を「見えなくなった」と誤判定して消してしまう）。
+3. `pullFromCloud()` がSupabase側の記録をDexieへ取り込む（他端末・パートナーの記録の反映、ローカルIndexedDBが空の場合の復元用）。呼ばれるのはログイン直後・起動時に加えて、グループへの参加後と脱退後（`src/app/group/useGroupAdmin.ts`）。参加直後はパートナーの記録が、脱退直後はRLSで見えなくなった記録の削除が、それぞれ即座に反映される必要があるため。ローカルに未送信の変更（`"pending"`）がある行は上書きしない。クラウド側（RLS）から見えなくなった`synced`行はローカルからも削除する（グループ脱退・相手による削除など）。取得は`record_date, id`順に`PULL_PAGE_SIZE`（500）件ずつの全ページ取得で、途中のページが失敗した場合は反映も削除も行わない（PostgRESTは1リクエストの行数上限を黙って切り捨てるため、ページングなしだと取得漏れ行を「見えなくなった」と誤判定して消してしまう）。
 4. IDはクライアント側でUUID生成し、ローカル・クラウドで同一IDを使うため、同期は冪等（idempotent）に行える。
 5. 同期の成功/失敗は `src/lib/db/syncStatus.ts` の `reportSyncOutcome()` で記録され、UI上に同期失敗の通知（`SyncFailureNotice`）を出す。
 6. **競合の解決方針（#61）**: `updatedAt` を比較する LWW ではなく、「ローカルが `pending` ならローカルを優先、それ以外はリモートで上書き」とする。したがって2端末で同じ記録をオフライン編集した場合は、**後から同期した側の内容が残る**（順序依存）。個人・夫婦間での利用を前提とした割り切りで、同時編集の自動マージは行わない。
