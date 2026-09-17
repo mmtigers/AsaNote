@@ -134,6 +134,7 @@ export default function GroupPage() {
 
   async function handleShareInvite() {
     if (!invite) return;
+    setErrorMessage(null);
     const text = `あさノートのグループに招待します。招待コード: ${invite.code}\n(24時間以内に入力してください)`;
 
     if (navigator.share) {
@@ -145,8 +146,17 @@ export default function GroupPage() {
       return;
     }
 
-    await navigator.clipboard.writeText(text);
-    setShareCopied(true);
+    // navigator.clipboard は非セキュアコンテキスト(http)では undefined になり、
+    // writeText も権限拒否やフォーカス喪失で reject しうる。上の navigator.share 側は
+    // 保護済みだったがこちらは未保護で、失敗すると未処理の拒否になりユーザーには
+    // 何も起きていないように見えていた。招待コードは画面に出ているので、
+    // 失敗時は手動で控えてもらう案内を出す。
+    try {
+      await navigator.clipboard.writeText(text);
+      setShareCopied(true);
+    } catch {
+      setErrorMessage("招待コードをコピーできませんでした。画面のコードを手動で控えてください。");
+    }
   }
 
   async function handleAddChild() {
