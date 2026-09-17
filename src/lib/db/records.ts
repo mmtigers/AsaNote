@@ -1,5 +1,6 @@
 import type { Outcome } from "@/constants/choices";
 import { localDb, type LocalRecord } from "./localDb";
+import { isOwnRecord } from "./ownership";
 import { syncPendingChanges } from "./sync";
 
 export interface RecordFormInput {
@@ -61,7 +62,7 @@ export async function findLatestOwnRecordForDate(
   childId: string | null = null
 ): Promise<LocalRecord | undefined> {
   const candidates = await localDb.records.where("recordDate").equals(recordDate).toArray();
-  const own = candidates.filter((r) => (!r.userId || r.userId === userId) && (r.childId ?? null) === childId);
+  const own = candidates.filter((r) => isOwnRecord(r, userId) && (r.childId ?? null) === childId);
   own.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   return own[0];
 }

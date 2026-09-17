@@ -8,7 +8,8 @@ import { PartnerAvatar } from "@/components/PartnerAvatar";
 import { SkeletonList } from "@/components/Skeleton";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useChildren } from "@/lib/db/children";
-import { buildMemberEmailMap, isOwnRecord, useGroupMembers } from "@/lib/db/groups";
+import { buildMemberEmailMap, useGroupMembers } from "@/lib/db/groups";
+import { canEditRecord, isOwnRecord } from "@/lib/db/ownership";
 import { deleteRecord } from "@/lib/db/records";
 import { useRecordsTimeline } from "@/lib/db/queries";
 import type { LocalRecord } from "@/lib/db/localDb";
@@ -76,7 +77,10 @@ export default function TimelinePage() {
       ) : (
         <ul className="flex flex-col gap-2.5">
           {visibleRecords.map((record) => {
+            // own は表示系(パートナーのアバター)用。編集・削除は authLoading 中に
+            // 出してはいけないので canEditRecord で別に判定する(#62)。
             const own = isOwnRecord(record, session?.user.id, authLoading);
+            const canEdit = canEditRecord(record, session?.user.id, authLoading);
             const outcome = OUTCOME_OPTIONS.find((o) => o.value === record.outcome);
             const legacy = legacyBadge(record);
             const allTags = [
@@ -126,7 +130,7 @@ export default function TimelinePage() {
                     ))}
                   </div>
                 )}
-                {own && (
+                {canEdit && (
                   <div className="flex gap-3 text-xs">
                     <Link
                       href={

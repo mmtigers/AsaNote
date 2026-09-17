@@ -152,16 +152,6 @@ export function useGroupMembers(): GroupMemberProfile[] | null {
   return members;
 }
 
-// user_id未設定(=クラウド未同期の自分の新規記録)は常に自分の記録として扱う。
-export function isOwnRecord(
-  record: { userId?: string | null },
-  currentUserId: string | null | undefined,
-  authLoading?: boolean
-): boolean {
-  if (authLoading) return true;
-  return !record.userId || record.userId === currentUserId;
-}
-
 // タイムラインでuser_id→emailを引くための軽量マップ。
 export function buildMemberEmailMap(members: GroupMemberProfile[] | null): Map<string, string | null> {
   const map = new Map<string, string | null>();

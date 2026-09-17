@@ -6,7 +6,6 @@ import {
   getActiveInvite,
   getGroupMembers,
   getMyGroup,
-  isOwnRecord,
   joinGroupByCode,
   leaveGroup,
 } from "./groups";
@@ -230,24 +229,6 @@ describe("getGroupMembers", () => {
     rpcMock.mockResolvedValue({ data: null, error: new Error("boom") });
 
     await expect(getGroupMembers()).rejects.toThrow("boom");
-  });
-});
-
-describe("isOwnRecord", () => {
-  it("認証情報読み込み中は自分の記録として扱う", () => {
-    expect(isOwnRecord({ userId: "other" }, "me", true)).toBe(true);
-  });
-
-  it("userId未設定はクラウド未同期の自分の記録として扱う", () => {
-    expect(isOwnRecord({ userId: null }, "me")).toBe(true);
-  });
-
-  it("userIdが一致すれば自分の記録", () => {
-    expect(isOwnRecord({ userId: "me" }, "me")).toBe(true);
-  });
-
-  it("userIdが異なればパートナーの記録", () => {
-    expect(isOwnRecord({ userId: "partner" }, "me")).toBe(false);
   });
 });
 
