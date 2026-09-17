@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { clearLocalData, localDb, type LocalRecord } from "./localDb";
-import { pullFromCloud, syncPendingChanges } from "./sync";
+import { PULL_PAGE_SIZE, pullFromCloud, syncPendingChanges } from "./sync";
 
 const authGetUser = vi.fn();
 const fromMock = vi.fn();
@@ -64,12 +64,24 @@ function setOnline(online: boolean) {
   Object.defineProperty(window.navigator, "onLine", { value: online, configurable: true });
 }
 
-function mockRecordsTable(overrides: { upsert?: unknown; select?: unknown; delete?: unknown } = {}) {
+type SelectImpl = (from: number, to: number) => Promise<{ data: unknown; error: unknown }>;
+
+// pullFromCloud は select("*").order(...).order(...).range(from, to) のチェーンで
+// PULL_PAGE_SIZE 件ずつ取得する(#55)。select の差し替えは range(from, to) の時点で
+// 呼ばれ、ページ範囲を受け取れる(範囲を無視して全件返すモックは「1ページ目で終わる」扱い)。
+function mockRecordsTable(overrides: { upsert?: unknown; select?: SelectImpl; delete?: unknown } = {}) {
+  const selectImpl: SelectImpl = overrides.select ?? vi.fn().mockResolvedValue({ data: [], error: null });
   fromMock.mockImplementation((table: string) => {
     if (table !== "records") return {};
     return {
       upsert: overrides.upsert ?? vi.fn().mockResolvedValue({ error: null }),
-      select: overrides.select ?? vi.fn().mockResolvedValue({ data: [], error: null }),
+      select: () => {
+        const builder = {
+          order: () => builder,
+          range: (from: number, to: number) => selectImpl(from, to),
+        };
+        return builder;
+      },
       delete: overrides.delete ?? (() => ({ in: vi.fn().mockResolvedValue({ error: null }) })),
     };
   });
@@ -227,6 +239,36 @@ describe("pullFromCloud", () => {
     expect((await localDb.records.get("r1"))?.memo).toBe("ローカル未送信の変更");
   });
 
+  it("Postgres の time 列が HH:MM:SS で返っても HH:MM へ正規化する(#61)", async () => {
+    mockRecordsTable({
+      select: vi.fn().mockResolvedValue({
+        data: [makeCloudRow({ id: "r-time", wake_time: "06:45:00", depart_time: "07:30:00" })],
+        error: null,
+      }),
+    });
+
+    await pullFromCloud();
+
+    const saved = await localDb.records.get("r-time");
+    expect(saved?.wakeTime).toBe("06:45");
+    expect(saved?.departTime).toBe("07:30");
+  });
+
+  it("既に HH:MM で返る場合はそのまま保つ(#61)", async () => {
+    mockRecordsTable({
+      select: vi.fn().mockResolvedValue({
+        data: [makeCloudRow({ id: "r-short", wake_time: "06:45", depart_time: null })],
+        error: null,
+      }),
+    });
+
+    await pullFromCloud();
+
+    const saved = await localDb.records.get("r-short");
+    expect(saved?.wakeTime).toBe("06:45");
+    expect(saved?.departTime).toBeNull();
+  });
+
   it("削除待ち(pendingRecordDeletes)の行はクラウドの値で復元しない", async () => {
     await localDb.pendingRecordDeletes.add({ id: "r1" });
     mockRecordsTable({
@@ -283,6 +325,50 @@ describe("pullFromCloud", () => {
     expect(stored?.syncStatus).toBe("synced");
     expect(stored?.userId).toBe("user-2");
     expect(reportSyncOutcome).toHaveBeenCalledWith(true);
+  });
+
+  it("行数上限を超えるクラウド記録も全ページ取得し、取得漏れを「見えなくなった」と誤判定して削除しない(#55)", async () => {
+    // PULL_PAGE_SIZE(500)を超える 1201 件。最後のページにしか含まれない記録がローカルに
+    // synced で存在していても、ページングが正しければ削除されない。
+    const total = PULL_PAGE_SIZE * 2 + 201;
+    const all = Array.from({ length: total }, (_, i) =>
+      makeCloudRow({ id: `cloud-${String(i).padStart(5, "0")}`, record_date: "2026-01-01" })
+    );
+    const lastId = all[total - 1]?.id ?? "";
+    await localDb.records.add(makeLocalRecord({ id: lastId, syncStatus: "synced" }));
+    const select = vi.fn((from: number, to: number) =>
+      Promise.resolve({ data: all.slice(from, to + 1), error: null })
+    );
+    mockRecordsTable({ select });
+
+    await pullFromCloud();
+
+    expect(select).toHaveBeenCalledTimes(3);
+    expect(select).toHaveBeenNthCalledWith(1, 0, PULL_PAGE_SIZE - 1);
+    expect(select).toHaveBeenNthCalledWith(3, PULL_PAGE_SIZE * 2, PULL_PAGE_SIZE * 3 - 1);
+    expect(await localDb.records.count()).toBe(total);
+    expect(await localDb.records.get(lastId)).toBeDefined();
+    expect(reportSyncOutcome).toHaveBeenCalledWith(true);
+  });
+
+  it("2ページ目以降の取得に失敗した場合、部分的な結果でローカルの同期済み記録を削除しない", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await localDb.records.add(makeLocalRecord({ id: "keep-me", syncStatus: "synced" }));
+    const firstPage = Array.from({ length: PULL_PAGE_SIZE }, (_, i) =>
+      makeCloudRow({ id: `cloud-${String(i).padStart(5, "0")}` })
+    );
+    const select = vi.fn((from: number) =>
+      from === 0
+        ? Promise.resolve({ data: firstPage, error: null })
+        : Promise.resolve({ data: null, error: new Error("page 2 failed") })
+    );
+    mockRecordsTable({ select });
+
+    await pullFromCloud();
+
+    expect(await localDb.records.get("keep-me")).toBeDefined();
+    expect(reportSyncOutcome).toHaveBeenCalledWith(false);
+    warnSpy.mockRestore();
   });
 
   it("pullが失敗した場合、失敗を報告する", async () => {

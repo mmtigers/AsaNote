@@ -10,9 +10,14 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Issue #60: 明示しないとリポジトリ設定次第で write 権限のトークンが供給される。全ジョブ読み取り専用。
+permissions:
+  contents: read
+
 jobs:
   lint-build-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -36,8 +41,18 @@ jobs:
       - name: Type check
         run: npx tsc --noEmit
 
-      - name: Unit tests
-        run: npm run test
+      - name: Unit tests (with coverage)
+        # Issue #60: 以前は npm run test のみでカバレッジを CI で計測・保存していなかった。
+        # 閾値は設けず(vitest.config.mts のコメント参照)、成果物として残して推移を見る。
+        run: npm run test:coverage
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 14
 
       - name: Build
         env:
@@ -48,6 +63,7 @@ jobs:
   e2e-test:
     name: E2E test (Playwright)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -76,6 +92,7 @@ jobs:
   db-types-check:
     name: Supabase type drift check
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     services:
       postgres:
         image: postgres:16
@@ -98,9 +115,12 @@ jobs:
           psql -h localhost -U postgres -d postgres -f supabase/ci/auth-stub.sql
           psql -h localhost -U postgres -d postgres -f supabase/schema.sql
 
+      # Issue #60: version: latest は CLI の破壊的変更で CI が突然落ちうるため固定する
+      # (2026-09-16 時点の最新。Dependabot は setup-cli の with.version までは更新しないため、
+      #  型生成が古びたら手で上げること)。
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.117.0
 
       - name: Generate types
         run: supabase gen types typescript --db-url postgresql://postgres:postgres@localhost:5432/postgres > /tmp/database.types.ts

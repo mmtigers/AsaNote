@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Skeleton } from "@/components/Skeleton";
 import { useAuth } from "@/lib/auth/AuthProvider";
-import { createChild, getChildren } from "@/lib/db/children";
+import { createChild, deleteChild, getChildren, updateChild } from "@/lib/db/children";
 import {
   createGroup,
   createInvite,
@@ -39,6 +39,11 @@ export default function GroupPage() {
   const [confirmingLeave, setConfirmingLeave] = useState(false);
   const [childNameInput, setChildNameInput] = useState("");
   const [addingChild, setAddingChild] = useState(false);
+  // #59: 子どもの名前変更・削除。editingChildId は編集中の1件、pendingDeleteChild は削除確認中の1件。
+  const [editingChildId, setEditingChildId] = useState<string | null>(null);
+  const [editingChildName, setEditingChildName] = useState("");
+  const [savingChild, setSavingChild] = useState(false);
+  const [pendingDeleteChild, setPendingDeleteChild] = useState<Child | null>(null);
 
   const refresh = useCallback(async () => {
     const myGroup = await getMyGroup();
@@ -159,6 +164,45 @@ export default function GroupPage() {
     setAddingChild(false);
   }
 
+  function startEditChild(child: Child) {
+    setEditingChildId(child.id);
+    setEditingChildName(child.name);
+    setErrorMessage(null);
+  }
+
+  async function handleSaveChildName(child: Child) {
+    setErrorMessage(null);
+    setSavingChild(true);
+    const updated = await runAction(
+      () => updateChild(child.id, editingChildName),
+      "お子さまの名前の変更に失敗しました",
+      setErrorMessage
+    );
+    if (updated.ok) {
+      setChildren((prev) => prev.map((c) => (c.id === child.id ? updated.value : c)));
+      setEditingChildId(null);
+    }
+    setSavingChild(false);
+  }
+
+  async function handleConfirmDeleteChild() {
+    const target = pendingDeleteChild;
+    setPendingDeleteChild(null);
+    if (!target) return;
+    setErrorMessage(null);
+    setSavingChild(true);
+    const removed = await runAction(
+      () => deleteChild(target.id),
+      "お子さまの削除に失敗しました",
+      setErrorMessage
+    );
+    if (removed.ok) {
+      setChildren((prev) => prev.filter((c) => c.id !== target.id));
+      if (editingChildId === target.id) setEditingChildId(null);
+    }
+    setSavingChild(false);
+  }
+
   async function handleConfirmLeave() {
     setConfirmingLeave(false);
     setLeaving(true);
@@ -224,7 +268,53 @@ export default function GroupPage() {
           <ul className="flex flex-col gap-2">
             {children.map((child) => (
               <li key={child.id} className="rounded-xl bg-[var(--surface)] px-4 py-3 text-sm">
-                {child.name}
+                {editingChildId === child.id ? (
+                  <div className="flex gap-2">
+                    <label className="sr-only" htmlFor={`child-name-${child.id}`}>
+                      お子さまの名前
+                    </label>
+                    <input
+                      id={`child-name-${child.id}`}
+                      value={editingChildName}
+                      onChange={(event) => setEditingChildName(event.target.value)}
+                      maxLength={50}
+                      className="flex-1 rounded-xl bg-[var(--surface-2)] px-3 py-2 text-base outline-none focus:ring-2 focus:ring-[var(--accent)]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => void handleSaveChildName(child)}
+                      disabled={savingChild || !editingChildName.trim()}
+                      className="flex-none rounded-full bg-[var(--accent)] px-3 py-2 text-xs font-semibold text-[var(--accent-ink)] disabled:opacity-60"
+                    >
+                      保存
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingChildId(null)}
+                      className="flex-none rounded-full px-3 py-2 text-xs text-[var(--sub)]"
+                    >
+                      キャンセル
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <span className="flex-1">{child.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => startEditChild(child)}
+                      className="flex-none rounded-full px-3 py-1 text-xs text-[var(--sub)] underline underline-offset-2"
+                    >
+                      名前を変える
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setPendingDeleteChild(child)}
+                      className="flex-none rounded-full px-3 py-1 text-xs text-red-600 underline underline-offset-2"
+                    >
+                      削除
+                    </button>
+                  </div>
+                )}
               </li>
             ))}
           </ul>
@@ -354,6 +444,14 @@ export default function GroupPage() {
           </button>
         </>
       )}
+
+      <ConfirmDialog
+        open={pendingDeleteChild !== null}
+        message={`${pendingDeleteChild?.name ?? ""}さんを削除しますか？これまでの記録は残りますが、お子さまの割り当ては外れます。`}
+        confirmLabel="削除する"
+        onConfirm={() => void handleConfirmDeleteChild()}
+        onCancel={() => setPendingDeleteChild(null)}
+      />
 
       <ConfirmDialog
         open={confirmingLeave}

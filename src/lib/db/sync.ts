@@ -8,6 +8,12 @@ import { reportSyncOutcome } from "./syncStatus";
 let syncing = false;
 let pulling = false;
 
+// pullの1ページあたりの取得件数。PostgRESTは1リクエストの最大行数(既定 max-rows=1000)を
+// 黙って切り捨てるため、record_date, id の安定した順序でこの件数ずつ全ページ取得する(#55)。
+// 以前はページングが無く、取得できなかった行を「クラウドから見えなくなった」と誤判定して
+// ローカルから削除してしまう経路があった。
+export const PULL_PAGE_SIZE = 500;
+
 // user_idはRLSのINSERT/UPDATEポリシーが要求するため必須で付与する。
 function toRecordRow(record: LocalRecord, userId: string) {
   return {
@@ -36,17 +42,28 @@ function toRecordRow(record: LocalRecord, userId: string) {
 // をここでOutcomeへ絞り込む。
 type CloudRecordRow = Database["public"]["Tables"]["records"]["Row"];
 
+/**
+ * Postgres の `time` 列は `HH:MM:SS`(場合により小数秒付き)で返るが、アプリ内の表現は
+ * SPEC 4.1 のとおり `HH:MM` で統一している(#61)。そのまま Dexie へ入れると
+ * `<input type="time">` やプレビュー文「07:30:00に出発」に秒が混入するため、pull 時に
+ * 先頭5文字へ正規化する。`HH:MM` のまま返ってきた場合は何も変わらない。
+ */
+function normalizeTimeValue(value: string | null): string | null {
+  if (!value) return value;
+  return /^\d{2}:\d{2}(:|$)/.test(value) ? value.slice(0, 5) : value;
+}
+
 function fromRecordRow(row: CloudRecordRow): LocalRecord {
   const record: SchoolRecord = {
     id: row.id,
     recordDate: row.record_date,
     outcome: row.outcome as Outcome | null,
-    wakeTime: row.wake_time,
+    wakeTime: normalizeTimeValue(row.wake_time),
     wakeTags: row.wake_tags ?? [],
     triggerTags: row.trigger_tags ?? [],
     reasonTags: row.reason_tags ?? [],
     responseTags: row.response_tags ?? [],
-    departTime: row.depart_time,
+    departTime: normalizeTimeValue(row.depart_time),
     companion: row.companion,
     handoff: row.handoff,
     memo: row.memo,
@@ -125,13 +142,16 @@ export async function syncPendingChanges() {
   }
 }
 
-// クラウド→ローカルの取り込み(ログイン直後・起動時に一度実行)。他端末(パートナーの
-// 端末)で記録したデータや、この端末のIndexedDBが空になった場合(再インストール等)の
+// クラウド→ローカルの取り込み(ログイン直後・起動時・グループ参加/脱退後に実行)。他端末
+// (パートナーの端末)で記録したデータや、この端末のIndexedDBが空になった場合(再インストール等)の
 // 復元に使う。ローカルにまだ送信していない変更(syncStatus: "pending")がある行は、
 // クラウドの古い値で上書きしないようスキップする。
 //
 // recordsのSELECTポリシーは自分自身に加えて同じグループのメンバーの行も返すため、
 // user_idでの絞り込みは行わずRLSに委ねる(パートナーの記録もまとめてDexieへミラーする)。
+//
+// 取得はPULL_PAGE_SIZE件ずつの全ページ取得で、途中のページが失敗した場合はローカルへの反映も
+// 「見えなくなった行の削除」も行わない(部分的な結果で削除判定すると取得漏れ行が消えるため)。
 export async function pullFromCloud() {
   if (pulling) return;
   if (typeof navigator !== "undefined" && !navigator.onLine) return;
@@ -146,13 +166,23 @@ export async function pullFromCloud() {
     if (!userId) return;
 
     hadWork = true;
-    const { data, error } = await supabase.from("records").select("*");
-    if (error) {
-      console.warn("recordsのpullに失敗しました:", error);
-      hadError = true;
-      return;
+    const remoteRecords: CloudRecordRow[] = [];
+    for (let from = 0; ; from += PULL_PAGE_SIZE) {
+      const { data, error } = await supabase
+        .from("records")
+        .select("*")
+        .order("record_date", { ascending: true })
+        .order("id", { ascending: true })
+        .range(from, from + PULL_PAGE_SIZE - 1);
+      if (error) {
+        console.warn(`recordsのpullに失敗しました(offset=${from}):`, error);
+        hadError = true;
+        return;
+      }
+      const page = (data ?? []) as CloudRecordRow[];
+      remoteRecords.push(...page);
+      if (page.length < PULL_PAGE_SIZE) break;
     }
-    const remoteRecords = (data ?? []) as CloudRecordRow[];
 
     const pendingDeleteIds = new Set((await localDb.pendingRecordDeletes.toArray()).map((d) => d.id));
 

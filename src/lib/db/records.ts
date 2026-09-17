@@ -36,13 +36,16 @@ export async function saveRecord(input: RecordFormInput): Promise<void> {
   void syncPendingChanges();
 }
 
-// 既に同期済み(syncStatus: "synced")の行は、その場でリモート削除せず一旦
-// pendingRecordDeletesに積み、sync.tsの通常サイクルでまとめて処理する
-// (オフライン中の削除も再試行できるようにするため)。
+// 削除はその場でリモート削除せず一旦pendingRecordDeletesに積み、sync.tsの通常サイクルで
+// まとめて処理する(オフライン中の削除も再試行できるようにするため)。
+// syncStatusに関わらず必ず積む(#56): 以前は "synced" の行だけを積んでいたが、同期済みの記録を
+// 編集すると "pending" に戻るため、「編集してから削除」した記録はリモート削除がキューされず
+// クラウドに残り、次回のpullでローカルに復活していた。一度もクラウドに存在しなかったidの
+// 削除はサーバー側で0件ヒットの no-op になるだけなので、区別せず全件積んでよい。
 export async function deleteRecord(id: string): Promise<void> {
   const existing = await localDb.records.get(id);
   await localDb.records.delete(id);
-  if (existing?.syncStatus === "synced") {
+  if (existing) {
     await localDb.pendingRecordDeletes.put({ id });
   }
   void syncPendingChanges();
@@ -61,4 +64,14 @@ export async function findLatestOwnRecordForDate(
   const own = candidates.filter((r) => (!r.userId || r.userId === userId) && (r.childId ?? null) === childId);
   own.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   return own[0];
+}
+
+// ログアウト前の確認(#58)などで使う、この端末にだけ存在してクラウドへ未反映の変更の件数。
+// 未送信の記録(syncStatus: "pending")と、未反映の削除(pendingRecordDeletes)の合計。
+export async function countUnsyncedChanges(): Promise<number> {
+  const [pendingRecords, pendingDeletes] = await Promise.all([
+    localDb.records.where("syncStatus").equals("pending").count(),
+    localDb.pendingRecordDeletes.count(),
+  ]);
+  return pendingRecords + pendingDeletes;
 }

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Child } from "@/types/models";
-import { createChild, getChildren, resolveEffectiveChildId } from "./children";
+import { createChild, deleteChild, getChildren, resolveEffectiveChildId, updateChild } from "./children";
 
 const authGetUser = vi.fn();
 const fromMock = vi.fn();
@@ -17,6 +17,9 @@ function makeQueryBuilder(result: { data?: unknown; error?: unknown }) {
     select: vi.fn(() => builder),
     order: vi.fn(() => builder),
     insert: vi.fn(() => builder),
+    update: vi.fn(() => builder),
+    delete: vi.fn(() => builder),
+    eq: vi.fn(() => builder),
     single: vi.fn(() => Promise.resolve(result)),
     then: (
       onFulfilled?: (value: typeof result) => unknown,
@@ -113,5 +116,51 @@ describe("resolveEffectiveChildId", () => {
   it("選択中のIDが存在しない(未選択・削除済み)場合は先頭の子どもを返す", () => {
     expect(resolveEffectiveChildId(children, null)).toBe("c1");
     expect(resolveEffectiveChildId(children, "does-not-exist")).toBe("c1");
+  });
+});
+
+
+describe("updateChild", () => {
+  it("名前を trim して更新し、更新後の行を返す(#59)", async () => {
+    const builder = makeQueryBuilder({ data: { id: "c1", name: "はなこ", created_by: "user-1", created_at: "x" }, error: null });
+    fromMock.mockReturnValue(builder);
+
+    const result = await updateChild("c1", "  はなこ  ");
+
+    expect(builder.update).toHaveBeenCalledWith({ name: "はなこ" });
+    expect(builder.eq).toHaveBeenCalledWith("id", "c1");
+    expect(result.name).toBe("はなこ");
+  });
+
+  it("空の名前は拒否する", async () => {
+    await expect(updateChild("c1", "   ")).rejects.toThrow("名前を入力してください");
+    expect(fromMock).not.toHaveBeenCalled();
+  });
+
+  it("50文字を超える名前は拒否する", async () => {
+    await expect(updateChild("c1", "あ".repeat(51))).rejects.toThrow("50文字以内");
+    expect(fromMock).not.toHaveBeenCalled();
+  });
+
+  it("Supabase のエラーはそのまま投げる", async () => {
+    fromMock.mockReturnValue(makeQueryBuilder({ data: null, error: new Error("rls denied") }));
+    await expect(updateChild("c1", "はな")).rejects.toThrow("rls denied");
+  });
+});
+
+describe("deleteChild", () => {
+  it("id を指定して削除する(記録は on delete set null で残る)", async () => {
+    const builder = makeQueryBuilder({ data: null, error: null });
+    fromMock.mockReturnValue(builder);
+
+    await deleteChild("c1");
+
+    expect(builder.delete).toHaveBeenCalled();
+    expect(builder.eq).toHaveBeenCalledWith("id", "c1");
+  });
+
+  it("Supabase のエラーはそのまま投げる", async () => {
+    fromMock.mockReturnValue(makeQueryBuilder({ data: null, error: new Error("rls denied") }));
+    await expect(deleteChild("c1")).rejects.toThrow("rls denied");
   });
 });

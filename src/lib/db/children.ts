@@ -37,6 +37,33 @@ export async function createChild(name: string): Promise<Child> {
   return data as Child;
 }
 
+export async function updateChild(id: string, name: string): Promise<Child> {
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error("名前を入力してください");
+  if (trimmed.length > MAX_NAME_LENGTH) throw new Error(`名前は${MAX_NAME_LENGTH}文字以内で入力してください`);
+
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("children")
+    .update({ name: trimmed })
+    .eq("id", id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data as Child;
+}
+
+/**
+ * 子どもを削除する(#59)。SPEC 4.5 の「子どもを削除しても記録は残る」は、
+ * records.child_id が `on delete set null`(supabase/schema.sql)であることで担保される
+ * ため、ここでは records に触らない。RLS 上、削除できるのは作成者のみ。
+ */
+export async function deleteChild(id: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase.from("children").delete().eq("id", id);
+  if (error) throw error;
+}
+
 // ホーム・タイムライン・傾向で使う、子ども一覧の軽量フック。未ログインの間はnull、
 // 取得できれば(0件含め)配列を返す。
 export function useChildren(): Child[] | null {

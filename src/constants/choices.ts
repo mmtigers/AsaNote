@@ -2,6 +2,11 @@
 // ユーザーはアプリ内で「＋追加」からその場でカスタムタグを増やせるため、ここは
 // あくまで初期セット(よくあるもの)に過ぎない。
 
+// 振り返りメモの最大文字数。supabase/schema.sql の records.memo の CHECK 制約と同じ値にすること。
+// (#57: UI 側に制限が無く、超過するとローカル保存は成功するのにクラウド同期が CHECK 違反で
+// 永久に失敗し続けていた)
+export const MEMO_MAX_LENGTH = 2000;
+
 // 起床時刻の選択肢。6:00〜8:00を15分刻みで用意する(自由入力にしない)。
 export const WAKE_TIME_OPTIONS: string[] = (() => {
   const times: string[] = [];
