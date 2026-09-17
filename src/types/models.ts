@@ -34,12 +34,6 @@ export interface Group {
   created_at: string;
 }
 
-export interface GroupMember {
-  group_id: string;
-  user_id: string;
-  joined_at: string;
-}
-
 // グループ設定画面でのメンバー表示用。auth.usersのemailはSECURITY DEFINER関数
 // (get_group_members)経由でのみ取得できる。
 export interface GroupMemberProfile {
