@@ -5,7 +5,10 @@
 // 単に `new Date(value)` すると "YYYY-MM-DD" はUTC 0時として解釈され、
 // JST(UTC+9)環境では前日の日付として扱われてしまう(致命的な1日ズレ)。
 // これを防ぐため、日付のパースは必ずこのparseDateInputValueを経由すること。
-const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
+// 曜日ラベルの唯一の情報源(#62)。以前は MonthCalendar.tsx にも同じ配列があり、
+// 片方だけ直すと表示が食い違う状態だった。Date#getDay() の戻り値(0=日)を
+// そのまま添字に使える並びであることが前提なので、順序を変えないこと。
+export const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"] as const;
 
 export function parseDateInputValue(value: string): Date {
   return new Date(`${value}T00:00:00`);

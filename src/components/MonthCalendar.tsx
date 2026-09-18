@@ -1,8 +1,7 @@
 "use client";
 
 import type { Outcome } from "@/constants/choices";
-
-const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
+import { WEEKDAYS } from "@/lib/date";
 
 const STATUS_DOT_STYLES: Record<Outcome, string> = {
   smooth: "bg-[var(--accent)]",
