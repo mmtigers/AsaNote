@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, formatDateLabel, formatDateShort, parseDateInputValue, toDateInputValue, toMonthOf } from "./date";
+import { WEEKDAYS, addDays, formatDateLabel, formatDateShort, parseDateInputValue, toDateInputValue, toMonthOf } from "./date";
 
 describe("parseDateInputValue", () => {
   it("常にローカルタイムゾーンの0時として解釈する(UTC解釈による1日ズレを防ぐ)", () => {
@@ -46,5 +46,22 @@ describe("addDays", () => {
 
   it("年をまたぐ加算も正しく繰り上がる", () => {
     expect(addDays("2026-12-31", 1)).toBe("2027-01-01");
+  });
+});
+
+describe("WEEKDAYS", () => {
+  // #62: 以前は MonthCalendar.tsx にも同じ配列があり、片方だけ直すと
+  // カレンダーの見出しと日付ラベルで曜日の表記が食い違う状態だった。
+  it("Date#getDay() の戻り値(0=日)をそのまま添字に使える並びである", () => {
+    // 2026-01-04 は日曜
+    const sunday = new Date("2026-01-04T00:00:00");
+    expect(WEEKDAYS[sunday.getDay()]).toBe("日");
+    // 2026-01-10 は土曜
+    const saturday = new Date("2026-01-10T00:00:00");
+    expect(WEEKDAYS[saturday.getDay()]).toBe("土");
+  });
+
+  it("7要素すべてが揃っている", () => {
+    expect(WEEKDAYS).toEqual(["日", "月", "火", "水", "木", "金", "土"]);
   });
 });
