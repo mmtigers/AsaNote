@@ -48,6 +48,8 @@ src/
       ownership.ts           記録の所有判定（`isOwnRecord` / `canEditRecord`）の唯一の情報源
       useAuthedList.ts       ログイン状態に応じて一覧を取得する共通フック（`useChildren` / `useGroupMembers` の実体）
       database.types.ts      `supabase gen types` の生成物。手で編集せず `scripts/gen-db-types.sh` で再生成する
+    localStorageStore.ts  localStorageの1値を読み書きし同一タブへ通知する定型の唯一の情報源
+                          （`selectedChild.ts` / `reminderDismissal.ts` / `draft.ts` が使う）
     date.ts, draft.ts, recordPreview.ts, errors.ts  各種ユーティリティ
   constants/choices.ts    記録フォームの選択肢（タグ）の唯一の情報源
   types/models.ts         SchoolRecord / Group / Child などの型定義
