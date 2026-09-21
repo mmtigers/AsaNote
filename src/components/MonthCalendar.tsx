@@ -1,20 +1,8 @@
 "use client";
 
 import type { Outcome } from "@/constants/choices";
-import { WEEKDAYS } from "@/lib/date";
-
-const STATUS_DOT_STYLES: Record<Outcome, string> = {
-  smooth: "bg-[var(--accent)]",
-  reluctant: "bg-[var(--amber)]",
-  absent: "bg-[var(--calm)]",
-};
-
-// 入力済みの日を一目で分かるように、セル自体にも結果に応じた淡い背景色を付ける。
-const STATUS_BG_STYLES: Record<Outcome, string> = {
-  smooth: "bg-[var(--accent-soft)]",
-  reluctant: "bg-[var(--amber-soft)]",
-  absent: "bg-[var(--calm-soft)]",
-};
+import { OUTCOME_COLOR_STYLES, OUTCOME_SOFT_STYLES } from "@/constants/outcomeStyles";
+import { WEEKDAYS, toMonthOf } from "@/lib/date";
 
 function pad2(n: number): string {
   return String(n).padStart(2, "0");
@@ -23,21 +11,23 @@ function pad2(n: number): string {
 interface MonthCalendarProps {
   year: number;
   month: number; // 1-12
-  selectedDate: string; // YYYY-MM-DD、記録の入力対象日
   todayValue: string; // YYYY-MM-DD
   statusByDate: Map<string, Outcome | null> | undefined;
-  onSelectDate: (date: string) => void;
   onMonthChange: (year: number, month: number) => void;
+  // 以下2つはホーム画面の記録フロー(日付を選ぶ用途)でのみ渡す。
+  // 省略すると読み取り専用のカレンダーになり、日セルはボタンにならない(#4の傾向タブ)。
+  selectedDate?: string; // YYYY-MM-DD、記録の入力対象日
+  onSelectDate?: (date: string) => void;
 }
 
 export function MonthCalendar({
   year,
   month,
-  selectedDate,
   todayValue,
   statusByDate,
-  onSelectDate,
   onMonthChange,
+  selectedDate,
+  onSelectDate,
 }: MonthCalendarProps) {
   const firstWeekday = new Date(year, month - 1, 1).getDay();
   const daysInMonth = new Date(year, month, 0).getDate();
@@ -53,6 +43,16 @@ export function MonthCalendar({
   function goNextMonth() {
     if (month === 12) onMonthChange(year + 1, 1);
     else onMonthChange(year, month + 1);
+  }
+
+  // 日付を選べるカレンダーでは今日を選び直し、読み取り専用では今月の表示へ戻す。
+  function goToday() {
+    if (onSelectDate) {
+      onSelectDate(todayValue);
+      return;
+    }
+    const { year: y, month: m } = toMonthOf(todayValue);
+    onMonthChange(y, m);
   }
 
   const isDisplayingCurrentMonth = `${year}-${pad2(month)}` === todayValue.slice(0, 7);
@@ -75,10 +75,10 @@ export function MonthCalendar({
           {!isDisplayingCurrentMonth && (
             <button
               type="button"
-              onClick={() => onSelectDate(todayValue)}
+              onClick={goToday}
               className="rounded-full border border-[var(--line)] px-2 py-0.5 text-[11px] text-[var(--sub)]"
             >
-              今日
+              {onSelectDate ? "今日" : "今月"}
             </button>
           )}
         </div>
@@ -104,6 +104,31 @@ export function MonthCalendar({
           const isSelected = value === selectedDate;
           const isToday = value === todayValue;
           const status = statusByDate?.get(value);
+          const cellClassName = `mx-auto flex h-9 w-9 flex-col items-center justify-center gap-0.5 rounded-full text-[13px] ${
+            isSelected
+              ? "bg-[var(--accent)] font-bold text-[var(--accent-ink)]"
+              : isToday
+                ? `border border-[var(--accent)] text-[var(--ink)] ${status ? OUTCOME_SOFT_STYLES[status] : ""}`
+                : `text-[var(--ink)] ${status ? OUTCOME_SOFT_STYLES[status] : ""}`
+          }`;
+          const dot = (
+            <span
+              className={`h-1 w-1 rounded-full ${status ? OUTCOME_COLOR_STYLES[status] : ""} ${
+                isSelected && status ? "ring-1 ring-[var(--accent-ink)]" : ""
+              }`}
+            />
+          );
+
+          // 読み取り専用(傾向タブ)ではタップしても何も起きないため、ボタンにはしない。
+          if (!onSelectDate) {
+            return (
+              <span key={value} className={cellClassName} aria-current={isToday ? "date" : undefined}>
+                <span>{day}</span>
+                {dot}
+              </span>
+            );
+          }
+
           return (
             <button
               key={value}
@@ -111,20 +136,10 @@ export function MonthCalendar({
               onClick={() => onSelectDate(value)}
               aria-pressed={isSelected}
               aria-current={isToday ? "date" : undefined}
-              className={`mx-auto flex h-9 w-9 flex-col items-center justify-center gap-0.5 rounded-full text-[13px] ${
-                isSelected
-                  ? "bg-[var(--accent)] font-bold text-[var(--accent-ink)]"
-                  : isToday
-                    ? `border border-[var(--accent)] text-[var(--ink)] ${status ? STATUS_BG_STYLES[status] : ""}`
-                    : `text-[var(--ink)] ${status ? STATUS_BG_STYLES[status] : ""}`
-              }`}
+              className={cellClassName}
             >
               <span>{day}</span>
-              <span
-                className={`h-1 w-1 rounded-full ${status ? STATUS_DOT_STYLES[status] : ""} ${
-                  isSelected && status ? "ring-1 ring-[var(--accent-ink)]" : ""
-                }`}
-              />
+              {dot}
             </button>
           );
         })}
