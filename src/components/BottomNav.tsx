@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useHasDraft } from "@/lib/draft";
+import { requestRecordFlowReset } from "@/lib/recordFlowReset";
 
 const items = [
   { href: "/", label: "記録する", icon: "📝" },
@@ -30,10 +31,14 @@ export function BottomNav() {
         {items.map((item) => {
           const active = pathname === item.href;
           const showDraftBadge = item.href === "/" && hasDraft;
+          // 既にホームにいると `/` へのLinkでは画面が作り直されず、記録フローの途中の
+          // ステップがそのまま残ってしまう。その場合だけ最初の画面へ戻すよう通知する。
+          const resetRecordFlow = item.href === "/" && active ? requestRecordFlowReset : undefined;
           return (
             <li key={item.href} className="flex-1">
               <Link
                 href={item.href}
+                onClick={resetRecordFlow}
                 className={`flex flex-col items-center gap-0.5 rounded-2xl py-2 text-[11px] focus:ring-2 focus:ring-[var(--accent)] ${
                   active ? "bg-[var(--accent-soft)] font-semibold text-[var(--accent)]" : "text-[var(--sub)]"
                 }`}
