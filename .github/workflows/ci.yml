@@ -120,7 +120,7 @@ jobs:
       #  型生成が古びたら手で上げること)。
       # なお `supabase/setup-cli@v1` の `v1` は**タグではなくブランチ**で、push のたびに
       # 中身が変わる(タグより更に可変)。下の SHA は固定時点で v1 ブランチ = タグ v1.7.1。
-      - uses: supabase/setup-cli@ab058987d8d6c725971f6cf9d0b5c98467e30bd1 # v1.7.1
+      - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
         with:
           version: 2.117.0
 
