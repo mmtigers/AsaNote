@@ -1,40 +1,37 @@
-// 出発時刻("HH:MM")を「時」「分」の2つの選択肢へ分解・再構成するための純関数。
-// 朝の忙しい時間に時刻をキーボードで打たせないための選択式入力(#10の起床時刻と同じ方針)。
+// 出発時刻は「8時より前 / 8時過ぎ / 8時半以降」の3択で記録する。朝の忙しい時間に
+// 分単位の入力を求めない(そこまでの精度は振り返りに使っていない)ための割り切り。
 //
-// 分は入力の手間を減らすため5分刻みだが、旧データや別端末で入った5分刻みでない値
-// (例 "07:08")を勝手に丸めて書き換えてしまわないよう、その値だけは選択肢に混ぜて残す。
+// 保存先の `records.depart_time` は Postgres の time 型のままで、区分ごとの代表値
+// (下の `value`)を書き込み、表示するときに時刻から区分へ引き直す。専用の列を足すと
+// スキーマ変更と型の再生成が必要になるため、既存の列に載せている。
+// 旧データや別端末で入った任意の時刻(例 "07:08")も、同じ境界で3区分のどれかへ寄せて
+// 表示する。保存した値を読み直すと必ず元の区分に戻る(往復して区分がずれない)。
+import { parseTimeToMinutes } from "./date";
 
-const MINUTE_STEP = 5;
-
-function pad2(n: number): string {
-  return String(n).padStart(2, "0");
+export interface DepartSlot {
+  key: string;
+  label: string;
+  /** この区分を選んだときに保存する代表値("HH:MM")。 */
+  value: string;
+  /** 0時からの分数がこの値未満なら、この区分とみなす。 */
+  untilMinutes: number;
 }
 
-export function hourOptions(): string[] {
-  return Array.from({ length: 24 }, (_, h) => pad2(h));
+export const DEPART_SLOTS: DepartSlot[] = [
+  { key: "before-0800", label: "8時より前", value: "07:59", untilMinutes: 8 * 60 },
+  { key: "after-0800", label: "8時過ぎ", value: "08:15", untilMinutes: 8 * 60 + 30 },
+  { key: "after-0830", label: "8時半以降", value: "08:30", untilMinutes: Number.POSITIVE_INFINITY },
+];
+
+// 保存されている時刻がどの区分に当たるか。未入力・想定外の値はnull(区分なし)。
+export function slotOfTimeValue(value: string | null | undefined): DepartSlot | null {
+  if (!value) return null;
+  const minutes = parseTimeToMinutes(value);
+  if (minutes === null) return null;
+  return DEPART_SLOTS.find((slot) => minutes < slot.untilMinutes) ?? null;
 }
 
-// current に5分刻みでない値が入っている場合だけ、その値を時刻順の正しい位置に足す。
-export function minuteOptions(current?: string): string[] {
-  const base = Array.from({ length: 60 / MINUTE_STEP }, (_, i) => pad2(i * MINUTE_STEP));
-  if (!current || base.includes(current)) return base;
-  if (!/^[0-5][0-9]$/.test(current)) return base;
-  return [...base, current].sort();
-}
-
-// "HH:MM" を時・分に分ける。空・想定外の値は未選択(両方とも空文字)として扱う。
-export function splitTimeValue(value: string): { hour: string; minute: string } {
-  const matched = /^(\d{1,2}):(\d{2})$/.exec(value);
-  if (!matched) return { hour: "", minute: "" };
-  const hour = Number(matched[1]);
-  const minute = Number(matched[2]);
-  if (hour > 23 || minute > 59) return { hour: "", minute: "" };
-  return { hour: pad2(hour), minute: pad2(minute) };
-}
-
-// 時が未選択なら時刻そのものを未入力に戻す(「クリア」の意味)。
-// 時だけ選んで分が未選択のときは0分として扱う(分をもう一度選ばせない)。
-export function joinTimeValue(hour: string, minute: string): string {
-  if (!hour) return "";
-  return `${hour}:${minute || "00"}`;
+// 日記文・プレビューで使う表示名。未入力・想定外の値はnull(その節を出さない)。
+export function departTimeLabel(value: string | null | undefined): string | null {
+  return slotOfTimeValue(value)?.label ?? null;
 }

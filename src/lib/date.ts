@@ -43,3 +43,15 @@ export function addDays(value: string, delta: number): string {
   d.setDate(d.getDate() + delta);
   return toDateInputValue(d);
 }
+
+// "HH:MM" を0時からの分数に変換する。想定外の値(旧データ・手入力の崩れ)はnullを返す。
+// 出発時刻の区分判定(departTime.ts)と、傾向タブの起床時刻の集計(stats/aggregate.ts)の
+// 両方が使う唯一の情報源。
+export function parseTimeToMinutes(value: string): number | null {
+  const matched = /^(\d{1,2}):(\d{2})$/.exec(value);
+  if (!matched) return null;
+  const hours = Number(matched[1]);
+  const minutes = Number(matched[2]);
+  if (hours > 23 || minutes > 59) return null;
+  return hours * 60 + minutes;
+}

@@ -1,7 +1,7 @@
 // 傾向タブ(#4)の集計ロジック。画面から切り離した純関数として置き、テストで固定する
 // (件数の数え間違い・曜日のズレは画面がエラーにならず静かに嘘をつくため)。
 import type { Outcome } from "@/constants/choices";
-import { WEEKDAYS, parseDateInputValue } from "@/lib/date";
+import { WEEKDAYS, parseDateInputValue, parseTimeToMinutes } from "@/lib/date";
 
 // 集計に必要なフィールドだけを要求する(テストで最小のオブジェクトを渡せるようにするため)。
 export interface AggregatableRecord {
@@ -50,17 +50,6 @@ export function smoothRateByWeekday(records: AggregatableRecord[]): SmoothRateSt
     if (r.outcome === "smooth") bucket.smooth += 1;
   }
   return totals.filter((t) => t.total > 0).map((t) => toStat(t.key, t.label, t.total, t.smooth));
-}
-
-// "HH:MM" を0時からの分数に変換する。想定外の値(旧データ・手入力の崩れ)はnullを返し、
-// 集計から除外する。
-export function parseTimeToMinutes(value: string): number | null {
-  const matched = /^(\d{1,2}):(\d{2})$/.exec(value);
-  if (!matched) return null;
-  const hours = Number(matched[1]);
-  const minutes = Number(matched[2]);
-  if (hours > 23 || minutes > 59) return null;
-  return hours * 60 + minutes;
 }
 
 // 起床時刻の区切り(分)。`until`は「その値未満」を意味する上限。

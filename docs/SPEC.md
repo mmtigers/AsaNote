@@ -72,7 +72,7 @@ docs/SPEC.md              本書
    - `smooth`（😊 スムーズに行けた）
    - `reluctant`（😣 行き渋った）
    - `absent`（🏠 行かなかった）
-3. **reason** — 画面上部に出発時刻の入力（任意）、その下に理由タグ。理由タグは選んだ結果に応じて候補を出し分け（前向きな理由 or 気になる理由）、複数選択でき、「＋追加」でその場でカスタムタグを追加できる。出発時刻は朝にキーボードを出さずに済むよう時・分とも選択式（`src/app/_home/DepartTimePicker.tsx`、分は5分刻み。5分刻みでない既存の値は選択肢に混ぜて保持し勝手に丸めない。`src/lib/departTime.ts`）。「詳細を追加」を開くと振り返りメモ（最大2000文字。`MEMO_MAX_LENGTH`。入力欄の`maxLength`と残り文字数表示、保存時の切り詰めで超過を防ぐ。DBの`CHECK`制約と同じ値 #57）も入力可能。保存すると入力内容から日記文を自動生成してプレビューする（`src/lib/recordPreview.ts`）。
+3. **reason** — 画面上部に出発時刻の入力（任意）、その下に理由タグ。理由タグは選んだ結果に応じて候補を出し分け（前向きな理由 or 気になる理由）、複数選択でき、「＋追加」でその場でカスタムタグを追加できる。出発時刻は「8時より前 / 8時過ぎ / 8時半以降」の3区分から1つ選ぶだけ（`src/app/_home/DepartTimePicker.tsx`。もう一度押すと解除）。分単位の精度は振り返りに使っていないための割り切り。「詳細を追加」を開くと振り返りメモ（最大2000文字。`MEMO_MAX_LENGTH`。入力欄の`maxLength`と残り文字数表示、保存時の切り詰めで超過を防ぐ。DBの`CHECK`制約と同じ値 #57）も入力可能。保存すると入力内容から日記文を自動生成してプレビューする（`src/lib/recordPreview.ts`）。
 
 補足仕様:
 - 記録は日付単位で1件（同じ日に再度記録すると上書き編集になる）。複数の子どもがいる家庭では「日付＋子どもID」で1件。
@@ -125,7 +125,7 @@ docs/SPEC.md              本書
 | `id` | uuid | クライアント側でUUID生成。ローカル・クラウド間で同一IDを使い、同期を冪等にする。 |
 | `recordDate` | `YYYY-MM-DD` | 記録対象日。 |
 | `outcome` | `"smooth" \| "reluctant" \| "absent" \| null` | 登校の結果（3択）。未入力・旧形式はnull。 |
-| `wakeTime` / `departTime` | `HH:MM \| null` | 起床時刻／出発時刻。DB 列は Postgres の `time` 型で `HH:MM:SS` として返るため、pull 時に先頭5文字へ正規化して `HH:MM` に揃える（#61。`src/lib/db/sync.ts` の `normalizeTimeValue`）。 |
+| `wakeTime` / `departTime` | `HH:MM \| null` | 起床時刻／出発時刻。DB 列は Postgres の `time` 型で `HH:MM:SS` として返るため、pull 時に先頭5文字へ正規化して `HH:MM` に揃える（#61。`src/lib/db/sync.ts` の `normalizeTimeValue`）。`departTime` は3区分（8時より前 / 8時過ぎ / 8時半以降）で入力し、区分ごとの代表値（`07:59` / `08:15` / `08:30`）を保存する。表示時は時刻から区分へ引き直すため、旧データの任意の時刻も同じ境界でいずれかの区分に寄る（`src/lib/departTime.ts`）。専用の列を足すとスキーマ変更と型の再生成が必要になるため、既存の列に載せている。 |
 | `wakeTags` / `triggerTags` / `reasonTags` / `responseTags` | `string[]` | タグ群。`reasonTags`が現行フォームの理由タグ、他3つは旧フォーム（〜v1）由来で後方互換のため保持。 |
 | `companion` / `handoff` | `string \| null` | 旧フォーム由来（同行者／引き渡し先）。 |
 | `memo` | `string \| null`（最大2000字） | 自由記述メモ。 |

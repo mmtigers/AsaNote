@@ -11,10 +11,9 @@ test("記録フォームに入力して保存すると、ホームとタイム�
 
   await page.getByRole("button", { name: "早寝早起きできた", exact: true }).click();
 
-  // 出発時刻は選択式(時・分)。選ぶとプレビューに反映される。
-  await page.getByLabel("出発時刻(時)").selectOption("07");
-  await page.getByLabel("出発時刻(分)").selectOption("30");
-  await expect(page.getByText("07:30に出発")).toBeVisible();
+  // 出発時刻は3区分から選ぶ。選ぶとプレビューに区分名で反映される。
+  await page.getByRole("button", { name: "8時より前", exact: true }).click();
+  await expect(page.getByText("8時より前に出発")).toBeVisible();
 
   await page.getByRole("button", { name: /詳細を追加/ }).click();
   const memo = "E2Eテストからのメモ";
