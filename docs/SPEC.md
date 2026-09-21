@@ -145,7 +145,7 @@ docs/SPEC.md              本書
 
 ## 6. サーバー（Supabase）仕様
 
-`supabase/schema.sql` がスキーマ・RLSポリシーの正。ダッシュボードのSQL Editorで実行して構築する。
+`supabase/schema.sql` がスキーマ・RLSポリシーの正。初回はダッシュボードのSQL Editorで実行して構築し、以降の変更は `main` へのマージ時に `.github/workflows/db-deploy.yml` が本番へ自動適用する（#53）。`schema.sql` は冪等（`create table if not exists` / `alter table ... add column if not exists` / `drop policy if exists` → `create policy` / `create or replace function`）で `drop table` を含まないため、毎回まるごと適用してよい。ただし列の削除・リネーム（#46）はこの仕組みでは届かないため、その時は手動で実施するかマイグレーション方式への移行を検討する。
 
 ### 6.1 テーブルと索引
 
@@ -201,6 +201,7 @@ npm run test:e2e   # Playwright（E2E, 別途起動が必要）
   - `e2e-test`: Playwright
   - `db-types-check`: `supabase/schema.sql` を素の Postgres へ適用し、`supabase gen types` の出力と `database.types.ts` の差分を検査
   - ワークフローは最小権限（`permissions: contents: read`）で動き、各ジョブに `timeout-minutes` を設定している。依存更新は `.github/dependabot.yml` が週次で minor/patch をまとめた1本の PR として起票する。
+- `main` への push で `supabase/schema.sql` が変わったとき、`.github/workflows/db-deploy.yml` が本番Supabaseへ `psql --single-transaction` で適用する（#53）。`db-types-check` とは役割が別で、あちらは一時Postgresコンテナに適用して型のドリフトを検査するだけで本番DBには触れない。
 - 主要ロジック（フォームの状態遷移、日付処理、同期処理、エクスポート抽出、グループ操作等）はほぼ全てユニットテストが付随している（`*.test.ts`）。
 - `e2e/record-flow.spec.ts` に記録フロー全体のE2Eテストがある。
 
