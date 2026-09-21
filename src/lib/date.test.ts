@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { WEEKDAYS, addDays, formatDateLabel, formatDateShort, parseDateInputValue, toDateInputValue, toMonthOf } from "./date";
+import { WEEKDAYS, addDays, formatDateLabel, formatDateShort, parseDateInputValue, parseTimeToMinutes, toDateInputValue, toMonthOf } from "./date";
 
 describe("parseDateInputValue", () => {
   it("常にローカルタイムゾーンの0時として解釈する(UTC解釈による1日ズレを防ぐ)", () => {
@@ -63,5 +63,22 @@ describe("WEEKDAYS", () => {
 
   it("7要素すべてが揃っている", () => {
     expect(WEEKDAYS).toEqual(["日", "月", "火", "水", "木", "金", "土"]);
+  });
+});
+
+// #4(傾向タブの起床時刻集計)と出発時刻の区分判定が共有する。元は stats/aggregate.ts に
+// あったが、出発時刻側でも必要になったためここへ寄せた。
+describe("parseTimeToMinutes", () => {
+  it("HH:MM を0時からの分数にする", () => {
+    expect(parseTimeToMinutes("06:30")).toBe(390);
+    expect(parseTimeToMinutes("6:30")).toBe(390);
+    expect(parseTimeToMinutes("00:00")).toBe(0);
+  });
+
+  it("想定外の値はnullを返す", () => {
+    expect(parseTimeToMinutes("")).toBeNull();
+    expect(parseTimeToMinutes("6時30分")).toBeNull();
+    expect(parseTimeToMinutes("25:00")).toBeNull();
+    expect(parseTimeToMinutes("06:70")).toBeNull();
   });
 });

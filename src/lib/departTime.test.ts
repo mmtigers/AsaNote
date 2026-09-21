@@ -1,66 +1,55 @@
+/**
+ * 出発時刻は3区分(8時より前 / 8時過ぎ / 8時半以降)で記録するが、保存先は従来どおり
+ * time 型の列。区分 -> 代表値 -> 区分 の往復でずれないことと、旧データの任意の時刻が
+ * どの区分に寄るかを固定しておく。
+ */
 import { describe, expect, it } from "vitest";
-import { hourOptions, joinTimeValue, minuteOptions, splitTimeValue } from "./departTime";
+import { DEPART_SLOTS, departTimeLabel, slotOfTimeValue } from "./departTime";
 
-describe("hourOptions", () => {
-  it("0〜23時を2桁で返す", () => {
-    const hours = hourOptions();
-    expect(hours).toHaveLength(24);
-    expect(hours[0]).toBe("00");
-    expect(hours[23]).toBe("23");
+describe("DEPART_SLOTS", () => {
+  it("3区分を早い順に持つ", () => {
+    expect(DEPART_SLOTS.map((s) => s.label)).toEqual(["8時より前", "8時過ぎ", "8時半以降"]);
+  });
+
+  it("保存する代表値を読み直すと必ず同じ区分に戻る(往復してずれない)", () => {
+    for (const slot of DEPART_SLOTS) {
+      expect(slotOfTimeValue(slot.value)?.key).toBe(slot.key);
+    }
   });
 });
 
-describe("minuteOptions", () => {
-  it("5分刻みで返す", () => {
-    const minutes = minuteOptions();
-    expect(minutes).toHaveLength(12);
-    expect(minutes[0]).toBe("00");
-    expect(minutes[1]).toBe("05");
-    expect(minutes[11]).toBe("55");
+describe("slotOfTimeValue", () => {
+  it("境界で振り分ける(8:00ちょうどは「8時過ぎ」、8:30ちょうどは「8時半以降」)", () => {
+    expect(slotOfTimeValue("07:59")?.label).toBe("8時より前");
+    expect(slotOfTimeValue("08:00")?.label).toBe("8時過ぎ");
+    expect(slotOfTimeValue("08:29")?.label).toBe("8時過ぎ");
+    expect(slotOfTimeValue("08:30")?.label).toBe("8時半以降");
   });
 
-  it("5分刻みでない既存の値は時刻順の位置に混ぜて残す(勝手に丸めない)", () => {
-    const minutes = minuteOptions("08");
-    expect(minutes).toContain("08");
-    expect(minutes.indexOf("08")).toBe(minutes.indexOf("05") + 1);
-    expect(minutes.indexOf("08")).toBe(minutes.indexOf("10") - 1);
+  it("旧データの任意の時刻も3区分のどれかへ寄せる", () => {
+    expect(slotOfTimeValue("07:08")?.label).toBe("8時より前");
+    expect(slotOfTimeValue("06:00")?.label).toBe("8時より前");
+    expect(slotOfTimeValue("19:08")?.label).toBe("8時半以降");
   });
 
-  it("5分刻みの値や想定外の値では選択肢を増やさない", () => {
-    expect(minuteOptions("15")).toHaveLength(12);
-    expect(minuteOptions("")).toHaveLength(12);
-    expect(minuteOptions("99")).toHaveLength(12);
-  });
-});
-
-describe("splitTimeValue", () => {
-  it("HH:MM を時・分に分ける", () => {
-    expect(splitTimeValue("07:30")).toEqual({ hour: "07", minute: "30" });
-  });
-
-  it("1桁の時は2桁へ揃える", () => {
-    expect(splitTimeValue("7:05")).toEqual({ hour: "07", minute: "05" });
-  });
-
-  it("未入力・想定外の値は未選択として扱う", () => {
-    expect(splitTimeValue("")).toEqual({ hour: "", minute: "" });
-    expect(splitTimeValue("あさ")).toEqual({ hour: "", minute: "" });
-    expect(splitTimeValue("24:00")).toEqual({ hour: "", minute: "" });
-    expect(splitTimeValue("07:60")).toEqual({ hour: "", minute: "" });
+  it("未入力・想定外の値は区分なし", () => {
+    expect(slotOfTimeValue("")).toBeNull();
+    expect(slotOfTimeValue(null)).toBeNull();
+    expect(slotOfTimeValue(undefined)).toBeNull();
+    expect(slotOfTimeValue("あさ")).toBeNull();
+    expect(slotOfTimeValue("25:00")).toBeNull();
   });
 });
 
-describe("joinTimeValue", () => {
-  it("時と分から HH:MM を作る", () => {
-    expect(joinTimeValue("07", "30")).toBe("07:30");
+describe("departTimeLabel", () => {
+  it("区分名を返す", () => {
+    expect(departTimeLabel("07:30")).toBe("8時より前");
+    expect(departTimeLabel("08:15")).toBe("8時過ぎ");
   });
 
-  it("時だけ選ばれたら0分として扱う(分を選び直させない)", () => {
-    expect(joinTimeValue("07", "")).toBe("07:00");
-  });
-
-  it("時が未選択なら未入力に戻す(クリア)", () => {
-    expect(joinTimeValue("", "30")).toBe("");
-    expect(joinTimeValue("", "")).toBe("");
+  it("未入力・想定外の値はnull(日記文にその節を出さない)", () => {
+    expect(departTimeLabel(null)).toBeNull();
+    expect(departTimeLabel("")).toBeNull();
+    expect(departTimeLabel("あさ")).toBeNull();
   });
 });

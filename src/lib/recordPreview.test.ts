@@ -20,7 +20,29 @@ describe("buildDiaryText", () => {
       memo: "少し落ち着いて出発できた",
     });
     expect(text).toBe(
-      "行き渋った。理由は「友達トラブル・眠い・疲れ」。08:10に出発。少し落ち着いて出発できた。"
+      "行き渋った。理由は「友達トラブル・眠い・疲れ」。8時過ぎに出発。少し落ち着いて出発できた。"
     );
+  });
+});
+
+// 出発時刻は3区分で記録するため、保存値(代表値の時刻)ではなく区分名で出す。
+// 旧データの任意の時刻も同じ境界で区分名に寄せる。
+describe("buildDiaryText の出発時刻", () => {
+  function textOf(departTime: string | null): string {
+    return buildDiaryText({ outcome: "smooth", reasonTags: [], departTime, memo: null });
+  }
+
+  it("区分名で出す", () => {
+    expect(textOf("07:59")).toBe("スムーズに行けた。8時より前に出発。");
+    expect(textOf("08:15")).toBe("スムーズに行けた。8時過ぎに出発。");
+    expect(textOf("08:30")).toBe("スムーズに行けた。8時半以降に出発。");
+  });
+
+  it("旧データの任意の時刻も区分名に寄せる", () => {
+    expect(textOf("07:08")).toBe("スムーズに行けた。8時より前に出発。");
+  });
+
+  it("想定外の値は出発の節ごと出さない", () => {
+    expect(textOf("あさ")).toBe("スムーズに行けた。");
   });
 });

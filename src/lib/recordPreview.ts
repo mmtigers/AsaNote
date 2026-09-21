@@ -1,4 +1,5 @@
 import { OUTCOME_OPTIONS, type Outcome } from "@/constants/choices";
+import { departTimeLabel } from "./departTime";
 
 export interface DiaryTextSource {
   outcome?: Outcome | null;
@@ -14,7 +15,9 @@ export function buildDiaryText(record: DiaryTextSource): string {
   const outcomeLabel = OUTCOME_OPTIONS.find((o) => o.value === record.outcome)?.label ?? "";
   const segs: string[] = [outcomeLabel];
   if (record.reasonTags.length) segs.push(`理由は「${record.reasonTags.join("・")}」`);
-  if (record.departTime) segs.push(`${record.departTime}に出発`);
+  // 出発時刻は3区分で記録しているため、保存値(代表値の時刻)ではなく区分名で出す。
+  const departLabel = departTimeLabel(record.departTime);
+  if (departLabel) segs.push(`${departLabel}に出発`);
   if (record.memo) segs.push(record.memo);
   return segs.join("。") + "。";
 }

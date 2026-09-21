@@ -6,7 +6,7 @@
  */
 import { describe, expect, it } from "vitest";
 import type { AggregatableRecord } from "./aggregate";
-import { outcomeByDate, parseTimeToMinutes, smoothRateByWakeTime, smoothRateByWeekday } from "./aggregate";
+import { outcomeByDate, smoothRateByWakeTime, smoothRateByWeekday } from "./aggregate";
 
 function record(partial: Partial<AggregatableRecord> & { recordDate: string }): AggregatableRecord {
   return {
@@ -87,21 +87,6 @@ describe("smoothRateByWeekday", () => {
 
   it("結果が未選択の記録は数えない", () => {
     expect(smoothRateByWeekday([record({ recordDate: "2026-09-14", outcome: null })])).toEqual([]);
-  });
-});
-
-describe("parseTimeToMinutes", () => {
-  it("HH:MM を0時からの分数にする", () => {
-    expect(parseTimeToMinutes("06:30")).toBe(390);
-    expect(parseTimeToMinutes("6:30")).toBe(390);
-    expect(parseTimeToMinutes("00:00")).toBe(0);
-  });
-
-  it("想定外の値はnullを返す", () => {
-    expect(parseTimeToMinutes("")).toBeNull();
-    expect(parseTimeToMinutes("6時30分")).toBeNull();
-    expect(parseTimeToMinutes("25:00")).toBeNull();
-    expect(parseTimeToMinutes("06:70")).toBeNull();
   });
 });
 
