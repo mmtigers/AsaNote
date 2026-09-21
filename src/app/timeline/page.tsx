@@ -54,7 +54,9 @@ export default function TimelinePage() {
       <header className="flex items-start justify-between gap-3">
         <div>
           <h1 className="text-lg font-bold">これまでの記録</h1>
-          <p className="mt-1 text-xs text-[var(--sub)]">新しい順に表示しています。</p>
+          <p className="mt-1 text-xs text-[var(--sub)]">
+            新しい順に表示しています。自分の記録はタップで編集できます。
+          </p>
         </div>
         <Link
           href="/export"
@@ -89,11 +91,23 @@ export default function TimelinePage() {
               ...record.reasonTags,
               ...record.responseTags,
             ];
+            const editHref = record.childId
+              ? `/?date=${record.recordDate}&childId=${record.childId}`
+              : `/?date=${record.recordDate}`;
             return (
               <li
                 key={record.id}
-                className="rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3.5 py-3"
+                className="relative rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3.5 py-3"
               >
+                {/* カード全体をタップで編集にする。削除はゴミ箱アイコンに分けてあり、
+                    入れ子の<a><button>にならないようリンクを重ねる方式にしている。 */}
+                {canEdit && (
+                  <Link
+                    href={editHref}
+                    aria-label={`${formatDateShort(record.recordDate)}の記録を編集する`}
+                    className="absolute inset-0 rounded-xl focus:ring-2 focus:ring-[var(--accent)]"
+                  />
+                )}
                 <div className="mb-1.5 flex items-center gap-2">
                   <span className="text-sm font-bold">{formatDateShort(record.recordDate)}</span>
                   {record.wakeTime && (
@@ -109,17 +123,30 @@ export default function TimelinePage() {
                     </span>
                   )}
                   {!own && <PartnerAvatar email={emailMap.get(record.userId ?? "")} />}
-                  {legacy && (
-                    <span className="ml-auto rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-bold text-[var(--sub)]">
-                      {legacy}
-                    </span>
-                  )}
+                  <div className="ml-auto flex items-center gap-2">
+                    {legacy && (
+                      <span className="rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-bold text-[var(--sub)]">
+                        {legacy}
+                      </span>
+                    )}
+                    {canEdit && (
+                      <button
+                        type="button"
+                        onClick={() => setDeleteTarget(record.id)}
+                        aria-label={`${formatDateShort(record.recordDate)}の記録を削除する`}
+                        // 重ねた編集リンクより手前に置く(relative + z-10)。
+                        className="relative z-10 -my-1 rounded-full px-2 py-1 text-base leading-none text-[var(--sub)]"
+                      >
+                        🗑
+                      </button>
+                    )}
+                  </div>
                 </div>
                 {record.memo && (
-                  <p className="mb-2 text-[13px] leading-relaxed text-[var(--ink)]">{record.memo}</p>
+                  <p className="mb-2 text-[13px] leading-relaxed text-[var(--ink)] last:mb-0">{record.memo}</p>
                 )}
                 {allTags.length > 0 && (
-                  <div className="mb-2 flex flex-wrap gap-1.5">
+                  <div className="mb-2 flex flex-wrap gap-1.5 last:mb-0">
                     {allTags.map((tag, i) => (
                       <span
                         key={`${tag}-${i}`}
@@ -128,27 +155,6 @@ export default function TimelinePage() {
                         {tag}
                       </span>
                     ))}
-                  </div>
-                )}
-                {canEdit && (
-                  <div className="flex gap-3 text-xs">
-                    <Link
-                      href={
-                        record.childId
-                          ? `/?date=${record.recordDate}&childId=${record.childId}`
-                          : `/?date=${record.recordDate}`
-                      }
-                      className="text-[var(--accent)] underline underline-offset-2"
-                    >
-                      編集する
-                    </Link>
-                    <button
-                      type="button"
-                      onClick={() => setDeleteTarget(record.id)}
-                      className="text-red-600 underline underline-offset-2"
-                    >
-                      削除する
-                    </button>
                   </div>
                 )}
               </li>

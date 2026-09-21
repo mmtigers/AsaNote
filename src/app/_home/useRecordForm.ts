@@ -83,7 +83,8 @@ export function useRecordForm({ date, userId, childId, cameFromEditLink, goToSte
         draftRestoredKeyRef.current = restoreKey;
         const target: Step = existing?.outcome ? "reason" : "result";
         restoreStep(target);
-        setDetailOpen(!!(existing?.departTime || existing?.memo));
+        // 出発時刻は詳細セクションの外(選択式の入力)へ移したので、ここではメモの有無だけを見る。
+        setDetailOpen(!!existing?.memo);
       }
       setLoaded(true);
     });

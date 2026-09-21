@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { MonthCalendar } from "@/components/MonthCalendar";
 import { ChildSwitcher } from "@/components/ChildSwitcher";
 import { RecordReminderNotice } from "@/components/RecordReminderNotice";
@@ -16,6 +16,7 @@ import { useStepNavigation } from "./_home/useStepNavigation";
 import { useRecordForm } from "./_home/useRecordForm";
 import { useDraftPersistence } from "./_home/useDraftPersistence";
 import { addDays, formatDateLabel, toDateInputValue, toMonthOf } from "@/lib/date";
+import { useRecordFlowResetListener } from "@/lib/recordFlowReset";
 
 // 記録ボタンのスワイプ判定に使う最小移動距離(px)。これ未満は誤操作防止のため無視する。
 const SWIPE_THRESHOLD = 50;
@@ -97,6 +98,13 @@ export default function HomePage() {
   });
 
   useDraftPersistence({ loaded, date, step, detailOpen, form });
+
+  // 記録フローの途中で下部ナビの「記録する」を押したときは、最初の画面へ戻す
+  // (既にホームにいるため、Linkだけでは画面が変わらない)。
+  const resetToHomeStep = useCallback(() => {
+    if (step !== "home") goHome();
+  }, [step, goHome]);
+  useRecordFlowResetListener(resetToHomeStep);
 
   // 記録ボタンの左右スワイプで前日/翌日に切り替える。左スワイプ→翌日、右スワイプ→前日
   // (紙のカレンダーをめくる感覚)。スワイプが成立した後の合成クリックでボタンの本来の

@@ -3,6 +3,7 @@
 import type { ChangeEvent } from "react";
 import { TagChips } from "@/components/TagChips";
 import { MEMO_MAX_LENGTH, type Outcome } from "@/constants/choices";
+import { DepartTimePicker } from "./DepartTimePicker";
 
 interface ReasonStepViewProps {
   outcome: Outcome;
@@ -39,6 +40,10 @@ export function ReasonStepView({
 }: ReasonStepViewProps) {
   return (
     <>
+      {/* 出発時刻は「詳細を追加」の中だと気づかれず、キーボード入力も要った。
+          選択式にして理由の前(画面上部)へ出している。 */}
+      <DepartTimePicker value={departTime} onChange={onDepartTimeChange} />
+
       <section className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm">
         <h2 className="mb-1 text-[15px] font-bold">
           {outcome === "smooth" ? "😊 よかった理由は？" : "😣 気になる理由は？"}
@@ -62,19 +67,6 @@ export function ReasonStepView({
 
       {detailOpen && (
         <section className="step-enter-right rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm">
-          <div className="mb-3 flex items-center gap-2.5">
-            <label className="w-16 flex-none text-xs text-[var(--sub)]" htmlFor="departTime">
-              出発時刻
-            </label>
-            <input
-              id="departTime"
-              type="time"
-              autoComplete="off"
-              value={departTime}
-              onChange={(e: ChangeEvent<HTMLInputElement>) => onDepartTimeChange(e.target.value)}
-              className="rounded-lg border border-[var(--line)] bg-[var(--surface-2)] px-2.5 py-1.5 text-base font-medium tabular-nums"
-            />
-          </div>
           <label className="mb-1.5 block text-xs text-[var(--sub)]" htmlFor="memo">
             振り返りメモ
           </label>
