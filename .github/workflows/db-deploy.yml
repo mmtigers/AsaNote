@@ -1,0 +1,67 @@
+name: Deploy DB schema
+
+# Issue #53: supabase/schema.sql の変更を本番Supabaseへ反映する仕組みが無く、
+# 「コードには反映済み・実DBには未反映」のギャップが同期エラーの原因になっていた
+# (#3 で追加した records.child_id が未反映で、記録のアップサートが
+#  "Could not find the 'child_id' column" で失敗し続けた)。
+# main へマージされた時点で本番へ適用し、手作業とその取りこぼしを無くす。
+#
+# schema.sql は冪等(create table if not exists / alter table add column if not exists /
+# drop policy if exists → create policy / create or replace function)で drop table を
+# 含まないため、毎回まるごと流して問題ない。
+# ただし列の削除・リネーム(#46)はこの仕組みでは届かない。その時はSQL Editorから
+# 手動で実施するか、マイグレーション方式への移行を検討すること。
+#
+# CI の db-types-check ジョブとは役割が別。あちらは一時Postgresコンテナへ適用して
+# 型のドリフトを検査するだけで、本番DBには一切触れない。
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/schema.sql"
+      - ".github/workflows/db-deploy.yml"
+  # 反映漏れに気づいたときに手動で流せるようにしておく。
+  workflow_dispatch:
+
+# CI と同じく、明示しないとリポジトリ設定次第で write 権限のトークンが供給される。
+permissions:
+  contents: read
+
+# 本番DBへの適用が同時に走らないようにする。CI(ci.yml)と違い、途中で打ち切らない。
+concurrency:
+  group: db-deploy
+  cancel-in-progress: false
+
+jobs:
+  apply-schema:
+    name: Apply schema.sql to production
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # 未設定のまま「成功した」ように見えるのが一番危ないので、先に落とす。
+      - name: Check secret is configured
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "::error::SUPABASE_DB_URL が未設定です。リポジトリの Settings > Secrets and variables > Actions に、SupabaseのSession poolerの接続文字列(パスワード込み)を登録してください。"
+            exit 1
+          fi
+
+      # SUPABASE_DB_URL は Supabase の「Connect」→ Session pooler の接続文字列。
+      # direct connection ではない点が重要: GitHub Actions のランナーはIPv4のみで、
+      # Supabase の direct connection は IPv6 のため接続できない。
+      #
+      # ON_ERROR_STOP: 途中で失敗したら後続を流し続けない(黙って一部だけ適用しない)。
+      # single-transaction: 失敗時は何も適用しない(中途半端なスキーマを残さない)。
+      - name: Apply schema.sql
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          psql "$SUPABASE_DB_URL" \
+            --set ON_ERROR_STOP=1 \
+            --single-transaction \
+            --file supabase/schema.sql

@@ -118,8 +118,9 @@ jobs:
       # Issue #60: version: latest は CLI の破壊的変更で CI が突然落ちうるため固定する
       # (2026-09-16 時点の最新。Dependabot は setup-cli の with.version までは更新しないため、
       #  型生成が古びたら手で上げること)。
-      # なお `supabase/setup-cli@v1` の `v1` は**タグではなくブランチ**で、push のたびに
-      # 中身が変わる(タグより更に可変)。下の SHA は固定時点で v1 ブランチ = タグ v1.7.1。
+      # なお `supabase/setup-cli@v1` のような `v1`/`v3` は**タグではなくブランチ**で、
+      # push のたびに中身が変わる(タグより更に可変)。そのため SHA で固定している。
+      # 下の SHA は #84 で v1.7.1 から更新した、タグ v3.0.0 の時点のもの。
       - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
         with:
           version: 2.117.0

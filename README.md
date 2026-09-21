@@ -25,7 +25,10 @@ cp .env.local.example .env.local
 npm run dev
 ```
 
-Supabase側のテーブル作成は [supabase/schema.sql](./supabase/schema.sql) をSQL Editorで実行する。
+Supabase側のテーブル作成は、初回のみ [supabase/schema.sql](./supabase/schema.sql) をSQL Editorで実行する。
+以降は `main` にマージされた `schema.sql` の変更を
+[.github/workflows/db-deploy.yml](./.github/workflows/db-deploy.yml) が本番へ自動適用する（#53）。
+この自動適用には、リポジトリのシークレット `SUPABASE_DB_URL`（SupabaseのSession poolerの接続文字列）が必要。
 
 ### 認証（マジックリンク/Email OTP）
 
