@@ -59,7 +59,10 @@ src/
 supabase/
   schema.sql      records / groups / children / group_members / group_invites のテーブル定義・RLSポリシー
   ci/             CI(型ドリフト検査)で使うSQLスタブ
-scripts/          database.types.ts の再生成スクリプト
+scripts/
+  gen-db-types.sh     database.types.ts の再生成スクリプト
+  import-records.mjs  過去の記録をまとめてSupabaseへ登録する一括インポートスクリプト
+                       (service role key使用。使い方はファイル冒頭のコメント参照)
 e2e/              Playwright のE2Eテスト
 docs/             仕様書(SPEC.md)
 ```
