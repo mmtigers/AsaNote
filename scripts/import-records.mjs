@@ -29,6 +29,7 @@
 // を指定する(未指定時は子ども未分類の記録を対象にする)。
 
 import { readFile } from "node:fs/promises";
+import { pathToFileURL } from "node:url";
 import { createClient } from "@supabase/supabase-js";
 
 export function buildRecordRow(record, userId, childId, now) {
@@ -118,7 +119,7 @@ async function main() {
   console.log(`完了: 新規${results.inserted}件 / 更新${results.updated}件`);
 }
 
-const isMainModule = process.argv[1] && import.meta.url === `file://${process.argv[1]}`;
+const isMainModule = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isMainModule) {
   main().catch((error) => {
     console.error(error);
