@@ -30,6 +30,11 @@ alter table records add column if not exists struggled boolean;
 -- 登校の結果。'smooth' | 'reluctant' | 'absent'。
 alter table records add column if not exists outcome text;
 
+-- 記録した人自身のその朝の体調(1〜5、5段階)。PMS周期との相関などを見るための
+-- 簡易入力で、任意項目(#3-4)。
+alter table records add column if not exists condition_scale smallint
+  check (condition_scale is null or condition_scale between 1 and 5);
+
 create index if not exists idx_records_user_id on records(user_id);
 create index if not exists idx_records_record_date on records(record_date desc);
 

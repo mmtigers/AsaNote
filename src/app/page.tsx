@@ -220,6 +220,8 @@ export default function HomePage() {
               onDepartTimeChange={(value) => setForm((f) => ({ ...f, departTime: value }))}
               memo={form.memo}
               onMemoChange={(value) => setForm((f) => ({ ...f, memo: value }))}
+              conditionScale={form.conditionScale}
+              onConditionScaleChange={(value) => setForm((f) => ({ ...f, conditionScale: value }))}
               preview={preview}
               loaded={loaded}
               onSave={handleSave}

@@ -122,6 +122,7 @@ export type Database = {
         Row: {
           child_id: string | null
           companion: string | null
+          condition_scale: number | null
           created_at: string
           depart_time: string | null
           handoff: string | null
@@ -141,6 +142,7 @@ export type Database = {
         Insert: {
           child_id?: string | null
           companion?: string | null
+          condition_scale?: number | null
           created_at?: string
           depart_time?: string | null
           handoff?: string | null
@@ -160,6 +162,7 @@ export type Database = {
         Update: {
           child_id?: string | null
           companion?: string | null
+          condition_scale?: number | null
           created_at?: string
           depart_time?: string | null
           handoff?: string | null
