@@ -30,6 +30,11 @@ alter table records add column if not exists struggled boolean;
 -- 登校の結果。'smooth' | 'reluctant' | 'absent'。
 alter table records add column if not exists outcome text;
 
+-- 記録した人自身のその朝の体調(1〜5、5段階)。PMS周期との相関などを見るための
+-- 簡易入力で、任意項目(#3-4)。
+alter table records add column if not exists condition_scale smallint
+  check (condition_scale is null or condition_scale between 1 and 5);
+
 create index if not exists idx_records_user_id on records(user_id);
 create index if not exists idx_records_record_date on records(record_date desc);
 
@@ -342,5 +347,84 @@ create policy "records are updatable by owner"
 
 create policy "records are deletable by owner"
   on records for delete
+  to authenticated
+  using (auth.uid() = user_id);
+
+-- 未入力日のリマインドPush通知(#3-2)。本体の送信は Edge Function
+-- (supabase/functions/send-reminders)がservice roleで行うため、以下のRLSは
+-- クライアント(記録した本人)が自分の購読・設定を読み書きする用途のみを想定する。
+
+-- Push通知の購読情報。1ユーザーが複数端末を持ちうるため、endpointごとに複数行を許容する
+-- (同じendpointでの再購読はupsertで更新)。
+create table if not exists push_subscriptions (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  endpoint text not null unique,
+  p256dh text not null,
+  auth_key text not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_push_subscriptions_user_id on push_subscriptions(user_id);
+
+alter table push_subscriptions enable row level security;
+
+drop policy if exists "push_subscriptions are readable by owner" on push_subscriptions;
+drop policy if exists "push_subscriptions are insertable by owner" on push_subscriptions;
+drop policy if exists "push_subscriptions are updatable by owner" on push_subscriptions;
+drop policy if exists "push_subscriptions are deletable by owner" on push_subscriptions;
+
+create policy "push_subscriptions are readable by owner"
+  on push_subscriptions for select
+  to authenticated
+  using (auth.uid() = user_id);
+
+create policy "push_subscriptions are insertable by owner"
+  on push_subscriptions for insert
+  to authenticated
+  with check (auth.uid() = user_id);
+
+create policy "push_subscriptions are updatable by owner"
+  on push_subscriptions for update
+  to authenticated
+  using (auth.uid() = user_id);
+
+create policy "push_subscriptions are deletable by owner"
+  on push_subscriptions for delete
+  to authenticated
+  using (auth.uid() = user_id);
+
+-- 通知設定。ユーザー1人につき1行(reminder_timeの既定値21:00は#3-2の要件どおり)。
+create table if not exists notification_settings (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  reminder_time time not null default '21:00',
+  enabled boolean not null default true,
+  updated_at timestamptz not null default now()
+);
+
+alter table notification_settings enable row level security;
+
+drop policy if exists "notification_settings are readable by owner" on notification_settings;
+drop policy if exists "notification_settings are insertable by owner" on notification_settings;
+drop policy if exists "notification_settings are updatable by owner" on notification_settings;
+drop policy if exists "notification_settings are deletable by owner" on notification_settings;
+
+create policy "notification_settings are readable by owner"
+  on notification_settings for select
+  to authenticated
+  using (auth.uid() = user_id);
+
+create policy "notification_settings are insertable by owner"
+  on notification_settings for insert
+  to authenticated
+  with check (auth.uid() = user_id);
+
+create policy "notification_settings are updatable by owner"
+  on notification_settings for update
+  to authenticated
+  using (auth.uid() = user_id);
+
+create policy "notification_settings are deletable by owner"
+  on notification_settings for delete
   to authenticated
   using (auth.uid() = user_id);

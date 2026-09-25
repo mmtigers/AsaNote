@@ -27,3 +27,12 @@ export function selectExportEntries<T extends ExportableRecord>(
     .filter((r) => includePartner || isOwnRecord(r, currentUserId, authLoading))
     .sort((a, b) => a.recordDate.localeCompare(b.recordDate) || a.updatedAt.localeCompare(b.updatedAt));
 }
+
+// エクスポートファイル名(#2-2)。「印刷する」→「PDFとして保存」時にブラウザが
+// document.title を保存ファイル名の候補にすることを利用し、対象期間を含める。
+// 単日なら asanote_YYYYMMDD、期間があれば asanote_YYYYMMDD-YYYYMMDD。
+export function buildExportFilename(startDate: string, endDate: string): string {
+  const start = startDate.replaceAll("-", "");
+  const end = endDate.replaceAll("-", "");
+  return start === end ? `asanote_${start}.csv` : `asanote_${start}-${end}.csv`;
+}

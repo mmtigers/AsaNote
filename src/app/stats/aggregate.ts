@@ -52,6 +52,13 @@ export function smoothRateByWeekday(records: AggregatableRecord[]): SmoothRateSt
   return totals.filter((t) => t.total > 0).map((t) => toStat(t.key, t.label, t.total, t.smooth));
 }
 
+// smoothRateByWeekdayの各行(key=曜日index)に該当する記録一覧(#3-3の詳細表示用)。
+// 集計と対象を必ず揃えるため、同じ「結果を選んで記録した件数」の条件(r.outcomeがある)で絞る。
+export function recordsForWeekday<T extends AggregatableRecord>(records: T[], weekdayKey: string): T[] {
+  const weekday = Number(weekdayKey);
+  return records.filter((r) => !!r.outcome && parseDateInputValue(r.recordDate).getDay() === weekday);
+}
+
 // 起床時刻の区切り(分)。`until`は「その値未満」を意味する上限。
 // 小学生の登校時刻から逆算した30分刻み。増やす/減らす場合はここだけ触ればよい。
 const WAKE_TIME_BUCKETS = [
@@ -61,18 +68,32 @@ const WAKE_TIME_BUCKETS = [
   { key: "after-0730", label: "7:30〜", until: Number.POSITIVE_INFINITY },
 ] as const;
 
+// 起床時刻(分)がどの区分に入るか。未入力・壊れた値はnull。
+// smoothRateByWakeTimeとrecordsForWakeTimeBucketで判定がずれないよう、ここに集約する。
+function wakeTimeBucketKey(wakeTime: string | null): string | null {
+  if (!wakeTime) return null;
+  const minutes = parseTimeToMinutes(wakeTime);
+  if (minutes === null) return null;
+  const bucket = WAKE_TIME_BUCKETS.find((b) => minutes < b.until);
+  return bucket?.key ?? null; // 最後のバケットが Infinity なので通常はnullにならない
+}
+
 // 起床時刻の早さとスムーズ率の関係。起床時刻を入力していない記録は対象外。
 // 記録が1件も無い時間帯は行ごと省く。
 export function smoothRateByWakeTime(records: AggregatableRecord[]): SmoothRateStat[] {
   const totals = WAKE_TIME_BUCKETS.map((b) => ({ key: b.key, label: b.label, total: 0, smooth: 0 }));
   for (const r of records) {
-    if (!r.outcome || !r.wakeTime) continue;
-    const minutes = parseTimeToMinutes(r.wakeTime);
-    if (minutes === null) continue;
-    const bucket = totals[WAKE_TIME_BUCKETS.findIndex((b) => minutes < b.until)];
-    if (!bucket) continue; // 最後のバケットが Infinity なので通常は起きない
+    if (!r.outcome) continue;
+    const key = wakeTimeBucketKey(r.wakeTime);
+    const bucket = totals.find((t) => t.key === key);
+    if (!bucket) continue;
     bucket.total += 1;
     if (r.outcome === "smooth") bucket.smooth += 1;
   }
   return totals.filter((t) => t.total > 0).map((t) => toStat(t.key, t.label, t.total, t.smooth));
+}
+
+// smoothRateByWakeTimeの各行(key=バケットkey)に該当する記録一覧(#3-3の詳細表示用)。
+export function recordsForWakeTimeBucket<T extends AggregatableRecord>(records: T[], bucketKey: string): T[] {
+  return records.filter((r) => !!r.outcome && wakeTimeBucketKey(r.wakeTime) === bucketKey);
 }

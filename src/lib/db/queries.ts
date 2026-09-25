@@ -16,20 +16,22 @@ export function useRecordsTimeline() {
   }, []);
 }
 
-// カレンダー用: 指定した月("YYYY-MM")の自分の記録を、日付ごとの結果(outcome)に
-// まとめて返す(入力状況のハイライト表示に使う)。同じ日に複数件あれば最新のものを使う。
+// カレンダー用: 指定した月("YYYY-MM")の記録を、日付ごとの結果(outcome)にまとめて
+// 返す(入力状況のハイライト表示に使う)。傾向タブのカレンダー(outcomeByDate)と
+// 揃えて、パートナーの記録も含める(#1-2: 記録ページのカレンダーにパートナーの
+// 記録が反映されないバグの修正)。同じ日に複数件あれば最新のものを使う。
 // childIdは複数の子ども対応(#3)向け(詳しくはfindLatestOwnRecordForDateを参照)。
-export function useRecordStatusForMonth(monthKey: string, userId: string | null, childId: string | null = null) {
+export function useRecordStatusForMonth(monthKey: string, childId: string | null = null) {
   return useLiveQuery(async () => {
     const rows = await localDb.records.where("recordDate").startsWith(monthKey).toArray();
-    const own = rows.filter((r) => isOwnRecord(r, userId) && (r.childId ?? null) === childId);
-    own.sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
+    const relevant = rows.filter((r) => (r.childId ?? null) === childId);
+    relevant.sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
     const map = new Map<string, Outcome | null>();
-    for (const r of own) {
+    for (const r of relevant) {
       map.set(r.recordDate, r.outcome ?? null);
     }
     return map;
-  }, [monthKey, userId, childId]);
+  }, [monthKey, childId]);
 }
 
 // 未同期件数(AuthStatusの表示用)。
@@ -47,4 +49,18 @@ export function useHasTodayOwnRecord(recordDate: string, userId: string | null) 
     const rows = await localDb.records.where("recordDate").equals(recordDate).toArray();
     return rows.some((r) => isOwnRecord(r, userId) && !!r.outcome);
   }, [recordDate, userId]);
+}
+
+// パートナーの記録完了状態の可視化(#3-5)用: 指定した日付・子どものパートナー
+// (自分以外)の記録が既に(outcomeまで)入力済みか。isOwnRecordの否定で判定するため、
+// クラウド未同期(userId未設定)の行は「自分の記録」として除外される。
+export function useHasTodayPartnerRecord(
+  recordDate: string,
+  userId: string | null,
+  childId: string | null = null
+) {
+  return useLiveQuery(async () => {
+    const rows = await localDb.records.where("recordDate").equals(recordDate).toArray();
+    return rows.some((r) => !isOwnRecord(r, userId) && (r.childId ?? null) === childId && !!r.outcome);
+  }, [recordDate, userId, childId]);
 }

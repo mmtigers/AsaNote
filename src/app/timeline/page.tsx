@@ -55,7 +55,7 @@ export default function TimelinePage() {
         <div>
           <h1 className="text-lg font-bold">これまでの記録</h1>
           <p className="mt-1 text-xs text-[var(--sub)]">
-            新しい順に表示しています。自分の記録はタップで編集できます。
+            新しい順に表示しています。自分の記録は✏️で編集できます。
           </p>
         </div>
         <Link
@@ -99,15 +99,6 @@ export default function TimelinePage() {
                 key={record.id}
                 className="relative rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3.5 py-3"
               >
-                {/* カード全体をタップで編集にする。削除はゴミ箱アイコンに分けてあり、
-                    入れ子の<a><button>にならないようリンクを重ねる方式にしている。 */}
-                {canEdit && (
-                  <Link
-                    href={editHref}
-                    aria-label={`${formatDateShort(record.recordDate)}の記録を編集する`}
-                    className="absolute inset-0 rounded-xl focus:ring-2 focus:ring-[var(--accent)]"
-                  />
-                )}
                 <div className="mb-1.5 flex items-center gap-2">
                   <span className="text-sm font-bold">{formatDateShort(record.recordDate)}</span>
                   {record.wakeTime && (
@@ -123,19 +114,28 @@ export default function TimelinePage() {
                     </span>
                   )}
                   {!own && <PartnerAvatar email={emailMap.get(record.userId ?? "")} />}
-                  <div className="ml-auto flex items-center gap-2">
+                  <div className="ml-auto flex items-center gap-3">
                     {legacy && (
                       <span className="rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-bold text-[var(--sub)]">
                         {legacy}
                       </span>
+                    )}
+                    {/* 編集・削除を隣接配置する(#2-1)。誤タップを防ぐため gap-3 で間隔を空ける。 */}
+                    {canEdit && (
+                      <Link
+                        href={editHref}
+                        aria-label={`${formatDateShort(record.recordDate)}の記録を編集する`}
+                        className="-my-1 rounded-full px-2 py-1 text-base leading-none text-[var(--sub)]"
+                      >
+                        ✏️
+                      </Link>
                     )}
                     {canEdit && (
                       <button
                         type="button"
                         onClick={() => setDeleteTarget(record.id)}
                         aria-label={`${formatDateShort(record.recordDate)}の記録を削除する`}
-                        // 重ねた編集リンクより手前に置く(relative + z-10)。
-                        className="relative z-10 -my-1 rounded-full px-2 py-1 text-base leading-none text-[var(--sub)]"
+                        className="-my-1 rounded-full px-2 py-1 text-base leading-none text-[var(--sub)]"
                       >
                         🗑
                       </button>

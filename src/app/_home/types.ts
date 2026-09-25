@@ -8,6 +8,8 @@ export interface FormState {
   reasonTags: string[];
   departTime: string;
   memo: string;
+  // 今日の体調(1〜5、5段階)。任意項目(#3-4)。未入力はnull。
+  conditionScale: number | null;
   // 旧フォーム由来のフィールド。新しい記録フローでは編集しないが、既存記録が
   // 持っていれば保存時に消してしまわないよう、そのまま保持して積み戻す。
   wakeTime: string;
@@ -25,6 +27,7 @@ export function emptyForm(): FormState {
     reasonTags: [],
     departTime: "",
     memo: "",
+    conditionScale: null,
     wakeTime: "",
     wakeTags: [],
     triggerTags: [],

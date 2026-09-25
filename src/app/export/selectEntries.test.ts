@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { selectExportEntries, type ExportableRecord } from "./selectEntries";
+import { buildExportFilename, selectExportEntries, type ExportableRecord } from "./selectEntries";
 
 function makeRecord(overrides: Partial<ExportableRecord> = {}): ExportableRecord {
   return {
@@ -88,5 +88,15 @@ describe("selectExportEntries", () => {
       currentUserId: "me",
     });
     expect(result.map((r) => r.updatedAt)).toEqual(["2026-09-10T08:00:00.000Z", "2026-09-10T12:00:00.000Z"]);
+  });
+});
+
+describe("buildExportFilename", () => {
+  it("開始日と終了日が同じなら単日形式にする", () => {
+    expect(buildExportFilename("2026-09-10", "2026-09-10")).toBe("asanote_20260910.csv");
+  });
+
+  it("開始日と終了日が違えば期間形式にする", () => {
+    expect(buildExportFilename("2026-09-01", "2026-09-30")).toBe("asanote_20260901-20260930.csv");
   });
 });

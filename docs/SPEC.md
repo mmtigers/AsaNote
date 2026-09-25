@@ -33,20 +33,29 @@ src/
     timeline/page.tsx     これまでの記録一覧
     stats/page.tsx        傾向（集計・グラフ）
     export/page.tsx       期間指定エクスポート（印刷/PDF保存）
-    group/                家族との共有（グループ・子ども管理）
+    group/                家族との共有（グループ・子ども管理・通知設定）
       page.tsx              ログイン状態の出し分けとセクションの組み立てのみ
       useChildrenAdmin.ts   お子さまの追加・改名・削除の状態と操作
       useGroupAdmin.ts      グループの作成・参加・招待・脱退の状態と操作
-      ChildrenSection.tsx, GroupOnboardingSections.tsx, GroupMemberSections.tsx  表示専用
+      useNotificationSettings.ts  未入力日リマインドPush通知のON/OFF・時刻の状態と操作
+      ChildrenSection.tsx, GroupOnboardingSections.tsx, GroupMemberSections.tsx, NotificationSection.tsx  表示専用
       runAction.ts          失敗時に console.error + ユーザー向けメッセージを出す定型
+    stats/
+      page.tsx               集計結果の表示・各項目タップでの詳細シート起動
+      aggregate.ts            曜日別/起床時刻別のスムーズ率等の集計純関数
+      detail.ts               詳細シート用(期間別推移・簡単な統計値)の集計純関数
+      StatsDetailSheet.tsx     詳細シート(期間別推移・統計値・該当する記録一覧)
     login/page.tsx        マジックリンクログイン
   components/            共有UIコンポーネント（カレンダー、子ども切替、タグ選択 等）
   lib/
     supabase/client.ts    Supabaseクライアント
     auth/AuthProvider.tsx  認証状態のcontext
+    push.ts                ブラウザPush APIの薄いラッパー（購読作成・解除、VAPID鍵の変換）
+    holidays.ts            日本の祝日判定（@holiday-jp/holiday_jpのオフライン同梱データ）
     db/                    Dexieローカルキャッシュ・オフライン同期ロジック
       ownership.ts           記録の所有判定（`isOwnRecord` / `canEditRecord`）の唯一の情報源
       useAuthedList.ts       ログイン状態に応じて一覧を取得する共通フック（`useChildren` / `useGroupMembers` の実体）
+      notificationSettings.ts  push_subscriptions / notification_settingsテーブルの読み書き
       database.types.ts      `supabase gen types` の生成物。手で編集せず `scripts/gen-db-types.sh` で再生成する
     localStorageStore.ts  localStorageの1値を読み書きし同一タブへ通知する定型の唯一の情報源
                           （`selectedChild.ts` / `reminderDismissal.ts` / `draft.ts` が使う）
@@ -54,11 +63,14 @@ src/
   constants/choices.ts    記録フォームの選択肢（タグ）の唯一の情報源
   types/models.ts         SchoolRecord / Group / Child などの型定義
 supabase/
-  schema.sql              records / groups / children 等のテーブル・RLSポリシー
+  schema.sql              records / groups / children / push_subscriptions / notification_settings 等のテーブル・RLSポリシー
+  functions/send-reminders/index.ts  未入力日リマインドPush通知の送信Edge Function（Deno。§4.7）
+  cron-reminders.sql      Edge Functionをpg_cronで毎分呼び出す設定（手動適用。§4.7）
   ci/auth-stub.sql        CI（`db-types-check`）で素のPostgresに `auth.uid()` 等を代替定義するスタブ
 scripts/gen-db-types.sh   `database.types.ts` の再生成スクリプト
 e2e/record-flow.spec.ts   Playwright のE2Eテスト
 docs/SPEC.md              本書
+docs/push-notifications-setup.md  Push通知(§4.7)のデプロイ手順
 ```
 
 ## 4. 主要機能
@@ -67,12 +79,14 @@ docs/SPEC.md              本書
 
 3ステップのフォームで、1日1件（子ども単位）の記録を作成・編集する。
 
-1. **home** — 月間カレンダーで日付を選ぶ。記録済みの日は状態（スムーズ/行き渋り/お休み）が視覚的に分かる。カレンダー下の「記録する」ボタンは左右スワイプで前日/翌日に切り替え可能。未記録のリマインダー通知は、正午（12時）以降にアプリを開いた時点でその日の記録がまだ無い場合にのみ表示する（`src/components/RecordReminderNotice.tsx` の `REMINDER_HOUR`）。朝の記録前に催促しないための条件。
+1. **home** — 月間カレンダーで日付を選ぶ。記録済みの日は状態（スムーズ/行き渋り/お休み）が視覚的に分かり、選択中の日付はアクセントカラーの塗りつぶしで強調される。日本の祝日（`@holiday-jp/holiday_jp`によるオフライン同梱データ）は日付を赤系の色で表示する（`src/lib/holidays.ts`、`src/components/MonthCalendar.tsx`）。カレンダーの色分けはパートナーの記録も含める（傾向タブのカレンダーと同じロジック。`src/lib/db/queries.ts` の `useRecordStatusForMonth`）。カレンダー上部には、パートナーが当日の記録を済ませていれば完了バッジを表示する（`src/components/PartnerRecordStatus.tsx`）。カレンダー下の「記録する」ボタンは左右スワイプで前日/翌日に切り替え可能。未記録のリマインダー通知は、正午（12時）以降にアプリを開いた時点でその日の記録がまだ無い場合にのみアプリ内表示する（`src/components/RecordReminderNotice.tsx` の `REMINDER_HOUR`）。朝の記録前に催促しないための条件。アプリを閉じていても届くプッシュ通知は§4.7を参照。
 2. **result** — 「今日はどうだった？」を3択で選ぶ：
    - `smooth`（😊 スムーズに行けた）
    - `reluctant`（😣 行き渋った）
    - `absent`（🏠 行かなかった）
-3. **reason** — 画面上部に出発時刻の入力（任意）、その下に理由タグ。理由タグは選んだ結果に応じて候補を出し分け（前向きな理由 or 気になる理由）、複数選択でき、「＋追加」でその場でカスタムタグを追加できる。出発時刻は「8時より前 / 8時過ぎ / 8時半以降」の3区分から1つ選ぶだけ（`src/app/_home/DepartTimePicker.tsx`。もう一度押すと解除）。分単位の精度は振り返りに使っていないための割り切り。「詳細を追加」を開くと振り返りメモ（最大2000文字。`MEMO_MAX_LENGTH`。入力欄の`maxLength`と残り文字数表示、保存時の切り詰めで超過を防ぐ。DBの`CHECK`制約と同じ値 #57）も入力可能。保存すると入力内容から日記文を自動生成してプレビューする（`src/lib/recordPreview.ts`）。
+
+   既に記録済みの日を開き直したときは、選択中の項目にリング＋チェックマークを表示する（`src/app/_home/ResultStepView.tsx`）。
+3. **reason** — 画面上部に出発時刻の入力（任意）、その下に理由タグ。理由タグは選んだ結果に応じて候補を出し分け（前向きな理由 or 気になる理由）、複数選択でき、「＋追加」でその場でカスタムタグを追加できる。出発時刻は「8時より前 / 8時過ぎ / 8時半以降」の3区分から1つ選ぶだけ（`src/app/_home/DepartTimePicker.tsx`。もう一度押すと解除）。分単位の精度は振り返りに使っていないための割り切り。「詳細を追加」を開くと、今日の体調（1〜5の5段階、任意。`src/app/_home/ConditionScalePicker.tsx`）と振り返りメモ（最大2000文字。`MEMO_MAX_LENGTH`。入力欄の`maxLength`と残り文字数表示、保存時の切り詰めで超過を防ぐ。DBの`CHECK`制約と同じ値 #57）を入力できる。保存すると入力内容から日記文を自動生成してプレビューする（`src/lib/recordPreview.ts`）。
 
 補足仕様:
 - 記録は日付単位で1件（同じ日に再度記録すると上書き編集になる）。複数の子どもがいる家庭では「日付＋子どもID」で1件。
@@ -85,7 +99,7 @@ docs/SPEC.md              本書
 
 - 自分の記録と、同じグループのパートナーの記録を新しい順に一覧表示。
 - 子どもが複数いる場合は子ども切替で絞り込み可能（常に「すべて」から開始）。
-- 自分の記録のみ編集・削除が可能。**カード全体をタップすると編集**（記録フローへ遷移）、**右上のゴミ箱アイコンで削除**（確認ダイアログ経由）。入れ子の `<a><button>` にならないよう、編集リンクはカードに重ねた `absolute inset-0` とし、ゴミ箱側を `relative z-10` で手前に置いている。パートナーの記録は閲覧のみで、アバター表示で誰の記録か分かる。
+- 自分の記録のみ編集・削除が可能。**✏️アイコンで編集**（記録フローへ遷移）、**隣接する🗑アイコンで削除**（確認ダイアログ経由）。誤タップを防ぐため2つのアイコンの間には`gap-3`の余白を設けている。パートナーの記録は閲覧のみで、アバター表示で誰の記録か分かる。
   認証情報の読み込み中（所有者が未確定）は、どの記録にも編集・削除の導線を出さない（#62）。所有判定は `src/lib/db/ownership.ts` の2関数に集約してあり、表示系（アバター・ラベル・エクスポート対象の絞り込み）は読み込み中を「自分の記録」と楽観的に扱う `isOwnRecord()`、編集・削除の導線は読み込み中を許可しない `canEditRecord()` を使う。表示の一瞬のちらつきと違い、誤って削除するとローカル（Dexie）から記録が消えるため。
 - 旧フォーム（v1以前）由来の記録（起床タグ・引き渡し先など）も後方互換で表示する。
 
@@ -94,12 +108,13 @@ docs/SPEC.md              本書
 - これまでの記録を「スムーズ/行き渋り/お休み」の内訳（件数・割合）でグラフ表示。
 - 「良かった日によく見られる理由」「気になる日によく見られる理由」をタグ集計の棒グラフで表示。
 - 子ども切替による絞り込みに対応。
+- 内訳カード・曜日別/起床時刻別のスムーズ率・理由タグの各項目はタップでき、該当する記録の詳細シート（`src/app/stats/StatsDetailSheet.tsx`）を開く。詳細シートには期間別推移（日別/週別/月別切替。`src/app/stats/detail.ts` の `groupRecordsByPeriod`）、簡単な統計値（記録日数・最も多い曜日・月平均件数。`computeDetailStats`）、該当する過去の記録一覧（自分の記録はタップでその日の記録へ）を表示する。
 
 ### 4.4 エクスポート（`/export`）
 
 - 学校の先生・スクールカウンセラー等への共有を想定し、期間指定（デフォルト直近30日）で記録を日記形式のテキストに整形して表示する。
 - パートナーの記録を含めるかどうかを選択可能（含める場合も「(パートナーの記録)」という表示のみで、メールアドレス等の個人情報は出力しない）。
-- ブラウザの印刷機能（「PDFとして保存」）で完結し、サーバーへの送信は行わない。
+- ブラウザの印刷機能（「PDFとして保存」）で完結し、サーバーへの送信は行わない。「印刷する」を押した瞬間に`document.title`を対象期間入りのファイル名（`asanote_YYYYMMDD-YYYYMMDD` / 単日は`asanote_YYYYMMDD`。`src/app/export/selectEntries.ts` の `buildExportFilename`）へ同期的に差し替えてから`window.print()`を呼ぶことで、保存時のファイル名候補に反映させる（`afterprint`イベントで元のタイトルへ戻す）。`useEffect`でdocument.titleを差し替える方式は、Next.jsのMetadata API（layoutのtitle）が別の再レンダリングのたびに書き戻してしまい効果が消えるため採用していない。
 
 ### 4.5 家族との共有（グループ `/group`）
 
@@ -108,6 +123,7 @@ docs/SPEC.md              本書
 - グループに参加すると、以後どちらが記録してもタイムライン等でお互いの記録が見える（編集・削除は記録した本人のみ）。
 - グループから脱退できる（確認ダイアログ経由）。
 - 複数の子ども（`children`）を登録・管理できる（追加・名前の変更・削除。削除は確認ダイアログ経由、#59）。子どもが0〜1人の家庭では入力を増やさないため、記録は常に「未分類」（`childId: null`）として保存される。子どもを削除しても、紐づく記録自体は残る（`records.child_id` が `on delete set null` のため、割り当てだけが外れる）。
+- 「通知」セクション（`src/app/group/NotificationSection.tsx` / `useNotificationSettings.ts`）で、未入力日のリマインドプッシュ通知のON/OFFと通知時刻（既定21:00）を設定できる。詳しくは§4.7。
 
 ### 4.6 認証（ログイン `/login`）
 
@@ -115,6 +131,16 @@ docs/SPEC.md              本書
 - 未ログインでもこの端末内での記録・閲覧は可能（オフラインファースト）。ログインするとSupabaseへの同期が有効になり、家族とデータを共有できる。
 - 同一メールアドレスへの再送信は30秒のクールダウンを設ける（`localStorage`で送信時刻を保持し、再読み込みしても有効）。
 - ログアウト時はこの端末のローカルDB（Dexie）を全消去する（共有端末で前ユーザーのデータが次のユーザーのアカウントへ誤同期されるのを防ぐ）。消去前に最終同期を1回試み、それでもクラウドへ未反映の変更（未送信の記録・未反映の削除）が残っていれば件数を示す確認ダイアログを出し、ユーザーが明示的に「消してログアウト」を選ばない限り消去しない（#58）。
+
+### 4.7 未入力日のリマインドPush通知
+
+アプリ内リマインダー（§4.1、アプリを開いたときだけ表示）とは別に、アプリを閉じていても届く本格的なPush通知。
+
+- `/group`の「通知」セクションでON/OFFと通知時刻（既定21:00）を設定する。ONにする際、この端末でまだPush購読が無ければブラウザに通知の許可を求め、Web Push購読を作成する（`src/lib/push.ts`）。
+- 購読情報は`push_subscriptions`テーブルへ、時刻・ON/OFFは`notification_settings`テーブルへ、それぞれ本人のみ読み書きできるRLSで保存する（`src/lib/db/notificationSettings.ts`）。
+- 送信はSupabase Edge Function（`supabase/functions/send-reminders`）が担う。pg_cronが毎分呼び出し、JST時刻が`reminder_time`と一致し`enabled=true`のユーザーのうち、その日（JST）まだ`outcome`入りの記録が無い人だけへ、そのユーザーの全購読へPush通知を送る。送信が410/404で失敗した（失効した）購読はその場で削除する。
+- Service Worker（`public/sw.js`）の`push`イベントで通知を表示し、`notificationclick`でアプリを開く/前面に出す。
+- `supabase/schema.sql`（`push_subscriptions` / `notification_settings`テーブル）は他のテーブルと同様`main`マージ時に自動デプロイされるが、Edge Functionのデプロイ・VAPID鍵の発行・pg_cronのスケジュール登録（`supabase/cron-reminders.sql`）は自動化の対象外。デプロイ手順は`docs/push-notifications-setup.md`を参照。
 
 ## 5. データモデル
 
@@ -129,6 +155,7 @@ docs/SPEC.md              本書
 | `wakeTags` / `triggerTags` / `reasonTags` / `responseTags` | `string[]` | タグ群。`reasonTags`が現行フォームの理由タグ、他3つは旧フォーム（〜v1）由来で後方互換のため保持。 |
 | `companion` / `handoff` | `string \| null` | 旧フォーム由来（同行者／引き渡し先）。 |
 | `memo` | `string \| null`（最大2000字） | 自由記述メモ。 |
+| `conditionScale` | `number \| null`（1〜5） | 記録した人自身のその朝の体調（5段階、任意）。ロール（夫/妻）の概念が無いため、記録する人なら誰でも自分の体調として入力できる。PMS周期との相関などを見られるよう日付と紐づけて保存する（傾向タブ側の集計は未対応）。 |
 | `userId` | `string \| null` | 記録者。未同期のうちは未設定（＝自分の記録として扱う）。 |
 | `childId` | `string \| null` | 対象の子ども。子ども未登録の家庭では常にnull。 |
 | `createdAt` / `updatedAt` | timestamptz | 作成・更新日時。 |
@@ -144,6 +171,13 @@ docs/SPEC.md              本書
 - `GroupInvite`: 招待コード。`expires_at`（発行から24時間）、`used_at`/`used_by`（1回限り使用）。
 - `Child`: `id`, `created_by`, `name`（1〜50文字）, `created_at`。
 
+### 5.3 `push_subscriptions` / `notification_settings`（§4.7）
+
+対応するTypeScriptの型は持たない（アプリがこの行をそのまま扱う箇所が無いため、`src/lib/db/notificationSettings.ts` がSupabaseへの読み書きを直接行う）。
+
+- `push_subscriptions`: `id`, `user_id`, `endpoint`（`unique`）, `p256dh`, `auth_key`, `created_at`。1ユーザーが複数端末を持ちうるため複数行を許容し、同じ`endpoint`での再購読は`upsert`で更新する。
+- `notification_settings`: `user_id`（主キー）, `reminder_time`（`time`、既定`21:00`）, `enabled`（`boolean`、既定`true`）, `updated_at`。ユーザー1人につき1行。
+
 ## 6. サーバー（Supabase）仕様
 
 `supabase/schema.sql` がスキーマ・RLSポリシーの正。初回はダッシュボードのSQL Editorで実行して構築し、以降の変更は `main` へのマージ時に `.github/workflows/db-deploy.yml` が本番へ自動適用する（#53）。`schema.sql` は冪等（`create table if not exists` / `alter table ... add column if not exists` / `drop policy if exists` → `create policy` / `create or replace function`）で `drop table` を含まないため、毎回まるごと適用してよい。ただし列の削除・リネーム（#46）はこの仕組みでは届かないため、その時は手動で実施するかマイグレーション方式への移行を検討する。
@@ -153,6 +187,7 @@ docs/SPEC.md              本書
 - `records`（`idx_records_user_id`, `idx_records_record_date`）
 - `groups`, `group_members`（`idx_group_members_group_id`）, `group_invites`（`idx_group_invites_group_id`）
 - `children`（`idx_children_created_by`）
+- `push_subscriptions`（`idx_push_subscriptions_user_id`）, `notification_settings`
 
 ### 6.2 Row Level Security（全テーブルで有効）
 
@@ -161,6 +196,7 @@ docs/SPEC.md              本書
 - **group_members**: SELECTは本人＋`is_fellow_group_member()`（SECURITY DEFINER関数、無限再帰回避のため）で判定した同グループメンバー。INSERTは「自分が作成したグループに自分自身を追加する」場合のみ（招待経由の参加は下記関数を使う）。DELETEは本人のみ（脱退）。
 - **group_invites**: SELECTは同グループメンバー。INSERTは同グループメンバー本人かつ有効期限が24時間+5分以内。
 - **children**: SELECTは作成者本人＋同グループメンバー。INSERT/UPDATE/DELETEは作成者本人のみ。
+- **push_subscriptions** / **notification_settings**: SELECT/INSERT/UPDATE/DELETEすべて本人のみ（グループメンバーであっても他人の購読・設定は読み書きできない）。送信を担うEdge Functionはservice roleで動くためRLSを経由しない。
 
 ### 6.3 SECURITY DEFINER関数（RPC）
 
@@ -201,6 +237,7 @@ npm run test:e2e   # Playwright（E2E, 別途起動が必要）
   - `lint-build-test`: `npm audit` → `lint` → `next typegen` → `tsc --noEmit` → `test:coverage`（カバレッジは `coverage-report` 成果物として14日保存。閾値は設けない）→ `build`
   - `e2e-test`: Playwright
   - `db-types-check`: `supabase/schema.sql` を素の Postgres へ適用し、`supabase gen types` の出力と `database.types.ts` の差分を検査
+  - `supabase/functions/`（Deno / Supabase Edge Functions）はこのNext.js/Nodeプロジェクトの一部ではないため、`tsconfig.json`の`exclude`と`eslint.config.mjs`の`globalIgnores`の両方で対象外にしてある。CIの`tsc --noEmit`・`lint`はこのディレクトリを検査しない。
   - ワークフローは最小権限（`permissions: contents: read`）で動き、各ジョブに `timeout-minutes` を設定している。依存更新は `.github/dependabot.yml` が週次で minor/patch をまとめた1本の PR として起票する。
 - `main` への push で `supabase/schema.sql` が変わったとき、`.github/workflows/db-deploy.yml` が本番Supabaseへ `psql --single-transaction` で適用する（#53）。`db-types-check` とは役割が別で、あちらは一時Postgresコンテナに適用して型のドリフトを検査するだけで本番DBには触れない。
 - 主要ロジック（フォームの状態遷移、日付処理、同期処理、エクスポート抽出、グループ操作等）はほぼ全てユニットテストが付随している（`*.test.ts`）。

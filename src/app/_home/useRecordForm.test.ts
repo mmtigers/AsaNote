@@ -88,6 +88,7 @@ describe("useRecordForm", () => {
         reasonTags: ["注意された"],
         departTime: "07:50",
         memo: "メモ",
+        conditionScale: null,
         wakeTime: "",
         wakeTags: [],
         triggerTags: [],

@@ -118,10 +118,59 @@ export type Database = {
         }
         Relationships: []
       }
+      notification_settings: {
+        Row: {
+          enabled: boolean
+          reminder_time: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          enabled?: boolean
+          reminder_time?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          enabled?: boolean
+          reminder_time?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      push_subscriptions: {
+        Row: {
+          auth_key: string
+          created_at: string
+          endpoint: string
+          id: string
+          p256dh: string
+          user_id: string
+        }
+        Insert: {
+          auth_key: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          p256dh: string
+          user_id: string
+        }
+        Update: {
+          auth_key?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          p256dh?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       records: {
         Row: {
           child_id: string | null
           companion: string | null
+          condition_scale: number | null
           created_at: string
           depart_time: string | null
           handoff: string | null
@@ -141,6 +190,7 @@ export type Database = {
         Insert: {
           child_id?: string | null
           companion?: string | null
+          condition_scale?: number | null
           created_at?: string
           depart_time?: string | null
           handoff?: string | null
@@ -160,6 +210,7 @@ export type Database = {
         Update: {
           child_id?: string | null
           companion?: string | null
+          condition_scale?: number | null
           created_at?: string
           depart_time?: string | null
           handoff?: string | null

@@ -3,6 +3,7 @@
 import type { Outcome } from "@/constants/choices";
 import { OUTCOME_COLOR_STYLES, OUTCOME_SOFT_STYLES } from "@/constants/outcomeStyles";
 import { WEEKDAYS, toMonthOf } from "@/lib/date";
+import { getHolidayName } from "@/lib/holidays";
 
 function pad2(n: number): string {
   return String(n).padStart(2, "0");
@@ -104,12 +105,15 @@ export function MonthCalendar({
           const isSelected = value === selectedDate;
           const isToday = value === todayValue;
           const status = statusByDate?.get(value);
-          const cellClassName = `mx-auto flex h-9 w-9 flex-col items-center justify-center gap-0.5 rounded-full text-[13px] ${
+          // 日本の祝日(#3-1)。選択中セルは既にアクセントで強調されているため、
+          // 数字の色分けは非選択時のみ行う(選択色と祝日色がぶつからないように)。
+          const holidayName = getHolidayName(value);
+          const cellClassName = `relative mx-auto flex h-9 w-9 flex-col items-center justify-center gap-0.5 rounded-full text-[13px] ${
             isSelected
               ? "bg-[var(--accent)] font-bold text-[var(--accent-ink)]"
               : isToday
-                ? `border border-[var(--accent)] text-[var(--ink)] ${status ? OUTCOME_SOFT_STYLES[status] : ""}`
-                : `text-[var(--ink)] ${status ? OUTCOME_SOFT_STYLES[status] : ""}`
+                ? `border border-[var(--accent)] ${holidayName ? "text-[var(--holiday)] font-bold" : "text-[var(--ink)]"} ${status ? OUTCOME_SOFT_STYLES[status] : ""}`
+                : `${holidayName ? "text-[var(--holiday)] font-bold" : "text-[var(--ink)]"} ${status ? OUTCOME_SOFT_STYLES[status] : ""}`
           }`;
           const dot = (
             <span
@@ -118,13 +122,28 @@ export function MonthCalendar({
               }`}
             />
           );
+          const holidayMarker = holidayName && (
+            <span
+              aria-hidden="true"
+              className={`absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full ${
+                isSelected ? "bg-[var(--accent-ink)]" : "bg-[var(--holiday)]"
+              }`}
+            />
+          );
+          const holidayLabel = holidayName ? `${day}日 ${holidayName}` : undefined;
 
           // 読み取り専用(傾向タブ)ではタップしても何も起きないため、ボタンにはしない。
           if (!onSelectDate) {
             return (
-              <span key={value} className={cellClassName} aria-current={isToday ? "date" : undefined}>
+              <span
+                key={value}
+                className={cellClassName}
+                aria-current={isToday ? "date" : undefined}
+                title={holidayLabel}
+              >
                 <span>{day}</span>
                 {dot}
+                {holidayMarker}
               </span>
             );
           }
@@ -136,10 +155,13 @@ export function MonthCalendar({
               onClick={() => onSelectDate(value)}
               aria-pressed={isSelected}
               aria-current={isToday ? "date" : undefined}
+              aria-label={holidayLabel}
+              title={holidayLabel}
               className={cellClassName}
             >
               <span>{day}</span>
               {dot}
+              {holidayMarker}
             </button>
           );
         })}

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { MonthCalendar } from "@/components/MonthCalendar";
 import { ChildSwitcher } from "@/components/ChildSwitcher";
+import { PartnerRecordStatus } from "@/components/PartnerRecordStatus";
 import { RecordReminderNotice } from "@/components/RecordReminderNotice";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useChildren, useEffectiveChildId } from "@/lib/db/children";
@@ -72,7 +73,7 @@ export default function HomePage() {
   }
 
   const monthKey = `${displayMonth.year}-${String(displayMonth.month).padStart(2, "0")}`;
-  const statusByDate = useRecordStatusForMonth(monthKey, session?.user.id ?? null, effectiveChildId);
+  const statusByDate = useRecordStatusForMonth(monthKey, effectiveChildId);
 
   const {
     form,
@@ -154,6 +155,7 @@ export default function HomePage() {
       <RecordHeader step={step} dateLabel={formatDateLabel(date)} onBack={goBack} />
 
       <main className="flex min-h-[70vh] flex-col overflow-x-hidden px-4 py-5">
+        {step === "home" && <PartnerRecordStatus childId={effectiveChildId} />}
         {step === "home" && children && children.length > 1 && (
           <div className="mb-3">
             <ChildSwitcher childList={children} selectedId={effectiveChildId} onSelect={handleSelectChild} />
@@ -198,7 +200,11 @@ export default function HomePage() {
           )}
 
           {step === "result" && (
-            <ResultStepView isTodaySelected={isTodaySelected} onSelectOutcome={selectOutcome} />
+            <ResultStepView
+              isTodaySelected={isTodaySelected}
+              currentOutcome={form.outcome}
+              onSelectOutcome={selectOutcome}
+            />
           )}
 
           {step === "reason" && form.outcome && (
@@ -214,6 +220,8 @@ export default function HomePage() {
               onDepartTimeChange={(value) => setForm((f) => ({ ...f, departTime: value }))}
               memo={form.memo}
               onMemoChange={(value) => setForm((f) => ({ ...f, memo: value }))}
+              conditionScale={form.conditionScale}
+              onConditionScaleChange={(value) => setForm((f) => ({ ...f, conditionScale: value }))}
               preview={preview}
               loaded={loaded}
               onSave={handleSave}
