@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { useMemo, useState, type ChangeEvent } from "react";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { addDays, formatDateLabel, toDateInputValue } from "@/lib/date";
 import { useGroupMembers } from "@/lib/db/groups";
@@ -37,13 +37,22 @@ export default function ExportPage() {
 
   // 印刷ダイアログの「PDFとして保存」はdocument.titleをファイル名の候補にするため、
   // このページを開いている間だけ期間入りのファイル名に差し替える(#2-2)。
-  useEffect(() => {
+  // 印刷ダイアログの「PDFとして保存」はdocument.titleをファイル名の候補にする。
+  // useEffectでdocument.titleを持続的に差し替える案は、Next.jsのMetadata API
+  // (layout.tsxのtitle)が別の再レンダリングのたびに"あさノート"へ書き戻してしまい
+  // 効果が消えてしまったため(#2-2)、window.print()を呼ぶ直前の同期処理で
+  // 差し替える方式にしている(このイベントハンドラ内では再レンダリングが割り込まない)。
+  // afterprintで印刷後に元のタブタイトルへ戻す。
+  function handlePrint() {
     const original = document.title;
     document.title = buildExportFilename(startDate, endDate);
-    return () => {
+    const restoreTitle = () => {
       document.title = original;
+      window.removeEventListener("afterprint", restoreTitle);
     };
-  }, [startDate, endDate]);
+    window.addEventListener("afterprint", restoreTitle);
+    window.print();
+  }
 
   return (
     <main className="mx-auto flex max-w-md flex-col gap-4 px-4 pt-6 pb-10 print:max-w-none print:gap-3 print:p-0">
@@ -98,7 +107,7 @@ export default function ExportPage() {
         )}
         <button
           type="button"
-          onClick={() => window.print()}
+          onClick={handlePrint}
           disabled={entries.length === 0}
           className="rounded-full bg-[var(--accent)] py-3 text-sm font-bold text-[var(--accent-ink)] disabled:opacity-60"
         >

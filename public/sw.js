@@ -59,3 +59,43 @@ self.addEventListener("fetch", (event) => {
     })
   );
 });
+
+// 未入力日のリマインドPush通知(#3-2)。送信側(supabase/functions/send-reminders)は
+// { title, body, url } のJSONを送る。ペイロードが読めない場合は最低限の表示にフォールバックする。
+self.addEventListener("push", (event) => {
+  let payload = { title: "あさノート", body: "今日の記録がまだのようです", url: "/" };
+  if (event.data) {
+    try {
+      payload = { ...payload, ...event.data.json() };
+    } catch {
+      // JSONでなければ既定文言のまま表示する。
+    }
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(payload.title, {
+      body: payload.body,
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      data: { url: payload.url },
+    })
+  );
+});
+
+// 通知タップでアプリを開く/前面に出す。既に開いているタブがあればそこへフォーカスする。
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = event.notification.data && event.notification.data.url ? event.notification.data.url : "/";
+
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      for (const client of clientList) {
+        if (client.url.includes(self.location.origin) && "focus" in client) {
+          client.navigate(url);
+          return client.focus();
+        }
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(url);
+    })
+  );
+});

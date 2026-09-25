@@ -24,6 +24,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# supabase CLIのローカル作業用ディレクトリ(functions serve/linkの度に生成される)
+supabase/.temp
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
