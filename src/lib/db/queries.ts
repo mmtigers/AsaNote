@@ -50,3 +50,17 @@ export function useHasTodayOwnRecord(recordDate: string, userId: string | null) 
     return rows.some((r) => isOwnRecord(r, userId) && !!r.outcome);
   }, [recordDate, userId]);
 }
+
+// パートナーの記録完了状態の可視化(#3-5)用: 指定した日付・子どものパートナー
+// (自分以外)の記録が既に(outcomeまで)入力済みか。isOwnRecordの否定で判定するため、
+// クラウド未同期(userId未設定)の行は「自分の記録」として除外される。
+export function useHasTodayPartnerRecord(
+  recordDate: string,
+  userId: string | null,
+  childId: string | null = null
+) {
+  return useLiveQuery(async () => {
+    const rows = await localDb.records.where("recordDate").equals(recordDate).toArray();
+    return rows.some((r) => !isOwnRecord(r, userId) && (r.childId ?? null) === childId && !!r.outcome);
+  }, [recordDate, userId, childId]);
+}

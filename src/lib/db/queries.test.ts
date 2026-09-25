@@ -14,6 +14,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { clearLocalData, localDb } from "./localDb";
 import {
   useHasTodayOwnRecord,
+  useHasTodayPartnerRecord,
   usePendingSyncCount,
   useRecordStatusForMonth,
   useRecordsTimeline,
@@ -249,6 +250,55 @@ describe("useHasTodayOwnRecord", () => {
     ]);
 
     const { result } = renderHook(() => useHasTodayOwnRecord("2026-09-14", "me"));
+
+    await waitFor(() => expect(result.current).toBe(false));
+  });
+});
+
+describe("useHasTodayPartnerRecord", () => {
+  it("パートナーの当日のoutcome入り記録があればtrue", async () => {
+    await seed([
+      { id: "r", recordDate: "2026-09-14", updatedAt: "2026-09-14T00:00:00Z", userId: "partner", outcome: "smooth" },
+    ]);
+
+    const { result } = renderHook(() => useHasTodayPartnerRecord("2026-09-14", "me"));
+
+    await waitFor(() => expect(result.current).toBe(true));
+  });
+
+  it("自分の記録では完了扱いにしない", async () => {
+    await seed([
+      { id: "r", recordDate: "2026-09-14", updatedAt: "2026-09-14T00:00:00Z", userId: "me", outcome: "smooth" },
+    ]);
+
+    const { result } = renderHook(() => useHasTodayPartnerRecord("2026-09-14", "me"));
+
+    await waitFor(() => expect(result.current).toBe(false));
+  });
+
+  it("パートナーの記録でもoutcome未入力ならfalse", async () => {
+    await seed([
+      { id: "r", recordDate: "2026-09-14", updatedAt: "2026-09-14T00:00:00Z", userId: "partner", outcome: null },
+    ]);
+
+    const { result } = renderHook(() => useHasTodayPartnerRecord("2026-09-14", "me"));
+
+    await waitFor(() => expect(result.current).toBe(false));
+  });
+
+  it("childIdが違うパートナーの記録は対象外", async () => {
+    await seed([
+      {
+        id: "r",
+        recordDate: "2026-09-14",
+        updatedAt: "2026-09-14T00:00:00Z",
+        userId: "partner",
+        childId: "child-2",
+        outcome: "smooth",
+      },
+    ]);
+
+    const { result } = renderHook(() => useHasTodayPartnerRecord("2026-09-14", "me", "child-1"));
 
     await waitFor(() => expect(result.current).toBe(false));
   });

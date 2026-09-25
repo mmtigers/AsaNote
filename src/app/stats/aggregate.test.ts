@@ -6,7 +6,13 @@
  */
 import { describe, expect, it } from "vitest";
 import type { AggregatableRecord } from "./aggregate";
-import { outcomeByDate, smoothRateByWakeTime, smoothRateByWeekday } from "./aggregate";
+import {
+  outcomeByDate,
+  recordsForWakeTimeBucket,
+  recordsForWeekday,
+  smoothRateByWakeTime,
+  smoothRateByWeekday,
+} from "./aggregate";
 
 function record(partial: Partial<AggregatableRecord> & { recordDate: string }): AggregatableRecord {
   return {
@@ -128,5 +134,32 @@ describe("smoothRateByWakeTime", () => {
         record({ recordDate: "2026-09-03", wakeTime: "06:00", outcome: null }),
       ])
     ).toEqual([]);
+  });
+});
+
+describe("recordsForWeekday", () => {
+  it("指定した曜日(index)の記録だけを返す(#3-3の詳細表示)", () => {
+    const monday = record({ recordDate: "2026-09-14" }); // 月
+    const tuesday = record({ recordDate: "2026-09-15" }); // 火
+    expect(recordsForWeekday([monday, tuesday], "1")).toEqual([monday]);
+  });
+
+  it("結果が未選択の記録は含めない(集計側と条件を揃える)", () => {
+    const record1 = record({ recordDate: "2026-09-14", outcome: null }); // 月
+    expect(recordsForWeekday([record1], "1")).toEqual([]);
+  });
+});
+
+describe("recordsForWakeTimeBucket", () => {
+  it("指定した時間帯バケットの記録だけを返す(#3-3の詳細表示)", () => {
+    const early = record({ recordDate: "2026-09-01", wakeTime: "06:20" });
+    const late = record({ recordDate: "2026-09-02", wakeTime: "07:40" });
+    expect(recordsForWakeTimeBucket([early, late], "before-0630")).toEqual([early]);
+  });
+
+  it("smoothRateByWakeTimeと同じ境界値で振り分ける", () => {
+    const boundary = record({ recordDate: "2026-09-01", wakeTime: "06:30" });
+    expect(recordsForWakeTimeBucket([boundary], "before-0630")).toEqual([]);
+    expect(recordsForWakeTimeBucket([boundary], "0630-0659")).toEqual([boundary]);
   });
 });

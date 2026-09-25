@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { MonthCalendar } from "@/components/MonthCalendar";
 import { ChildSwitcher } from "@/components/ChildSwitcher";
+import { PartnerRecordStatus } from "@/components/PartnerRecordStatus";
 import { RecordReminderNotice } from "@/components/RecordReminderNotice";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useChildren, useEffectiveChildId } from "@/lib/db/children";
@@ -154,6 +155,7 @@ export default function HomePage() {
       <RecordHeader step={step} dateLabel={formatDateLabel(date)} onBack={goBack} />
 
       <main className="flex min-h-[70vh] flex-col overflow-x-hidden px-4 py-5">
+        {step === "home" && <PartnerRecordStatus childId={effectiveChildId} />}
         {step === "home" && children && children.length > 1 && (
           <div className="mb-3">
             <ChildSwitcher childList={children} selectedId={effectiveChildId} onSelect={handleSelectChild} />
