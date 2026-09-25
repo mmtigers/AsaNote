@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { addDays, formatDateLabel, toDateInputValue } from "@/lib/date";
 import { useGroupMembers } from "@/lib/db/groups";
 import { isOwnRecord } from "@/lib/db/ownership";
 import { useRecordsTimeline } from "@/lib/db/queries";
 import { buildDiaryText } from "@/lib/recordPreview";
-import { selectExportEntries } from "./selectEntries";
+import { buildExportFilename, selectExportEntries } from "./selectEntries";
 
 // 学校・カウンセラー等への共有を想定したエクスポート画面。サーバーへは何も送信せず、
 // ブラウザの印刷機能(「PDFとして保存」)で完結させる(#2)。メールアドレス等の個人情報は
@@ -34,6 +34,16 @@ export default function ExportPage() {
       authLoading,
     });
   }, [records, startDate, endDate, includePartner, session?.user.id, authLoading]);
+
+  // 印刷ダイアログの「PDFとして保存」はdocument.titleをファイル名の候補にするため、
+  // このページを開いている間だけ期間入りのファイル名に差し替える(#2-2)。
+  useEffect(() => {
+    const original = document.title;
+    document.title = buildExportFilename(startDate, endDate);
+    return () => {
+      document.title = original;
+    };
+  }, [startDate, endDate]);
 
   return (
     <main className="mx-auto flex max-w-md flex-col gap-4 px-4 pt-6 pb-10 print:max-w-none print:gap-3 print:p-0">

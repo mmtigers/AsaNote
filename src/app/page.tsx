@@ -72,7 +72,7 @@ export default function HomePage() {
   }
 
   const monthKey = `${displayMonth.year}-${String(displayMonth.month).padStart(2, "0")}`;
-  const statusByDate = useRecordStatusForMonth(monthKey, session?.user.id ?? null, effectiveChildId);
+  const statusByDate = useRecordStatusForMonth(monthKey, effectiveChildId);
 
   const {
     form,
@@ -198,7 +198,11 @@ export default function HomePage() {
           )}
 
           {step === "result" && (
-            <ResultStepView isTodaySelected={isTodaySelected} onSelectOutcome={selectOutcome} />
+            <ResultStepView
+              isTodaySelected={isTodaySelected}
+              currentOutcome={form.outcome}
+              onSelectOutcome={selectOutcome}
+            />
           )}
 
           {step === "reason" && form.outcome && (
