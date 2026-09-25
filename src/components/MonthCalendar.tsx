@@ -94,8 +94,13 @@ export function MonthCalendar({
       </div>
 
       <div className="grid grid-cols-7 gap-y-1 text-center">
-        {WEEKDAYS.map((w) => (
-          <span key={w} className="text-[11px] text-[var(--sub)]">
+        {WEEKDAYS.map((w, i) => (
+          <span
+            key={w}
+            className={`text-[11px] ${
+              i === 0 ? "text-[var(--holiday)]" : i === 6 ? "text-[var(--saturday)]" : "text-[var(--sub)]"
+            }`}
+          >
             {w}
           </span>
         ))}
@@ -105,28 +110,27 @@ export function MonthCalendar({
           const isSelected = value === selectedDate;
           const isToday = value === todayValue;
           const status = statusByDate?.get(value);
-          // 日本の祝日(#3-1)。選択中セルは既にアクセントで強調されているため、
-          // 数字の色分けは非選択時のみ行う(選択色と祝日色がぶつからないように)。
+          // 日本の祝日(#3-1)・土曜/日曜の色分け(#4-1)。選択中セルは既にアクセントで
+          // 強調されているため、数字の色分けは非選択時のみ行う(選択色とぶつからないように)。
           const holidayName = getHolidayName(value);
+          const dayOfWeek = new Date(year, month - 1, day).getDay();
+          const weekdayTextClassName =
+            holidayName || dayOfWeek === 0
+              ? "text-[var(--holiday)] font-bold"
+              : dayOfWeek === 6
+                ? "text-[var(--saturday)] font-bold"
+                : "text-[var(--ink)]";
           const cellClassName = `relative mx-auto flex h-9 w-9 flex-col items-center justify-center gap-0.5 rounded-full text-[13px] ${
             isSelected
               ? "bg-[var(--accent)] font-bold text-[var(--accent-ink)]"
               : isToday
-                ? `border border-[var(--accent)] ${holidayName ? "text-[var(--holiday)] font-bold" : "text-[var(--ink)]"} ${status ? OUTCOME_SOFT_STYLES[status] : ""}`
-                : `${holidayName ? "text-[var(--holiday)] font-bold" : "text-[var(--ink)]"} ${status ? OUTCOME_SOFT_STYLES[status] : ""}`
+                ? `border border-[var(--accent)] ${weekdayTextClassName} ${status ? OUTCOME_SOFT_STYLES[status] : ""}`
+                : `${weekdayTextClassName} ${status ? OUTCOME_SOFT_STYLES[status] : ""}`
           }`;
           const dot = (
             <span
               className={`h-1 w-1 rounded-full ${status ? OUTCOME_COLOR_STYLES[status] : ""} ${
                 isSelected && status ? "ring-1 ring-[var(--accent-ink)]" : ""
-              }`}
-            />
-          );
-          const holidayMarker = holidayName && (
-            <span
-              aria-hidden="true"
-              className={`absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full ${
-                isSelected ? "bg-[var(--accent-ink)]" : "bg-[var(--holiday)]"
               }`}
             />
           );
@@ -143,7 +147,6 @@ export function MonthCalendar({
               >
                 <span>{day}</span>
                 {dot}
-                {holidayMarker}
               </span>
             );
           }
@@ -161,7 +164,6 @@ export function MonthCalendar({
             >
               <span>{day}</span>
               {dot}
-              {holidayMarker}
             </button>
           );
         })}

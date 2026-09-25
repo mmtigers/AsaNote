@@ -8,7 +8,7 @@ import { useGroupMembers } from "@/lib/db/groups";
 import { isOwnRecord } from "@/lib/db/ownership";
 import { useRecordsTimeline } from "@/lib/db/queries";
 import { buildDiaryText } from "@/lib/recordPreview";
-import { buildExportFilename, selectExportEntries } from "./selectEntries";
+import { buildCsvContent, buildExportFilename, downloadCsv, selectExportEntries } from "./selectEntries";
 
 // 学校・カウンセラー等への共有を想定したエクスポート画面。サーバーへは何も送信せず、
 // ブラウザの印刷機能(「PDFとして保存」)で完結させる(#2)。メールアドレス等の個人情報は
@@ -52,6 +52,12 @@ export default function ExportPage() {
     };
     window.addEventListener("afterprint", restoreTitle);
     window.print();
+  }
+
+  // CSVは印刷/PDF保存とは別に、Excel等で並び替え・集計しやすい列形式で出力する(#4-2)。
+  function handleDownloadCsv() {
+    const content = buildCsvContent(entries, session?.user.id, authLoading);
+    downloadCsv(buildExportFilename(startDate, endDate), content);
   }
 
   return (
@@ -112,6 +118,14 @@ export default function ExportPage() {
           className="rounded-full bg-[var(--accent)] py-3 text-sm font-bold text-[var(--accent-ink)] disabled:opacity-60"
         >
           🖨️ 印刷する(PDFとして保存も可能)
+        </button>
+        <button
+          type="button"
+          onClick={handleDownloadCsv}
+          disabled={entries.length === 0}
+          className="rounded-full border border-[var(--accent)] py-3 text-sm font-bold text-[var(--accent)] disabled:opacity-60"
+        >
+          📊 CSVでダウンロード
         </button>
       </section>
 

@@ -17,6 +17,8 @@
   --calm-soft: #e9e4f9;
   --holiday: #d6455a;
   --holiday-soft: #f9dee1;
+  --saturday: #3f7bd1;
+  --saturday-soft: #dde9fb;
   color-scheme: light;
 }
 
@@ -37,6 +39,8 @@
     --calm-soft: #362f52;
     --holiday: #f0899a;
     --holiday-soft: #4a2830;
+    --saturday: #82aef0;
+    --saturday-soft: #2a3a52;
     color-scheme: dark;
   }
 }
@@ -57,6 +61,8 @@
   --calm-soft: #362f52;
   --holiday: #f0899a;
   --holiday-soft: #4a2830;
+  --saturday: #82aef0;
+  --saturday-soft: #2a3a52;
   color-scheme: dark;
 }
 

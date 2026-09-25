@@ -13,7 +13,7 @@ import { canEditRecord, isOwnRecord } from "@/lib/db/ownership";
 import { deleteRecord } from "@/lib/db/records";
 import { useRecordsTimeline } from "@/lib/db/queries";
 import type { LocalRecord } from "@/lib/db/localDb";
-import { OUTCOME_OPTIONS } from "@/constants/choices";
+import { OUTCOME_OPTIONS, type Outcome } from "@/constants/choices";
 import { formatDateShort } from "@/lib/date";
 
 const OUTCOME_BADGE_STYLES = {
@@ -39,9 +39,16 @@ export default function TimelinePage() {
   // タイムラインの絞り込みはホーム画面の「今記録している子」とは独立させ、常に
   // 「すべて」から始める(子どもを追加した直後に、既存の未分類の記録が見えなくなるのを防ぐ)。
   const [filterChildId, setFilterChildId] = useState<string | null>(null);
+  // 表示フィルタ(スムーズ/行き渋り/行かなかった)。単一選択で、子ども切替と同じ
+  // 「常にすべてから始める」方針に揃える。
+  const [filterOutcome, setFilterOutcome] = useState<Outcome | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
-  const visibleRecords = records?.filter((r) => filterChildId === null || r.childId === filterChildId);
+  const visibleRecords = records?.filter(
+    (r) =>
+      (filterChildId === null || r.childId === filterChildId) &&
+      (filterOutcome === null || r.outcome === filterOutcome)
+  );
 
   async function handleConfirmDelete() {
     if (!deleteTarget) return;
@@ -52,12 +59,7 @@ export default function TimelinePage() {
   return (
     <main className="mx-auto flex max-w-md flex-col gap-3 px-4 pt-6">
       <header className="flex items-start justify-between gap-3">
-        <div>
-          <h1 className="text-lg font-bold">これまでの記録</h1>
-          <p className="mt-1 text-xs text-[var(--sub)]">
-            新しい順に表示しています。自分の記録は✏️で編集できます。
-          </p>
-        </div>
+        <h1 className="text-lg font-bold">これまでの記録</h1>
         <Link
           href="/export"
           className="mt-0.5 flex-none whitespace-nowrap text-xs text-[var(--accent)] underline underline-offset-2"
@@ -70,11 +72,39 @@ export default function TimelinePage() {
         <ChildSwitcher childList={children} selectedId={filterChildId} onSelect={setFilterChildId} allowAll />
       )}
 
+      <div className="flex gap-1.5 overflow-x-auto pb-1">
+        <button
+          type="button"
+          onClick={() => setFilterOutcome(null)}
+          className={`flex-none rounded-full px-3.5 py-1.5 text-[13px] font-semibold ${
+            filterOutcome === null
+              ? "bg-[var(--accent)] text-[var(--accent-ink)]"
+              : "bg-[var(--surface-2)] text-[var(--sub)]"
+          }`}
+        >
+          すべて
+        </button>
+        {OUTCOME_OPTIONS.map((o) => (
+          <button
+            key={o.value}
+            type="button"
+            onClick={() => setFilterOutcome(o.value)}
+            className={`flex-none whitespace-nowrap rounded-full px-3.5 py-1.5 text-[13px] font-semibold ${
+              filterOutcome === o.value ? OUTCOME_BADGE_STYLES[o.color] : "bg-[var(--surface-2)] text-[var(--sub)]"
+            }`}
+          >
+            {o.emoji} {o.label}
+          </button>
+        ))}
+      </div>
+
       {visibleRecords === undefined ? (
         <SkeletonList rows={4} />
       ) : visibleRecords.length === 0 ? (
         <p className="rounded-2xl bg-[var(--surface-2)] px-4 py-6 text-center text-sm text-[var(--sub)]">
-          まだ記録がありません。「記録する」タブから入力してみましょう。
+          {records && records.length > 0
+            ? "この条件に一致する記録がありません。"
+            : "まだ記録がありません。「記録する」タブから入力してみましょう。"}
         </p>
       ) : (
         <ul className="flex flex-col gap-2.5">
@@ -99,28 +129,29 @@ export default function TimelinePage() {
                 key={record.id}
                 className="relative rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3.5 py-3"
               >
-                <div className="mb-1.5 flex items-center gap-2">
-                  <span className="text-sm font-bold">{formatDateShort(record.recordDate)}</span>
+                <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                  <span className="whitespace-nowrap text-sm font-bold">{formatDateShort(record.recordDate)}</span>
                   {record.wakeTime && (
-                    <span className="text-xs tabular-nums text-[var(--sub)]">
+                    <span className="whitespace-nowrap text-xs tabular-nums text-[var(--sub)]">
                       {record.wakeTime}起床
                     </span>
                   )}
                   {outcome && (
                     <span
-                      className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${OUTCOME_BADGE_STYLES[outcome.color]}`}
+                      className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-bold ${OUTCOME_BADGE_STYLES[outcome.color]}`}
                     >
                       {outcome.emoji} {outcome.label}
                     </span>
                   )}
                   {!own && <PartnerAvatar email={emailMap.get(record.userId ?? "")} />}
-                  <div className="ml-auto flex items-center gap-3">
+                  {/* 編集・削除を隣接配置する(#2-1)。誤タップを防ぐため gap-3 で間隔を空ける。
+                      flex-none で個々のテキストが折り返さず、ブロックごと次の行に落ちるようにする(#5-3)。 */}
+                  <div className="ml-auto flex flex-none items-center gap-3">
                     {legacy && (
-                      <span className="rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-bold text-[var(--sub)]">
+                      <span className="whitespace-nowrap rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-bold text-[var(--sub)]">
                         {legacy}
                       </span>
                     )}
-                    {/* 編集・削除を隣接配置する(#2-1)。誤タップを防ぐため gap-3 で間隔を空ける。 */}
                     {canEdit && (
                       <Link
                         href={editHref}
