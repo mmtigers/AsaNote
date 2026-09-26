@@ -3,7 +3,6 @@
 import type { ChangeEvent } from "react";
 import { TagChips } from "@/components/TagChips";
 import { MEMO_MAX_LENGTH, type Outcome } from "@/constants/choices";
-import { ConditionScalePicker } from "./ConditionScalePicker";
 import { DepartTimePicker } from "./DepartTimePicker";
 
 interface ReasonStepViewProps {
@@ -18,8 +17,6 @@ interface ReasonStepViewProps {
   onDepartTimeChange: (value: string) => void;
   memo: string;
   onMemoChange: (value: string) => void;
-  conditionScale: number | null;
-  onConditionScaleChange: (value: number | null) => void;
   preview: string;
   loaded: boolean;
   onSave: () => void;
@@ -37,8 +34,6 @@ export function ReasonStepView({
   onDepartTimeChange,
   memo,
   onMemoChange,
-  conditionScale,
-  onConditionScaleChange,
   preview,
   loaded,
   onSave,
@@ -72,7 +67,6 @@ export function ReasonStepView({
 
       {detailOpen && (
         <section className="step-enter-right flex flex-col gap-4 rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm">
-          <ConditionScalePicker value={conditionScale} onChange={onConditionScaleChange} />
           <div>
             <label className="mb-1.5 block text-xs text-[var(--sub)]" htmlFor="memo">
               振り返りメモ
@@ -83,7 +77,8 @@ export function ReasonStepView({
               maxLength={MEMO_MAX_LENGTH}
               onChange={(e: ChangeEvent<HTMLTextAreaElement>) => onMemoChange(e.target.value)}
               placeholder="気づいたこと、次に試したいことなど"
-              className="min-h-16 w-full rounded-lg border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2.5 text-sm leading-relaxed outline-none"
+              rows={6}
+              className="w-full rounded-lg border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2.5 text-sm leading-relaxed outline-none"
             />
             <p className="mt-1 text-right text-[11px] text-[var(--sub)]" aria-live="polite">
               {memo.length} / {MEMO_MAX_LENGTH}
