@@ -22,6 +22,14 @@ const OUTCOME_BADGE_STYLES = {
   calm: "bg-[var(--calm-soft)] text-[var(--calm)]",
 } as const;
 
+// フィルタボタン専用の短縮ラベル。記録カードのバッジ本体や入力フォームでは
+// OUTCOME_OPTIONS.label(正式名称)をそのまま使い、ここだけ1行に収まる長さにする。
+const OUTCOME_FILTER_LABELS: Record<Outcome, string> = {
+  smooth: "スムーズ",
+  reluctant: "行き渋り",
+  absent: "休み",
+};
+
 // 旧フォーム(〜v1)の記録には引き渡し先・同行者のみ入っていることがあるため、
 // その名残として表示する。新しい記録では通常つかない。
 function legacyBadge(record: LocalRecord): string | null {
@@ -72,11 +80,11 @@ export default function TimelinePage() {
         <ChildSwitcher childList={children} selectedId={filterChildId} onSelect={setFilterChildId} allowAll />
       )}
 
-      <div className="flex gap-1.5 overflow-x-auto pb-1">
+      <div className="flex flex-wrap gap-1">
         <button
           type="button"
           onClick={() => setFilterOutcome(null)}
-          className={`flex-none rounded-full px-3.5 py-1.5 text-[13px] font-semibold ${
+          className={`flex-none rounded-full px-3 py-1.5 text-[13px] font-semibold ${
             filterOutcome === null
               ? "bg-[var(--accent)] text-[var(--accent-ink)]"
               : "bg-[var(--surface-2)] text-[var(--sub)]"
@@ -89,11 +97,11 @@ export default function TimelinePage() {
             key={o.value}
             type="button"
             onClick={() => setFilterOutcome(o.value)}
-            className={`flex-none whitespace-nowrap rounded-full px-3.5 py-1.5 text-[13px] font-semibold ${
+            className={`flex-none whitespace-nowrap rounded-full px-3 py-1.5 text-[13px] font-semibold ${
               filterOutcome === o.value ? OUTCOME_BADGE_STYLES[o.color] : "bg-[var(--surface-2)] text-[var(--sub)]"
             }`}
           >
-            {o.emoji} {o.label}
+            {o.emoji} {OUTCOME_FILTER_LABELS[o.value]}
           </button>
         ))}
       </div>
@@ -143,15 +151,16 @@ export default function TimelinePage() {
                       {outcome.emoji} {outcome.label}
                     </span>
                   )}
+                  {legacy && (
+                    <span className="whitespace-nowrap rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-bold text-[var(--sub)]">
+                      {legacy}
+                    </span>
+                  )}
                   {!own && <PartnerAvatar email={emailMap.get(record.userId ?? "")} />}
                   {/* 編集・削除を隣接配置する(#2-1)。誤タップを防ぐため gap-3 で間隔を空ける。
-                      flex-none で個々のテキストが折り返さず、ブロックごと次の行に落ちるようにする(#5-3)。 */}
+                      legacy は結果バッジのすぐ後ろに置き、この2つだけが折り返しても
+                      編集・削除アイコンに引きずられて改行されないようにする。 */}
                   <div className="ml-auto flex flex-none items-center gap-3">
-                    {legacy && (
-                      <span className="whitespace-nowrap rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-bold text-[var(--sub)]">
-                        {legacy}
-                      </span>
-                    )}
                     {canEdit && (
                       <Link
                         href={editHref}
