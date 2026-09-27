@@ -139,11 +139,6 @@ export default function TimelinePage() {
               >
                 <div className="mb-1.5 flex flex-wrap items-center gap-2">
                   <span className="whitespace-nowrap text-sm font-bold">{formatDateShort(record.recordDate)}</span>
-                  {record.wakeTime && (
-                    <span className="whitespace-nowrap text-xs tabular-nums text-[var(--sub)]">
-                      {record.wakeTime}起床
-                    </span>
-                  )}
                   {outcome && (
                     <span
                       className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-bold ${OUTCOME_BADGE_STYLES[outcome.color]}`}
@@ -151,15 +146,8 @@ export default function TimelinePage() {
                       {outcome.emoji} {outcome.label}
                     </span>
                   )}
-                  {legacy && (
-                    <span className="whitespace-nowrap rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-bold text-[var(--sub)]">
-                      {legacy}
-                    </span>
-                  )}
                   {!own && <PartnerAvatar email={emailMap.get(record.userId ?? "")} />}
-                  {/* 編集・削除を隣接配置する(#2-1)。誤タップを防ぐため gap-3 で間隔を空ける。
-                      legacy は結果バッジのすぐ後ろに置き、この2つだけが折り返しても
-                      編集・削除アイコンに引きずられて改行されないようにする。 */}
+                  {/* 編集・削除を隣接配置する(#2-1)。誤タップを防ぐため gap-3 で間隔を空ける。 */}
                   <div className="ml-auto flex flex-none items-center gap-3">
                     {canEdit && (
                       <Link
@@ -185,8 +173,18 @@ export default function TimelinePage() {
                 {record.memo && (
                   <p className="mb-2 text-[13px] leading-relaxed text-[var(--ink)] last:mb-0">{record.memo}</p>
                 )}
-                {allTags.length > 0 && (
-                  <div className="mb-2 flex flex-wrap gap-1.5 last:mb-0">
+                {(record.wakeTime || legacy || allTags.length > 0) && (
+                  <div className="flex flex-wrap gap-1.5 last:mb-0">
+                    {record.wakeTime && (
+                      <span className="whitespace-nowrap rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[11px] text-[var(--sub)]">
+                        {record.wakeTime}起床
+                      </span>
+                    )}
+                    {legacy && (
+                      <span className="whitespace-nowrap rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-bold text-[var(--sub)]">
+                        {legacy}
+                      </span>
+                    )}
                     {allTags.map((tag, i) => (
                       <span
                         key={`${tag}-${i}`}

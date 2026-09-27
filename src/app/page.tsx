@@ -5,6 +5,7 @@ import { MonthCalendar } from "@/components/MonthCalendar";
 import { ChildSwitcher } from "@/components/ChildSwitcher";
 import { PartnerRecordStatus } from "@/components/PartnerRecordStatus";
 import { RecordReminderNotice } from "@/components/RecordReminderNotice";
+import { ReleaseNotice } from "@/components/ReleaseNotice";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useChildren, useEffectiveChildId } from "@/lib/db/children";
 import { setSelectedChildId } from "@/lib/db/selectedChild";
@@ -155,6 +156,7 @@ export default function HomePage() {
       <RecordHeader step={step} dateLabel={formatDateLabel(date)} onBack={goBack} />
 
       <main className="flex min-h-[70vh] flex-col overflow-x-hidden px-4 py-5">
+        {step === "home" && <ReleaseNotice />}
         {step === "home" && <PartnerRecordStatus childId={effectiveChildId} />}
         {step === "home" && children && children.length > 1 && (
           <div className="mb-3">
