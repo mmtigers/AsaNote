@@ -134,3 +134,47 @@ jobs:
             echo "::error::supabase/schema.sqlの変更がsrc/lib/db/database.types.tsへ反映されていません。'npm run db:types'(要Docker)で再生成し、差分をコミットしてください。"
             exit 1
           fi
+
+  release-notes-check:
+    name: Release notes reminder
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      # ユーザー向けの変更なのに src/data/releases.ts と package.json の version が
+      # 更新し忘れられるのを防ぐための注意喚起(警告のみ・CIは失敗させない)。
+      # docsやテストのみの変更、releases.tsに載せるまでもない細かい修正もあるため、
+      # 強制はせず気づけるようにするだけに留める。
+      - name: Check release notes were updated
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+          else
+            BASE="${{ github.event.before }}"
+          fi
+
+          if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+            echo "比較対象のベースコミットが無いため、このチェックをスキップします。"
+            exit 0
+          fi
+
+          CHANGED_APP_FILES=$(git diff --name-only "$BASE" HEAD -- src/app src/components src/lib \
+            | grep -v -E '\.test\.tsx?$' \
+            | grep -v -E '^src/lib/db/database\.types\.ts$' \
+            | grep -v -E '^src/data/releases\.ts$' || true)
+
+          if [ -z "$CHANGED_APP_FILES" ]; then
+            echo "アプリコードの変更なし、または対象外のみのため、このチェックをスキップします。"
+            exit 0
+          fi
+
+          RELEASE_NOTES_CHANGED=$(git diff --name-only "$BASE" HEAD -- package.json src/data/releases.ts)
+
+          if [ -z "$RELEASE_NOTES_CHANGED" ]; then
+            echo "::warning::アプリコードに変更がありますが、package.jsonのversionとsrc/data/releases.tsのどちらも更新されていないようです。ユーザー向けの変更であれば、バージョン更新とリリースノートの追加を検討してください(該当しない変更であれば無視して構いません)。"
+          else
+            echo "リリースノート/バージョンの更新を確認しました。"
+          fi
