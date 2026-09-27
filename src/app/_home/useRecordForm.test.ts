@@ -3,10 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { LocalRecord } from "@/lib/db/localDb";
 import type { Draft, Step } from "./types";
 
-const { loadDraftMock, findLatestOwnRecordForDateMock, saveRecordMock } = vi.hoisted(() => ({
+const { loadDraftMock, findLatestOwnRecordForDateMock, saveRecordMock, trackMock } = vi.hoisted(() => ({
   loadDraftMock: vi.fn(),
   findLatestOwnRecordForDateMock: vi.fn(),
   saveRecordMock: vi.fn(),
+  trackMock: vi.fn(),
 }));
 
 vi.mock("./draftStorage", () => ({
@@ -16,6 +17,10 @@ vi.mock("./draftStorage", () => ({
 vi.mock("@/lib/db/records", () => ({
   findLatestOwnRecordForDate: findLatestOwnRecordForDateMock,
   saveRecord: saveRecordMock,
+}));
+
+vi.mock("@/lib/analytics", () => ({
+  track: trackMock,
 }));
 
 const { useRecordForm } = await import("./useRecordForm");
@@ -70,6 +75,7 @@ beforeEach(() => {
   loadDraftMock.mockReturnValue(null);
   findLatestOwnRecordForDateMock.mockResolvedValue(undefined);
   saveRecordMock.mockResolvedValue(undefined);
+  trackMock.mockClear();
 });
 
 afterEach(() => {
@@ -207,5 +213,69 @@ describe("useRecordForm", () => {
     });
 
     expect(result.current.toast).toBe(false);
+  });
+
+  it("日付を切り替えた後は、前の日付のis_edit判定を引きずらない(#バグ修正)", async () => {
+    const existingOnDateA = makeExisting({ outcome: "smooth" });
+    findLatestOwnRecordForDateMock.mockResolvedValueOnce(existingOnDateA);
+
+    const goToStep = vi.fn();
+    const restoreStep = vi.fn();
+    const goHome = vi.fn();
+    const cameFromEditLink = { current: false };
+
+    const { result, rerender } = renderHook(
+      ({ date }: { date: string }) =>
+        useRecordForm({
+          date,
+          today: "2025-09-14",
+          userId: "user-1",
+          childId: null,
+          cameFromEditLink,
+          goToStep,
+          restoreStep,
+          goHome,
+        }),
+      { initialProps: { date: "2025-09-14" } }
+    );
+
+    // 日付A: 既存記録(outcome入り)を読み込む → is_editが確定する
+    await waitFor(() => expect(result.current.loaded).toBe(true));
+
+    // 日付Bへ切り替え。日付Bは下書きのみが存在するケース(is_edit不明のまま)。
+    const draftOnDateB: Draft = {
+      date: "2025-09-15",
+      step: "reason" as Step,
+      detailOpen: false,
+      form: {
+        id: "draft-b-id",
+        outcome: "reluctant",
+        reasonTags: [],
+        departTime: "",
+        memo: "",
+        conditionScale: null,
+        wakeTime: "",
+        wakeTags: [],
+        triggerTags: [],
+        responseTags: [],
+        companion: "",
+        handoff: "",
+      },
+    };
+    loadDraftMock.mockReturnValue(draftOnDateB);
+    rerender({ date: "2025-09-15" });
+
+    await waitFor(() => expect(result.current.loaded).toBe(true));
+    expect(result.current.form.id).toBe("draft-b-id"); // 日付Bは下書きから復元されている
+
+    await act(async () => {
+      await result.current.handleSave();
+    });
+
+    const savedCall = trackMock.mock.calls.find(([eventName]) => eventName === "record_saved");
+    expect(savedCall).toBeDefined();
+    // 日付Aの既存記録(outcome入り)由来のis_edit=trueが、日付Bの保存にまで
+    // 引き継がれてはいけない(日付Bでは不明なのでis_editキー自体が無いのが正しい)。
+    expect(savedCall![1]).not.toHaveProperty("is_edit");
   });
 });

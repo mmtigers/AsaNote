@@ -269,7 +269,57 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      analytics_flow_duration_daily: {
+        Row: {
+          avg_duration_seconds: number | null
+          day: string | null
+          entry_point: string | null
+          median_duration_seconds: number | null
+          p90_duration_seconds: number | null
+          saved_count: number | null
+        }
+        Relationships: []
+      }
+      analytics_pause_resume_daily: {
+        Row: {
+          day: string | null
+          pause_reason: string | null
+          paused_count: number | null
+          resumed_count: number | null
+        }
+        Relationships: []
+      }
+      analytics_record_flow_sessions: {
+        Row: {
+          date_offset_days: number | null
+          duration_seconds: number | null
+          ended_at: string | null
+          entry_point: string | null
+          is_edit: boolean | null
+          is_resume: boolean | null
+          pause_reason: string | null
+          paused: boolean | null
+          record_id: string | null
+          saved: boolean | null
+          session_seq: number | null
+          started_at: string | null
+          step_view_count: number | null
+          user_id: string | null
+        }
+        Relationships: []
+      }
+      analytics_step_funnel_daily: {
+        Row: {
+          day: string | null
+          flow_started: number | null
+          outcome_selected: number | null
+          paused: number | null
+          reached_reason: number | null
+          reached_result: number | null
+          saved: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       create_group: {

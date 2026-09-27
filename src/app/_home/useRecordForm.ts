@@ -54,6 +54,10 @@ export function useRecordForm({ date, today, userId, childId, cameFromEditLink, 
     let active = true;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- 日付切り替え直後に前の日付のフォーム内容を一瞬でも出さないための同期リセット
     setLoaded(false);
+    // 前の日付/子どもでセットされた値が残ったままだと、このセッションのhandleSaveが
+    // 別の記録のis_edit判定を使ってしまう(バグ)。日付・子どもが変わるたびに
+    // 一旦「不明」へ戻す。
+    existingOutcomeAtLoadRef.current = undefined;
 
     // 保存前の下書きがこの日付のものなら、Dexieの内容より優先して復元する
     // (他の画面を見て戻ってきても、入力途中のデータを失わないため)。

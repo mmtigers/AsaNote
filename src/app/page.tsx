@@ -117,8 +117,11 @@ export default function HomePage() {
   useRecordFlowResetListener(resetToHomeStep);
 
   // ステップ遷移の計測(record_step_viewed)と、保存を伴わずにhomeへ戻ったときの
-  // 中断計測(record_flow_paused)。下書きは残るため「離脱」ではなく「中断」として扱う
-  // (再開時はuseRecordForm側でrecord_flow_resumedを送る)。
+  // 離脱計測(record_flow_paused)。戻る/下部ナビでのリセットはuseDraftPersistence側で
+  // stepがhomeになった時点で下書きも消えるため、この経路での「中断」は実際には
+  // 入力内容が失われる離脱であり、その後に自動で再開されることはない。
+  // record_flow_resumedが対応するのは、アプリ/タブを閉じて(=step===homeを経由せず)
+  // 離れ、下書きが残ったまま後で再訪したケースのみ(このeffectでは検知できない)。
   const lastNonHomeStepRef = useRef<Step>("home");
   useEffect(() => {
     if (stepTransition.seq === 0 || !loaded) return;

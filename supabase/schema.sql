@@ -454,3 +454,100 @@ create policy "analytics_events are insertable by their own user"
   on analytics_events for insert
   to authenticated
   with check (auth.uid() = user_id);
+
+-- 以下、analytics_eventsの集計用ビュー。analytics_events自体がSELECTを一切許可しない
+-- 書き込み専用ログである(#計測)のと同じ理由で、これらのビューもauthenticated/anon
+-- へは意図的にgrantしない。ビューはマイグレーション実行ロール(RLSをバイパスする)の
+-- 所有物になるため、grantしない限りPostgREST経由では公開されず、Supabase
+-- ダッシュボードのSQL Editor/service role接続からの分析専用となる。
+
+-- analytics_eventsをrecord_id(=記録1件)×セッション単位に再構成したもの。
+-- record_flow_started/record_flow_resumedをセッションの開始、
+-- record_saved/record_flow_pausedを終了とみなす(src/lib/analytics.tsのtrack呼び出し
+-- 箇所と対応)。他のビューはすべてこれを土台にする。
+create or replace view analytics_record_flow_sessions as
+with tagged_events as (
+  select
+    ae.*,
+    sum(
+      case when event_name in ('record_flow_started', 'record_flow_resumed') then 1 else 0 end
+    ) over (partition by record_id order by client_ts, id) as session_seq
+  from analytics_events ae
+  where record_id is not null
+)
+select
+  record_id,
+  user_id,
+  session_seq,
+  min(client_ts) filter (where event_name in ('record_flow_started', 'record_flow_resumed')) as started_at,
+  max(client_ts) filter (where event_name in ('record_saved', 'record_flow_paused')) as ended_at,
+  bool_or(event_name = 'record_flow_resumed') as is_resume,
+  max(properties ->> 'entry_point') filter (where event_name = 'record_flow_started') as entry_point,
+  coalesce(
+    max(properties ->> 'is_edit') filter (where event_name = 'record_flow_started'),
+    max(properties ->> 'is_edit') filter (where event_name = 'record_saved')
+  )::boolean as is_edit,
+  max((properties ->> 'date_offset_days')::int) filter (where event_name = 'record_flow_started') as date_offset_days,
+  bool_or(event_name = 'record_saved') as saved,
+  bool_or(event_name = 'record_flow_paused') as paused,
+  max(properties ->> 'reason') filter (where event_name = 'record_flow_paused') as pause_reason,
+  count(*) filter (where event_name = 'record_step_viewed') as step_view_count,
+  extract(epoch from (
+    max(client_ts) filter (where event_name in ('record_saved', 'record_flow_paused'))
+    - min(client_ts) filter (where event_name in ('record_flow_started', 'record_flow_resumed'))
+  )) as duration_seconds
+from tagged_events
+group by record_id, user_id, session_seq;
+
+-- 「サッと記録できているか」の主指標。新規記録(is_edit=false)かつ中断なしで完走した
+-- セッションの所要時間(秒)を、日別・入り口(entry_point)別に集計する。
+create or replace view analytics_flow_duration_daily as
+select
+  (started_at at time zone 'Asia/Tokyo')::date as day,
+  entry_point,
+  count(*) as saved_count,
+  round(avg(duration_seconds)) as avg_duration_seconds,
+  round(percentile_cont(0.5) within group (order by duration_seconds)) as median_duration_seconds,
+  round(percentile_cont(0.9) within group (order by duration_seconds)) as p90_duration_seconds
+from analytics_record_flow_sessions
+where saved and not paused and not is_resume and is_edit is not true
+group by day, entry_point
+order by day, entry_point;
+
+-- 記録フローの各ステップ到達数の日別集計(離脱率の算出用)。
+create or replace view analytics_step_funnel_daily as
+select
+  (client_ts at time zone 'Asia/Tokyo')::date as day,
+  count(*) filter (where event_name = 'record_flow_started') as flow_started,
+  count(*) filter (where event_name = 'record_step_viewed' and properties ->> 'step' = 'result') as reached_result,
+  count(*) filter (where event_name = 'record_outcome_selected') as outcome_selected,
+  count(*) filter (where event_name = 'record_step_viewed' and properties ->> 'step' = 'reason') as reached_reason,
+  count(*) filter (where event_name = 'record_saved') as saved,
+  count(*) filter (where event_name = 'record_flow_paused') as paused
+from analytics_events
+group by day
+order by day;
+
+-- 離脱(record_flow_paused、戻る/下部ナビでのリセット)の理由別件数と、そのうち
+-- record_flow_resumedを伴ったセッションの件数を日別に集計する。戻る/リセットの時点で
+-- 下書きも消える仕様(useDraftPersistence)のため、この経路での離脱はほぼ再開されない
+-- (resumed_countは通常0に近い想定)。record_flow_resumedはアプリ/タブを閉じて離れた
+-- ケース(record_flow_pausedでは検知していない)に対応するため、両者は本来ペアではない。
+create or replace view analytics_pause_resume_daily as
+select
+  (s.started_at at time zone 'Asia/Tokyo')::date as day,
+  s.pause_reason,
+  count(*) as paused_count,
+  count(*) filter (
+    where exists (
+      select 1
+      from analytics_record_flow_sessions later
+      where later.record_id = s.record_id
+        and later.session_seq > s.session_seq
+        and later.is_resume
+    )
+  ) as resumed_count
+from analytics_record_flow_sessions s
+where s.paused
+group by day, s.pause_reason
+order by day, s.pause_reason;

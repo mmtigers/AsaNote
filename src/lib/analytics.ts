@@ -20,23 +20,29 @@ interface TrackTarget {
 export function track(event: AnalyticsEventName, properties: Record<string, unknown>, target: TrackTarget): void {
   if (!target.userId) return;
 
-  let supabase;
+  // 呼び出し元(handleSave等)の処理を絶対に止めないよう、クライアント取得から
+  // 送信まで全体を1つのtry/catchで囲む(getSupabaseClient()だけを囲むと、
+  // from()/insert()が例外を投げた場合に呼び出し元まで伝播してしまう)。
   try {
-    supabase = getSupabaseClient();
-  } catch {
-    return;
+    const supabase = getSupabaseClient();
+    void supabase
+      .from("analytics_events")
+      .insert({
+        user_id: target.userId,
+        record_id: target.recordId,
+        event_name: event,
+        properties,
+        client_ts: new Date().toISOString(),
+      })
+      .then(
+        ({ error }) => {
+          if (error) console.error("analytics track failed", event, error);
+        },
+        (error: unknown) => {
+          console.error("analytics track failed", event, error);
+        }
+      );
+  } catch (error) {
+    console.error("analytics track failed", event, error);
   }
-
-  void supabase
-    .from("analytics_events")
-    .insert({
-      user_id: target.userId,
-      record_id: target.recordId,
-      event_name: event,
-      properties,
-      client_ts: new Date().toISOString(),
-    })
-    .then(({ error }) => {
-      if (error) console.error("analytics track failed", event, error);
-    });
 }
