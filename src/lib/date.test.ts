@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { WEEKDAYS, addDays, formatDateLabel, formatDateShort, parseDateInputValue, parseTimeToMinutes, toDateInputValue, toMonthOf } from "./date";
+import { WEEKDAYS, addDays, diffInDays, formatDateLabel, formatDateShort, parseDateInputValue, parseTimeToMinutes, toDateInputValue, toMonthOf } from "./date";
 
 describe("parseDateInputValue", () => {
   it("常にローカルタイムゾーンの0時として解釈する(UTC解釈による1日ズレを防ぐ)", () => {
@@ -46,6 +46,20 @@ describe("addDays", () => {
 
   it("年をまたぐ加算も正しく繰り上がる", () => {
     expect(addDays("2026-12-31", 1)).toBe("2027-01-01");
+  });
+});
+
+describe("diffInDays", () => {
+  it("toがfromより後ならプラスになる", () => {
+    expect(diffInDays("2026-09-14", "2026-09-16")).toBe(2);
+  });
+
+  it("toがfromより前ならマイナスになる", () => {
+    expect(diffInDays("2026-09-14", "2026-09-10")).toBe(-4);
+  });
+
+  it("同じ日なら0", () => {
+    expect(diffInDays("2026-09-14", "2026-09-14")).toBe(0);
   });
 });
 

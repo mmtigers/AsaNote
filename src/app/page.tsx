@@ -17,8 +17,10 @@ import { ReasonStepView } from "./_home/ReasonStepView";
 import { useStepNavigation } from "./_home/useStepNavigation";
 import { useRecordForm } from "./_home/useRecordForm";
 import { useDraftPersistence } from "./_home/useDraftPersistence";
-import { addDays, formatDateLabel, toDateInputValue, toMonthOf } from "@/lib/date";
+import type { Step } from "./_home/types";
+import { addDays, diffInDays, formatDateLabel, toDateInputValue, toMonthOf } from "@/lib/date";
 import { useRecordFlowResetListener } from "@/lib/recordFlowReset";
+import { track } from "@/lib/analytics";
 
 // 記録ボタンのスワイプ判定に使う最小移動距離(px)。これ未満は誤操作防止のため無視する。
 const SWIPE_THRESHOLD = 50;
@@ -89,8 +91,10 @@ export default function HomePage() {
     selectedOutcome,
     selectOutcome,
     handleSave,
+    justSavedRef,
   } = useRecordForm({
     date,
+    today: todayValue,
     userId: session?.user.id,
     childId: effectiveChildId,
     cameFromEditLink,
@@ -103,10 +107,38 @@ export default function HomePage() {
 
   // 記録フローの途中で下部ナビの「記録する」を押したときは、最初の画面へ戻す
   // (既にホームにいるため、Linkだけでは画面が変わらない)。
+  const pauseReasonRef = useRef<"bottom_nav_reset" | null>(null);
   const resetToHomeStep = useCallback(() => {
-    if (step !== "home") goHome();
+    if (step !== "home") {
+      pauseReasonRef.current = "bottom_nav_reset";
+      goHome();
+    }
   }, [step, goHome]);
   useRecordFlowResetListener(resetToHomeStep);
+
+  // ステップ遷移の計測(record_step_viewed)と、保存を伴わずにhomeへ戻ったときの
+  // 中断計測(record_flow_paused)。下書きは残るため「離脱」ではなく「中断」として扱う
+  // (再開時はuseRecordForm側でrecord_flow_resumedを送る)。
+  const lastNonHomeStepRef = useRef<Step>("home");
+  useEffect(() => {
+    if (stepTransition.seq === 0 || !loaded) return;
+    if (step === "home") {
+      if (justSavedRef.current) {
+        justSavedRef.current = false;
+      } else {
+        track(
+          "record_flow_paused",
+          { last_step: lastNonHomeStepRef.current, reason: pauseReasonRef.current ?? "back_navigation" },
+          { userId: session?.user.id, recordId: form.id }
+        );
+      }
+      pauseReasonRef.current = null;
+      return;
+    }
+    lastNonHomeStepRef.current = step;
+    track("record_step_viewed", { step, direction: stepTransition.direction }, { userId: session?.user.id, recordId: form.id });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- ステップ遷移(seq)が変わった時だけ発火させたい
+  }, [stepTransition.seq]);
 
   // 記録ボタンの左右スワイプで前日/翌日に切り替える。左スワイプ→翌日、右スワイプ→前日
   // (紙のカレンダーをめくる感覚)。スワイプが成立した後の合成クリックでボタンの本来の
@@ -136,15 +168,32 @@ export default function HomePage() {
     action();
   }
 
-  function startRecording() {
+  function startRecording(entryPoint: "home_start_button" | "push_reminder", dateOffsetDays: number) {
+    track(
+      "record_flow_started",
+      { entry_point: entryPoint, is_edit: false, date_offset_days: dateOffsetDays },
+      { userId: session?.user.id, recordId: form.id }
+    );
     goToStep("result", "forward");
   }
 
   // リマインダーの「記録する」は常に「今日」の記録を指す(現在カレンダーで別の日を
-  // 見ていても、今日に切り替えてから記録画面へ進む)。
+  // 見ていても、今日に切り替えてから記録画面へ進む)。dateはまだ更新前のためdiffInDaysを
+  // 使わず0を直接渡す。
   function handleReminderStartRecording() {
     changeDate(todayValue);
-    startRecording();
+    startRecording("push_reminder", 0);
+  }
+
+  // すでにその日の記録がある状態から「記録を編集する」を押したときの起点
+  // (record_flow_startedのentry_point: "home_edit_existing")。
+  function startEditingExisting() {
+    track(
+      "record_flow_started",
+      { entry_point: "home_edit_existing", is_edit: true, date_offset_days: diffInDays(todayValue, date) },
+      { userId: session?.user.id, recordId: form.id }
+    );
+    goToStep("result", "forward");
   }
 
   // 選択中の日付が今日かどうかで、「今日は/その日は」の文言を出し分ける
@@ -196,8 +245,8 @@ export default function HomePage() {
               onPointerDown={handleRecordPointerDown}
               onPointerUp={handleRecordPointerUp}
               onRecordClick={handleRecordClick}
-              onEditRecord={() => goToStep("result", "forward")}
-              onStartRecording={startRecording}
+              onEditRecord={startEditingExisting}
+              onStartRecording={() => startRecording("home_start_button", diffInDays(todayValue, date))}
             />
           )}
 

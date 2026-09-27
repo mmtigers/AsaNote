@@ -245,7 +245,34 @@ npm run test:e2e   # Playwright（E2E, 別途起動が必要）
 - 主要ロジック（フォームの状態遷移、日付処理、同期処理、エクスポート抽出、グループ操作等）はほぼ全てユニットテストが付随している（`*.test.ts`）。
 - `e2e/record-flow.spec.ts` に記録フロー全体のE2Eテストがある。
 
-## 10. 非対応・意図的な制約
+## 10. 計測(記録フローのアナリティクス)
+
+「サッと記録できる」というコンセプト(§1)が実際に達成できているかを見るため、記録フロー
+(home→result→reason)の所要時間・ステップごとの離脱率を`analytics_events`テーブルへ計測する
+(`src/lib/analytics.ts`の`track()`)。
+
+- ログイン前(オフライン専用利用)は同期先が無いため何も送信しない。送信失敗はconsole.errorに
+  留め、記録データ本体の保存(Dexie/Supabase)には一切影響させない。記録データと違いオフライン
+  キューは持たせておらず、完全オフライン時のイベントロスは許容する。
+- `record_id`には各記録の`FormState.id`(UUID)をそのまま使い、フロー内の一連のイベントを
+  紐付ける相関キーとする。
+- イベント一覧:
+  | イベント | 発火箇所 | 主なプロパティ |
+  |---|---|---|
+  | `record_flow_started` | `page.tsx`の`startRecording`/`startEditingExisting`/`handleReminderStartRecording`、`useRecordForm`のタイムライン編集リンク自動遷移 | `entry_point`("home_start_button"\|"home_edit_existing"\|"push_reminder"\|"timeline_edit_link"), `is_edit`, `date_offset_days`(今日=0、過去日はマイナス) |
+  | `record_step_viewed` | `page.tsx`(`stepTransition.seq`変化を監視) | `step`("result"\|"reason"), `direction`("forward"\|"backward") |
+  | `record_outcome_selected` | `useRecordForm.selectOutcome` | `outcome`, `changed_from_existing` |
+  | `record_saved` | `useRecordForm.handleSave` | `reason_tag_count`, `has_memo`, `depart_time_set`, `is_edit`(下書き復元経由のセッションでは不明なため省略することがある) |
+  | `record_flow_paused` | `page.tsx`(保存を伴わずhomeへ戻った時) | `last_step`, `reason`("bottom_nav_reset"\|"back_navigation") |
+  | `record_flow_resumed` | `useRecordForm`(下書き復元時) | `resumed_step` |
+- 下書き(§4.1)が残るため、保存せずhomeへ戻っても即「離脱」とはせず「中断」として扱い
+  (`record_flow_paused`)、後日再開したら`record_flow_resumed`を送る。ブラウザ/アプリを
+  閉じてそのまま戻らない完全な離脱までは検知しない(このアプリの記録フローはページ内
+  ステップ遷移が主で、離脱の多くはアプリ内操作を経るため、beforeunload等までは実装していない)。
+- `analytics_events`はRLSで本人によるINSERTのみ許可し、クライアントからの読み取りはできない
+  書き込み専用ログ(集計はservice role/ダッシュボード側で行う想定)。
+
+## 11. 非対応・意図的な制約
 
 - 記録データのエクスポート時、サーバーへの送信は行わない（印刷/PDF保存のみ）。
 - グループは1ユーザー1グループまで（3人以上の拡張は設計上考慮されているが未実装）。

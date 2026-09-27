@@ -44,6 +44,13 @@ export function addDays(value: string, delta: number): string {
   return toDateInputValue(d);
 }
 
+// fromから見たtoの日数差(未来ならプラス、過去ならマイナス)。計測イベントの
+// date_offset_days(今日=0、過去日の記録・編集はマイナス)に使う。
+export function diffInDays(from: string, to: string): number {
+  const msPerDay = 24 * 60 * 60 * 1000;
+  return Math.round((parseDateInputValue(to).getTime() - parseDateInputValue(from).getTime()) / msPerDay);
+}
+
 // "HH:MM" を0時からの分数に変換する。想定外の値(旧データ・手入力の崩れ)はnullを返す。
 // 出発時刻の区分判定(departTime.ts)と、傾向タブの起床時刻の集計(stats/aggregate.ts)の
 // 両方が使う唯一の情報源。
