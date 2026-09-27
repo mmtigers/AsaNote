@@ -528,8 +528,11 @@ from analytics_events
 group by day
 order by day;
 
--- 中断(record_flow_paused)の理由別件数と、そのうち後で再開(record_flow_resumed)
--- されたセッションの件数を日別に集計する。
+-- 離脱(record_flow_paused、戻る/下部ナビでのリセット)の理由別件数と、そのうち
+-- record_flow_resumedを伴ったセッションの件数を日別に集計する。戻る/リセットの時点で
+-- 下書きも消える仕様(useDraftPersistence)のため、この経路での離脱はほぼ再開されない
+-- (resumed_countは通常0に近い想定)。record_flow_resumedはアプリ/タブを閉じて離れた
+-- ケース(record_flow_pausedでは検知していない)に対応するため、両者は本来ペアではない。
 create or replace view analytics_pause_resume_daily as
 select
   (s.started_at at time zone 'Asia/Tokyo')::date as day,

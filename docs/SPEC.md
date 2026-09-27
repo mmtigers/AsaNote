@@ -265,10 +265,13 @@ npm run test:e2e   # Playwright（E2E, 別途起動が必要）
   | `record_saved` | `useRecordForm.handleSave` | `reason_tag_count`, `has_memo`, `depart_time_set`, `is_edit`(下書き復元経由のセッションでは不明なため省略することがある) |
   | `record_flow_paused` | `page.tsx`(保存を伴わずhomeへ戻った時) | `last_step`, `reason`("bottom_nav_reset"\|"back_navigation") |
   | `record_flow_resumed` | `useRecordForm`(下書き復元時) | `resumed_step` |
-- 下書き(§4.1)が残るため、保存せずhomeへ戻っても即「離脱」とはせず「中断」として扱い
-  (`record_flow_paused`)、後日再開したら`record_flow_resumed`を送る。ブラウザ/アプリを
-  閉じてそのまま戻らない完全な離脱までは検知しない(このアプリの記録フローはページ内
-  ステップ遷移が主で、離脱の多くはアプリ内操作を経るため、beforeunload等までは実装していない)。
+- `record_flow_paused`(戻る/下部ナビでのリセット)と`record_flow_resumed`(下書き復元)は
+  対になっていない点に注意。下書き(§4.1)は`useDraftPersistence`によりstepがhomeへ戻った
+  時点で(保存経由かどうかに関わらず)消える仕様のため、`record_flow_paused`が指す
+  「戻る/リセットでの離脱」は実際には入力内容が失われる離脱であり、その後自動で
+  再開されることはない。`record_flow_resumed`が対応するのは、アプリ/タブを閉じて
+  (=stepがhomeを経由せず)離れ、下書きが残ったまま後で再訪したケースのみで、
+  そちらは`record_flow_paused`側では検知していない(beforeunload等は未実装のため)。
 - `analytics_events`はRLSで本人によるINSERTのみ許可し、クライアントからの読み取りはできない
   書き込み専用ログ(集計はservice role/ダッシュボード側で行う想定)。
 - 集計用にSQLビューを用意している(`supabase/schema.sql`)。いずれもマイグレーション実行ロール
@@ -279,7 +282,7 @@ npm run test:e2e   # Playwright（E2E, 別途起動が必要）
   | `analytics_record_flow_sessions` | 他のビューの土台。`record_id`×セッション単位(record_flow_started/resumedを開始、record_saved/pausedを終了とみなす)に再構成し、`duration_seconds`等を算出する |
   | `analytics_flow_duration_daily` | 「サッと記録できているか」の主指標。新規記録・中断なしで完走したセッションの所要時間(秒)を日別・entry_point別に平均/中央値/p90で集計 |
   | `analytics_step_funnel_daily` | 記録フローの各ステップ到達数の日別集計(離脱率算出用) |
-  | `analytics_pause_resume_daily` | 中断理由別の件数と、そのうち後日再開された件数の日別集計 |
+  | `analytics_pause_resume_daily` | 離脱理由(`record_flow_paused`)別の件数と、そのうち`record_flow_resumed`を伴った件数(上記の理由により通常ほぼ0件になる想定)の日別集計 |
 
 ## 11. 非対応・意図的な制約
 
