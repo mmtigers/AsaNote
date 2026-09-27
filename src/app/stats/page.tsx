@@ -267,14 +267,6 @@ export default function StatsPage() {
                   {o.label}
                 </span>
               ))}
-              <span className="flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full border border-[var(--line)] bg-[var(--surface-2)]" />
-                記録なし
-              </span>
-              <span className="flex items-center gap-1">
-                <span className="h-2 w-2 rounded-full bg-[var(--holiday)]" />
-                祝日
-              </span>
             </div>
           </div>
 
