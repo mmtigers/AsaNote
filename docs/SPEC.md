@@ -271,6 +271,15 @@ npm run test:e2e   # Playwright（E2E, 別途起動が必要）
   ステップ遷移が主で、離脱の多くはアプリ内操作を経るため、beforeunload等までは実装していない)。
 - `analytics_events`はRLSで本人によるINSERTのみ許可し、クライアントからの読み取りはできない
   書き込み専用ログ(集計はservice role/ダッシュボード側で行う想定)。
+- 集計用にSQLビューを用意している(`supabase/schema.sql`)。いずれもマイグレーション実行ロール
+  (RLSをバイパスする)の所有物になり、`authenticated`/`anon`へは意図的にgrantしていないため、
+  PostgREST経由では公開されずSupabaseダッシュボードのSQL Editor/service role接続専用となる。
+  | ビュー | 内容 |
+  |---|---|
+  | `analytics_record_flow_sessions` | 他のビューの土台。`record_id`×セッション単位(record_flow_started/resumedを開始、record_saved/pausedを終了とみなす)に再構成し、`duration_seconds`等を算出する |
+  | `analytics_flow_duration_daily` | 「サッと記録できているか」の主指標。新規記録・中断なしで完走したセッションの所要時間(秒)を日別・entry_point別に平均/中央値/p90で集計 |
+  | `analytics_step_funnel_daily` | 記録フローの各ステップ到達数の日別集計(離脱率算出用) |
+  | `analytics_pause_resume_daily` | 中断理由別の件数と、そのうち後日再開された件数の日別集計 |
 
 ## 11. 非対応・意図的な制約
 
