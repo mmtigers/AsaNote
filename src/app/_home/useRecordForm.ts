@@ -4,11 +4,15 @@ import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { findLatestOwnRecordForDate, saveRecord } from "@/lib/db/records";
 import { MEMO_MAX_LENGTH, NEGATIVE_REASON_TAGS, OUTCOME_OPTIONS, POSITIVE_REASON_TAGS, type Outcome } from "@/constants/choices";
 import { buildDiaryText } from "@/lib/recordPreview";
+import { track } from "@/lib/analytics";
+import { diffInDays } from "@/lib/date";
 import { loadDraft } from "./draftStorage";
 import { emptyForm, type Step } from "./types";
 
 interface Options {
   date: string;
+  // 今日の日付("YYYY-MM-DD")。record_flow_startedのdate_offset_days算出用。
+  today: string;
   userId: string | null | undefined;
   // 複数の子ども対応(#3)。子どもを登録していない家庭では常にnull。
   childId: string | null;
@@ -24,12 +28,20 @@ interface Options {
 // 保存前の下書き(localStorage)があればそれを優先し、無ければDexieの既存記録
 // (無ければ空フォーム)を読み込む。タイムラインの「編集する」から来た場合は、
 // 読み込んだ内容に応じたステップまで自動で進める。
-export function useRecordForm({ date, userId, childId, cameFromEditLink, goToStep, restoreStep, goHome }: Options) {
+export function useRecordForm({ date, today, userId, childId, cameFromEditLink, goToStep, restoreStep, goHome }: Options) {
   const [form, setForm] = useState(emptyForm);
   const [loaded, setLoaded] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
   const [customReasonTags, setCustomReasonTags] = useState<string[]>([]);
   const [toast, setToast] = useState(false);
+  // この日付に元々(このセッション開始前から)outcome入りの記録が既にあったか。
+  // record_savedのis_edit判定に使う(#計測)。下書き復元パスはDexieへ問い合わせ直さない
+  // ため(既存の性能上の判断。下のuseEffect参照)、その場合はundefinedのまま=不明として
+  // 扱い、is_edit自体を送らない。
+  const existingOutcomeAtLoadRef = useRef<Outcome | null | undefined>(undefined);
+  // handleSaveの直後にgoHome()するときはrecord_flow_pausedを送らないようにするための
+  // フラグ。呼び出し側(page.tsx)のstep監視effectが読んでリセットする。
+  const justSavedRef = useRef(false);
 
   // 下書き復元によるステップ・履歴の復元は、日付+子どもの組み合わせごとに最初の
   // 1回だけ行う。(session?.user.idの解決などでこのeffectが再実行されても、
@@ -52,6 +64,7 @@ export function useRecordForm({ date, userId, childId, cameFromEditLink, goToSte
         draftRestoredKeyRef.current = restoreKey;
         restoreStep(draft.step);
         setDetailOpen(draft.detailOpen);
+        track("record_flow_resumed", { resumed_step: draft.step }, { userId, recordId: draft.form.id });
       }
       setLoaded(true);
       return () => {
@@ -61,6 +74,7 @@ export function useRecordForm({ date, userId, childId, cameFromEditLink, goToSte
 
     findLatestOwnRecordForDate(date, userId ?? null, childId).then((existing) => {
       if (!active) return;
+      existingOutcomeAtLoadRef.current = existing?.outcome ?? null;
       if (existing) {
         setForm({
           id: existing.id,
@@ -86,6 +100,13 @@ export function useRecordForm({ date, userId, childId, cameFromEditLink, goToSte
         restoreStep(target);
         // 出発時刻は詳細セクションの外(選択式の入力)へ移したので、ここではメモの有無だけを見る。
         setDetailOpen(!!existing?.memo);
+        if (existing) {
+          track(
+            "record_flow_started",
+            { entry_point: "timeline_edit_link", is_edit: !!existing.outcome, date_offset_days: diffInDays(today, date) },
+            { userId, recordId: existing.id }
+          );
+        }
       }
       setLoaded(true);
     });
@@ -106,6 +127,13 @@ export function useRecordForm({ date, userId, childId, cameFromEditLink, goToSte
   }, [form]);
 
   function selectOutcome(next: Outcome) {
+    // f.outcomeではなくform.outcome(このハンドラ呼び出し時点の値)を見る。setFormの
+    // updater内は再実行され得るため、計測イベントはその外で1回だけ送る。
+    track(
+      "record_outcome_selected",
+      { outcome: next, changed_from_existing: form.outcome !== null && form.outcome !== next },
+      { userId, recordId: form.id }
+    );
     setForm((f) => {
       const prevIsSmooth = f.outcome === "smooth";
       const nextIsSmooth = next === "smooth";
@@ -141,6 +169,16 @@ export function useRecordForm({ date, userId, childId, cameFromEditLink, goToSte
       userId: userId ?? null,
       childId,
     });
+    const properties: Record<string, unknown> = {
+      reason_tag_count: form.reasonTags.length,
+      has_memo: !!memo,
+      depart_time_set: !!form.departTime,
+    };
+    if (existingOutcomeAtLoadRef.current !== undefined) {
+      properties.is_edit = existingOutcomeAtLoadRef.current !== null;
+    }
+    track("record_saved", properties, { userId, recordId: form.id });
+    justSavedRef.current = true;
     setToast(true);
     setTimeout(() => setToast(false), 1800);
     goHome();
@@ -162,5 +200,6 @@ export function useRecordForm({ date, userId, childId, cameFromEditLink, goToSte
     selectedOutcome,
     selectOutcome,
     handleSave,
+    justSavedRef,
   };
 }

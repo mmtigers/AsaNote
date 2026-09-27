@@ -428,3 +428,29 @@ create policy "notification_settings are deletable by owner"
   on notification_settings for delete
   to authenticated
   using (auth.uid() = user_id);
+
+-- 記録フローの計測イベント(所要時間・離脱率の分析用)。書き込み専用ログとして扱い、
+-- クライアントからの読み取りは許可しない(集計はダッシュボード等からservice role/
+-- ダッシュボードSQLで行う想定)。ログイン前(オフライン専用利用)は同期先が無いため、
+-- クライアント側(src/lib/analytics.ts)はそもそも送信しない。
+create table if not exists analytics_events (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  record_id uuid,
+  event_name text not null,
+  properties jsonb not null default '{}',
+  client_ts timestamptz not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_analytics_events_user_id on analytics_events(user_id);
+create index if not exists idx_analytics_events_record_id on analytics_events(record_id);
+
+alter table analytics_events enable row level security;
+
+drop policy if exists "analytics_events are insertable by their own user" on analytics_events;
+
+create policy "analytics_events are insertable by their own user"
+  on analytics_events for insert
+  to authenticated
+  with check (auth.uid() = user_id);
