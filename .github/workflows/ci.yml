@@ -121,7 +121,7 @@ jobs:
       # なお `supabase/setup-cli@v1` のような `v1`/`v3` は**タグではなくブランチ**で、
       # push のたびに中身が変わる(タグより更に可変)。そのため SHA で固定している。
       # 下の SHA は #84 で v1.7.1 から更新した、タグ v3.0.0 の時点のもの。
-      - uses: supabase/setup-cli@46f7f98c7f948ad727d22c1e67fab04c223a0520 # v3.0.0
+      - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
         with:
           version: 2.117.0
 
