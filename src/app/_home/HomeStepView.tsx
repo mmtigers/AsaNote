@@ -70,10 +70,6 @@ export function HomeStepView({
           <span className="text-base font-bold text-[var(--accent)]">
             {isTodaySelected ? "今日の様子を記録する" : "この日の様子を記録する"}
           </span>
-          <span className="text-[12px] text-[var(--sub)]">
-            {isTodaySelected ? "タップして、今日はどうだったか選んでね" : "タップして、この日はどうだったか選んでね"}
-          </span>
-          <span className="text-[11px] text-[var(--sub)]">← 左右にスワイプで日付を切り替え →</span>
         </button>
       )}
     </div>

@@ -266,6 +266,8 @@ export default function HomePage() {
               reasonTags={form.reasonTags}
               onReasonTagsChange={(next) => setForm((f) => ({ ...f, reasonTags: next }))}
               onAddCustomReasonTag={(tag) => setCustomReasonTags((prev) => [...prev, tag])}
+              wakeTime={form.wakeTime}
+              onWakeTimeChange={(value) => setForm((f) => ({ ...f, wakeTime: value }))}
               departTime={form.departTime}
               onDepartTimeChange={(value) => setForm((f) => ({ ...f, departTime: value }))}
               memo={form.memo}

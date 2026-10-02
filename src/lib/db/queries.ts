@@ -16,6 +16,16 @@ export function useRecordsTimeline() {
   }, []);
 }
 
+// 理由の選択肢を使用頻度順に並べるための履歴: 自分の記録(指定した子どもの分だけ)。
+// 子どもを登録していない家庭ではchildIdはnullで、childId未設定(旧来)の記録のみが対象
+// (詳しくはfindLatestOwnRecordForDateを参照)。
+export function useOwnRecordsForReasons(userId: string | null, childId: string | null) {
+  return useLiveQuery(async () => {
+    const all = await localDb.records.toArray();
+    return all.filter((r) => isOwnRecord(r, userId) && (r.childId ?? null) === childId);
+  }, [userId, childId]);
+}
+
 // カレンダー用: 指定した月("YYYY-MM")の記録を、日付ごとの結果(outcome)にまとめて
 // 返す(入力状況のハイライト表示に使う)。傾向タブのカレンダー(outcomeByDate)と
 // 揃えて、パートナーの記録も含める(#1-2: 記録ページのカレンダーにパートナーの

@@ -86,7 +86,7 @@ docs/push-notifications-setup.md  Push通知(§4.7)のデプロイ手順
    - `absent`（🏠 行かなかった）
 
    既に記録済みの日を開き直したときは、選択中の項目にリング＋チェックマークを表示する（`src/app/_home/ResultStepView.tsx`）。
-3. **reason** — 画面上部に出発時刻の入力（任意）、その下に理由タグ。理由タグは選んだ結果に応じて候補を出し分け（前向きな理由 or 気になる理由）、複数選択でき、「＋追加」でその場でカスタムタグを追加できる。出発時刻は「8時より前 / 8時過ぎ / 8時半以降」の3区分から1つ選ぶだけ（`src/app/_home/DepartTimePicker.tsx`。もう一度押すと解除）。分単位の精度は振り返りに使っていないための割り切り。「詳細を追加」を開くと振り返りメモ（最大2000文字。`MEMO_MAX_LENGTH`。入力欄の`maxLength`と残り文字数表示、保存時の切り詰めで超過を防ぐ。DBの`CHECK`制約と同じ値 #57）を入力できる。保存すると入力内容から日記文を自動生成してプレビューする（`src/lib/recordPreview.ts`）。「今日の体調」（1〜5の5段階）は入力項目としては不要という判断で入力UIを外した（#5-4）。`conditionScale`フィールド・DBの列・同期ロジック自体は残しており、UIを復活させる場合は`src/app/_home/ConditionScalePicker.tsx`を`ReasonStepView`から再度呼び出すだけでよい。
+3. **reason** — 画面上部に起床時刻の入力（任意。「7時より前 / 7時〜7時15分 / 7時15分〜」の3区分から1つ選ぶだけ。`src/app/_home/WakeTimePicker.tsx`・`src/lib/wakeTime.ts`。代表値`06:59`/`07:08`/`07:15`を`wake_time`に保存）、続けて出発時刻の入力（任意）、その下に理由タグ。理由タグは選んだ結果に応じて候補を出し分け（前向きな理由 or 気になる理由）、複数選択でき、「＋追加」でその場でカスタムタグを追加できる。候補は自分の過去の記録（その子どもの分）での使用回数が多い順に並ぶ（`src/lib/reasonOptions.ts`。よかった理由と気になる理由は別々に集計、同数は初期セットの定義順）。追加したタグは記録に残る限り翌日以降も候補に出て、そのタグを使った記録が無くなれば消える。初期セットは使用0回でも常に出す。出発時刻は「8時より前 / 8時過ぎ / 8時半以降」の3区分から1つ選ぶだけ（`src/app/_home/DepartTimePicker.tsx`。もう一度押すと解除）。分単位の精度は振り返りに使っていないための割り切り。「詳細を追加」を開くと振り返りメモ（最大2000文字。`MEMO_MAX_LENGTH`。入力欄の`maxLength`と残り文字数表示、保存時の切り詰めで超過を防ぐ。DBの`CHECK`制約と同じ値 #57）を入力できる。保存すると入力内容から日記文を自動生成してプレビューする（`src/lib/recordPreview.ts`）。「今日の体調」（1〜5の5段階）は入力項目としては不要という判断で入力UIを外した（#5-4）。`conditionScale`フィールド・DBの列・同期ロジック自体は残しており、UIを復活させる場合は`src/app/_home/ConditionScalePicker.tsx`を`ReasonStepView`から再度呼び出すだけでよい。
 
 補足仕様:
 - 記録は日付単位で1件（同じ日に再度記録すると上書き編集になる）。複数の子どもがいる家庭では「日付＋子どもID」で1件。
@@ -241,6 +241,10 @@ npm run test:e2e   # Playwright（E2E, 別途起動が必要）
   - `db-types-check`: `supabase/schema.sql` を素の Postgres へ適用し、`supabase gen types` の出力と `database.types.ts` の差分を検査
   - `supabase/functions/`（Deno / Supabase Edge Functions）はこのNext.js/Nodeプロジェクトの一部ではないため、`tsconfig.json`の`exclude`と`eslint.config.mjs`の`globalIgnores`の両方で対象外にしてある。CIの`tsc --noEmit`・`lint`はこのディレクトリを検査しない。
   - ワークフローは最小権限（`permissions: contents: read`）で動き、各ジョブに `timeout-minutes` を設定している。依存更新は `.github/dependabot.yml` が週次で minor/patch をまとめた1本の PR として起票する。
+- `release-notes-check` ジョブ（`scripts/check-release-notes.mjs`、テストは `src/lib/releaseNotesCheck.test.ts`）は、更新履歴の更新漏れを**失敗として**検出する。
+  - `src/app` `src/components` `src/lib` `src/constants` `public` のユーザー向けの変更（テスト・生成型を除く）があるのに `src/data/releases.ts` が更新されていない、または先頭versionが変更前より新しくない場合に失敗する。
+  - `releases.ts` の先頭version・`package.json`・`package-lock.json` のversionが一致しない場合も失敗する（例外指定をしても常に確認）。
+  - 更新履歴に載せない変更（依存更新・内部リファクタ等）は、PRに `no-release-note` ラベルを付けるか、PR本文・コミットメッセージに `[skip release-note]` と書くと更新履歴のチェックだけ省ける。
 - `main` への push で `supabase/schema.sql` が変わったとき、`.github/workflows/db-deploy.yml` が本番Supabaseへ `psql --single-transaction` で適用する（#53）。`db-types-check` とは役割が別で、あちらは一時Postgresコンテナに適用して型のドリフトを検査するだけで本番DBには触れない。
 - 主要ロジック（フォームの状態遷移、日付処理、同期処理、エクスポート抽出、グループ操作等）はほぼ全てユニットテストが付随している（`*.test.ts`）。
 - `e2e/record-flow.spec.ts` に記録フロー全体のE2Eテストがある。

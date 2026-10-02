@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { findLatestOwnRecordForDate, saveRecord } from "@/lib/db/records";
 import { MEMO_MAX_LENGTH, NEGATIVE_REASON_TAGS, OUTCOME_OPTIONS, POSITIVE_REASON_TAGS, type Outcome } from "@/constants/choices";
+import { useOwnRecordsForReasons } from "@/lib/db/queries";
+import { countReasonUsage, rankReasonOptions } from "@/lib/reasonOptions";
 import { buildDiaryText } from "@/lib/recordPreview";
 import { track } from "@/lib/analytics";
 import { diffInDays } from "@/lib/date";
@@ -116,10 +118,15 @@ export function useRecordForm({ date, today, userId, childId, cameFromEditLink, 
     // eslint-disable-next-line react-hooks/exhaustive-deps -- cameFromEditLink/restoreStepは日付が変わるたびの再実行対象ではない(refと安定したコールバック)
   }, [date, userId, childId, restoreKey]);
 
+  // 理由は、自分の過去の記録(この子どもの分)での使用回数が多い順に並べる。追加タグも
+  // 記録に残る限り翌日以降の選択肢に出る。まだ読み込み中(undefined)の間は履歴なしとして扱う。
+  const reasonHistory = useOwnRecordsForReasons(userId ?? null, childId);
   const reasonOptions = useMemo(() => {
-    const base = form.outcome === "smooth" ? POSITIVE_REASON_TAGS : NEGATIVE_REASON_TAGS;
-    return Array.from(new Set([...base, ...customReasonTags, ...form.reasonTags]));
-  }, [form.outcome, customReasonTags, form.reasonTags]);
+    const positive = form.outcome === "smooth";
+    const base = positive ? POSITIVE_REASON_TAGS : NEGATIVE_REASON_TAGS;
+    const counts = countReasonUsage(reasonHistory ?? [], positive);
+    return rankReasonOptions(base, counts, [...customReasonTags, ...form.reasonTags]);
+  }, [form.outcome, customReasonTags, form.reasonTags, reasonHistory]);
 
   const preview = useMemo(() => {
     if (!form.outcome) return "「今日はどうだった？」から選んでね。";
