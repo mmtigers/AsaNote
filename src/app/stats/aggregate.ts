@@ -1,7 +1,8 @@
 // 傾向タブ(#4)の集計ロジック。画面から切り離した純関数として置き、テストで固定する
 // (件数の数え間違い・曜日のズレは画面がエラーにならず静かに嘘をつくため)。
 import type { Outcome } from "@/constants/choices";
-import { WEEKDAYS, parseDateInputValue, parseTimeToMinutes } from "@/lib/date";
+import { WEEKDAYS, parseDateInputValue } from "@/lib/date";
+import { WAKE_SLOTS, wakeSlotOfTimeValue } from "@/lib/wakeTime";
 
 // 集計に必要なフィールドだけを要求する(テストで最小のオブジェクトを渡せるようにするため)。
 export interface AggregatableRecord {
@@ -59,29 +60,19 @@ export function recordsForWeekday<T extends AggregatableRecord>(records: T[], we
   return records.filter((r) => !!r.outcome && parseDateInputValue(r.recordDate).getDay() === weekday);
 }
 
-// 起床時刻の区切り(分)。`until`は「その値未満」を意味する上限。
-// 小学生の登校時刻から逆算した30分刻み。増やす/減らす場合はここだけ触ればよい。
-const WAKE_TIME_BUCKETS = [
-  { key: "before-0630", label: "〜6:29", until: 6 * 60 + 30 },
-  { key: "0630-0659", label: "6:30〜6:59", until: 7 * 60 },
-  { key: "0700-0729", label: "7:00〜7:29", until: 7 * 60 + 30 },
-  { key: "after-0730", label: "7:30〜", until: Number.POSITIVE_INFINITY },
-] as const;
-
-// 起床時刻(分)がどの区分に入るか。未入力・壊れた値はnull。
+// 起床時刻の区分は、記録画面の入力(WakeTimePicker)と同じ3区分(wakeTime.tsのWAKE_SLOTS)。
+// 入力した区分がそのまま集計の区分になるよう、区切りはここでは持たない。旧データの
+// 任意の時刻も、wakeSlotOfTimeValueで同じ境界のいずれかの区分に寄る。
 // smoothRateByWakeTimeとrecordsForWakeTimeBucketで判定がずれないよう、ここに集約する。
+// 未入力・壊れた値はnull。
 function wakeTimeBucketKey(wakeTime: string | null): string | null {
-  if (!wakeTime) return null;
-  const minutes = parseTimeToMinutes(wakeTime);
-  if (minutes === null) return null;
-  const bucket = WAKE_TIME_BUCKETS.find((b) => minutes < b.until);
-  return bucket?.key ?? null; // 最後のバケットが Infinity なので通常はnullにならない
+  return wakeSlotOfTimeValue(wakeTime)?.key ?? null;
 }
 
 // 起床時刻の早さとスムーズ率の関係。起床時刻を入力していない記録は対象外。
 // 記録が1件も無い時間帯は行ごと省く。
 export function smoothRateByWakeTime(records: AggregatableRecord[]): SmoothRateStat[] {
-  const totals = WAKE_TIME_BUCKETS.map((b) => ({ key: b.key, label: b.label, total: 0, smooth: 0 }));
+  const totals = WAKE_SLOTS.map((b) => ({ key: b.key, label: b.label, total: 0, smooth: 0 }));
   for (const r of records) {
     if (!r.outcome) continue;
     const key = wakeTimeBucketKey(r.wakeTime);
