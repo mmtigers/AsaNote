@@ -4,6 +4,7 @@ import type { ChangeEvent } from "react";
 import { TagChips } from "@/components/TagChips";
 import { MEMO_MAX_LENGTH, type Outcome } from "@/constants/choices";
 import { DepartTimePicker } from "./DepartTimePicker";
+import { WakeTimePicker } from "./WakeTimePicker";
 
 interface ReasonStepViewProps {
   outcome: Outcome;
@@ -11,6 +12,8 @@ interface ReasonStepViewProps {
   reasonTags: string[];
   onReasonTagsChange: (next: string[]) => void;
   onAddCustomReasonTag: (tag: string) => void;
+  wakeTime: string;
+  onWakeTimeChange: (value: string) => void;
   departTime: string;
   onDepartTimeChange: (value: string) => void;
   memo: string;
@@ -26,6 +29,8 @@ export function ReasonStepView({
   reasonTags,
   onReasonTagsChange,
   onAddCustomReasonTag,
+  wakeTime,
+  onWakeTimeChange,
   departTime,
   onDepartTimeChange,
   memo,
@@ -36,15 +41,16 @@ export function ReasonStepView({
 }: ReasonStepViewProps) {
   return (
     <>
+      <WakeTimePicker value={wakeTime} onChange={onWakeTimeChange} />
+
       {/* 出発時刻は以前メモ欄側の折りたたみの中にあり気づかれず、キーボード入力も要った。
           選択式にして理由の前(画面上部)へ出している。 */}
       <DepartTimePicker value={departTime} onChange={onDepartTimeChange} />
 
       <section className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm">
-        <h2 className="mb-1 text-[15px] font-bold">
+        <h2 className="mb-3 text-[15px] font-bold">
           {outcome === "smooth" ? "😊 よかった理由は？" : "😣 気になる理由は？"}
         </h2>
-        <p className="mb-3 text-[12px] text-[var(--sub)]">選んで押すだけ。無ければ「＋追加」で短い言葉を足せます</p>
         <TagChips
           options={reasonOptions}
           value={reasonTags}
@@ -56,10 +62,9 @@ export function ReasonStepView({
       {/* タグの「＋追加」は短い言葉を足す場所。長い文章を書く場所と混同されたため、
           メモ欄は常時表示の別カード(アクセント色の枠)にして役割の違いを見せている。 */}
       <section className="flex flex-col gap-1 rounded-3xl border-2 border-[var(--accent)] bg-[var(--surface)] p-4 shadow-sm">
-        <label className="text-[15px] font-bold" htmlFor="memo">
+        <label className="mb-2 text-[15px] font-bold" htmlFor="memo">
           📝 メモ欄
         </label>
-        <p className="mb-2 text-[12px] text-[var(--sub)]">文章で自由に書けます（書かなくてもOK）</p>
         <textarea
           id="memo"
           value={memo}

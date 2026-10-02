@@ -14,8 +14,7 @@ export function DepartTimePicker({ value, onChange }: DepartTimePickerProps) {
 
   return (
     <section className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm">
-      <h2 className="mb-1 text-[15px] font-bold">🕗 出発した時刻は？</h2>
-      <p className="mb-3 text-[12px] text-[var(--sub)]">選ぶだけでOK。入力しなくても保存できます。</p>
+      <h2 className="mb-3 text-[15px] font-bold">🕗 出発した時刻は？</h2>
       <div className="flex flex-wrap gap-2">
         {DEPART_SLOTS.map((slot) => {
           const isSelected = selected?.key === slot.key;
