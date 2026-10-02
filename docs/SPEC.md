@@ -241,6 +241,10 @@ npm run test:e2e   # Playwright（E2E, 別途起動が必要）
   - `db-types-check`: `supabase/schema.sql` を素の Postgres へ適用し、`supabase gen types` の出力と `database.types.ts` の差分を検査
   - `supabase/functions/`（Deno / Supabase Edge Functions）はこのNext.js/Nodeプロジェクトの一部ではないため、`tsconfig.json`の`exclude`と`eslint.config.mjs`の`globalIgnores`の両方で対象外にしてある。CIの`tsc --noEmit`・`lint`はこのディレクトリを検査しない。
   - ワークフローは最小権限（`permissions: contents: read`）で動き、各ジョブに `timeout-minutes` を設定している。依存更新は `.github/dependabot.yml` が週次で minor/patch をまとめた1本の PR として起票する。
+- `release-notes-check` ジョブ（`scripts/check-release-notes.mjs`、テストは `src/lib/releaseNotesCheck.test.ts`）は、更新履歴の更新漏れを**失敗として**検出する。
+  - `src/app` `src/components` `src/lib` `src/constants` `public` のユーザー向けの変更（テスト・生成型を除く）があるのに `src/data/releases.ts` が更新されていない、または先頭versionが変更前より新しくない場合に失敗する。
+  - `releases.ts` の先頭version・`package.json`・`package-lock.json` のversionが一致しない場合も失敗する（例外指定をしても常に確認）。
+  - 更新履歴に載せない変更（依存更新・内部リファクタ等）は、PRに `no-release-note` ラベルを付けるか、PR本文・コミットメッセージに `[skip release-note]` と書くと更新履歴のチェックだけ省ける。
 - `main` への push で `supabase/schema.sql` が変わったとき、`.github/workflows/db-deploy.yml` が本番Supabaseへ `psql --single-transaction` で適用する（#53）。`db-types-check` とは役割が別で、あちらは一時Postgresコンテナに適用して型のドリフトを検査するだけで本番DBには触れない。
 - 主要ロジック（フォームの状態遷移、日付処理、同期処理、エクスポート抽出、グループ操作等）はほぼ全てユニットテストが付随している（`*.test.ts`）。
 - `e2e/record-flow.spec.ts` に記録フロー全体のE2Eテストがある。
