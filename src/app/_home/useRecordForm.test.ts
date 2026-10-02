@@ -19,6 +19,10 @@ vi.mock("@/lib/db/records", () => ({
   saveRecord: saveRecordMock,
 }));
 
+vi.mock("@/lib/db/queries", () => ({
+  useOwnRecordsForReasons: () => [],
+}));
+
 vi.mock("@/lib/analytics", () => ({
   track: trackMock,
 }));
