@@ -31,7 +31,6 @@ interface Options {
 export function useRecordForm({ date, today, userId, childId, cameFromEditLink, goToStep, restoreStep, goHome }: Options) {
   const [form, setForm] = useState(emptyForm);
   const [loaded, setLoaded] = useState(false);
-  const [detailOpen, setDetailOpen] = useState(false);
   const [customReasonTags, setCustomReasonTags] = useState<string[]>([]);
   const [toast, setToast] = useState(false);
   // この日付に元々(このセッション開始前から)outcome入りの記録が既にあったか。
@@ -67,7 +66,6 @@ export function useRecordForm({ date, today, userId, childId, cameFromEditLink, 
       if (draftRestoredKeyRef.current !== restoreKey) {
         draftRestoredKeyRef.current = restoreKey;
         restoreStep(draft.step);
-        setDetailOpen(draft.detailOpen);
         track("record_flow_resumed", { resumed_step: draft.step }, { userId, recordId: draft.form.id });
       }
       setLoaded(true);
@@ -102,8 +100,6 @@ export function useRecordForm({ date, today, userId, childId, cameFromEditLink, 
         draftRestoredKeyRef.current = restoreKey;
         const target: Step = existing?.outcome ? "reason" : "result";
         restoreStep(target);
-        // 出発時刻は詳細セクションの外(選択式の入力)へ移したので、ここではメモの有無だけを見る。
-        setDetailOpen(!!existing?.memo);
         if (existing) {
           track(
             "record_flow_started",
@@ -147,8 +143,6 @@ export function useRecordForm({ date, today, userId, childId, cameFromEditLink, 
         reasonTags: prevIsSmooth === nextIsSmooth ? f.reasonTags : [],
       };
     });
-    // 「行き渋った」を選んだときは、出発時刻もその場で入力できるよう詳細欄を開いておく。
-    setDetailOpen(next === "reluctant");
     goToStep("reason", "forward");
   }
 
@@ -194,8 +188,6 @@ export function useRecordForm({ date, today, userId, childId, cameFromEditLink, 
     form,
     setForm,
     loaded,
-    detailOpen,
-    setDetailOpen,
     customReasonTags,
     setCustomReasonTags,
     toast,

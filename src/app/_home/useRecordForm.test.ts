@@ -88,7 +88,6 @@ describe("useRecordForm", () => {
     const draft: Draft = {
       date: "2025-09-14",
       step: "reason" as Step,
-      detailOpen: true,
       form: {
         id: "draft-id",
         outcome: "reluctant",
@@ -112,7 +111,6 @@ describe("useRecordForm", () => {
 
     expect(result.current.form).toEqual(draft.form);
     expect(restoreStep).toHaveBeenCalledWith("reason");
-    expect(result.current.detailOpen).toBe(true);
     expect(findLatestOwnRecordForDateMock).not.toHaveBeenCalled();
   });
 
@@ -150,7 +148,6 @@ describe("useRecordForm", () => {
     await waitFor(() => expect(result.current.loaded).toBe(true));
 
     expect(restoreStep).toHaveBeenCalledWith("reason");
-    expect(result.current.detailOpen).toBe(true);
   });
 
   it("編集リンク経由でoutcome未設定の記録ならresultステップへ自動遷移する", async () => {
@@ -191,7 +188,6 @@ describe("useRecordForm", () => {
     });
 
     expect(result.current.form.reasonTags).toEqual([]);
-    expect(result.current.detailOpen).toBe(true);
   });
 
   it("handleSaveはsaveRecordを呼び、toastを表示してから一定時間後に消し、goHomeを呼ぶ", async () => {
@@ -246,7 +242,6 @@ describe("useRecordForm", () => {
     const draftOnDateB: Draft = {
       date: "2025-09-15",
       step: "reason" as Step,
-      detailOpen: false,
       form: {
         id: "draft-b-id",
         outcome: "reluctant",

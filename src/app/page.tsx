@@ -82,8 +82,6 @@ export default function HomePage() {
     form,
     setForm,
     loaded,
-    detailOpen,
-    setDetailOpen,
     setCustomReasonTags,
     toast,
     reasonOptions,
@@ -103,7 +101,7 @@ export default function HomePage() {
     goHome,
   });
 
-  useDraftPersistence({ loaded, date, step, detailOpen, form });
+  useDraftPersistence({ loaded, date, step, form });
 
   // 記録フローの途中で下部ナビの「記録する」を押したときは、最初の画面へ戻す
   // (既にホームにいるため、Linkだけでは画面が変わらない)。
@@ -268,8 +266,6 @@ export default function HomePage() {
               reasonTags={form.reasonTags}
               onReasonTagsChange={(next) => setForm((f) => ({ ...f, reasonTags: next }))}
               onAddCustomReasonTag={(tag) => setCustomReasonTags((prev) => [...prev, tag])}
-              detailOpen={detailOpen}
-              onToggleDetail={() => setDetailOpen((v) => !v)}
               departTime={form.departTime}
               onDepartTimeChange={(value) => setForm((f) => ({ ...f, departTime: value }))}
               memo={form.memo}
