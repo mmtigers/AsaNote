@@ -21,6 +21,7 @@ export function NotificationSection({ admin }: { admin: NotificationSettingsAdmi
       <h2 className="text-sm font-semibold text-[var(--sub)]">通知</h2>
       <p className="text-xs text-[var(--sub)]">
         指定した時刻に、その日まだ記録が無ければリマインド通知します(記録済みなら届きません)。
+        また、パートナーがきろくを新しく追加したときにお知らせします。
       </p>
 
       <label className="flex items-center justify-between gap-3 rounded-xl bg-[var(--surface)] px-4 py-3 text-sm">
@@ -31,6 +32,18 @@ export function NotificationSection({ admin }: { admin: NotificationSettingsAdmi
           checked={admin.enabled}
           disabled={admin.loading || admin.saving}
           onChange={(event) => void admin.setEnabled(event.target.checked)}
+          className="h-5 w-5 accent-[var(--accent)]"
+        />
+      </label>
+
+      <label className="flex items-center justify-between gap-3 rounded-xl bg-[var(--surface)] px-4 py-3 text-sm">
+        <span>パートナーがきろくを追加したとき</span>
+        <input
+          type="checkbox"
+          role="switch"
+          checked={admin.notifyPartnerRecord}
+          disabled={admin.loading || admin.saving}
+          onChange={(event) => void admin.setNotifyPartnerRecord(event.target.checked)}
           className="h-5 w-5 accent-[var(--accent)]"
         />
       </label>

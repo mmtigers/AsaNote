@@ -18,8 +18,10 @@ export interface NotificationSettingsAdmin {
   saving: boolean;
   reminderTime: string;
   enabled: boolean;
+  notifyPartnerRecord: boolean;
   setReminderTime: (value: string) => void;
   setEnabled: (value: boolean) => Promise<void>;
+  setNotifyPartnerRecord: (value: boolean) => Promise<void>;
   reload: () => Promise<void>;
 }
 
@@ -32,6 +34,7 @@ export function useNotificationSettings(
   const [saving, setSaving] = useState(false);
   const [reminderTime, setReminderTimeState] = useState(DEFAULT_REMINDER_TIME);
   const [enabled, setEnabledState] = useState(false);
+  const [notifyPartnerRecord, setNotifyPartnerRecordState] = useState(false);
 
   const reload = useCallback(async () => {
     if (!userId) {
@@ -48,6 +51,7 @@ export function useNotificationSettings(
     if (result.ok) {
       setReminderTimeState(result.value.reminderTime);
       setEnabledState(result.value.enabled);
+      setNotifyPartnerRecordState(result.value.notifyPartnerRecord);
     }
     setLoading(false);
   }, [userId, onError]);
@@ -65,11 +69,39 @@ export function useNotificationSettings(
     onError(null);
     setSaving(true);
     await runAction(
-      () => saveNotificationSettings(userId, { reminderTime: value, enabled }),
+      () => saveNotificationSettings(userId, { reminderTime: value, enabled, notifyPartnerRecord }),
       "通知時刻の保存に失敗しました",
       onError
     );
     setSaving(false);
+  }
+
+  // この端末のPush購読を(無ければブラウザの許可を求めて)作成し、サーバーへ登録する。
+  // リマインドとパートナー通知のどちらをONにする場合も共通。失敗時はエラーを出してfalseを返す。
+  async function ensurePushSubscription(): Promise<boolean> {
+    if (!userId) return false;
+    const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+    if (!vapidPublicKey) {
+      onError("通知機能が未設定です(NEXT_PUBLIC_VAPID_PUBLIC_KEY)。管理者にお問い合わせください。");
+      return false;
+    }
+    const subscribeResult = await runAction(
+      () => requestPushSubscription(vapidPublicKey),
+      "通知の許可を取得できませんでした",
+      onError
+    );
+    if (!subscribeResult.ok) return false;
+    const subscriptionKeys = subscribeResult.value;
+    if (!subscriptionKeys) {
+      onError("通知が許可されませんでした。ブラウザの通知設定をご確認ください。");
+      return false;
+    }
+    const saveSubResult = await runAction(
+      () => savePushSubscription(userId, subscriptionKeys),
+      "通知購読の保存に失敗しました",
+      onError
+    );
+    return saveSubResult.ok;
   }
 
   // ONにする際は、まだこの端末でPush購読が無ければブラウザの許可を求めて購読する。
@@ -80,41 +112,13 @@ export function useNotificationSettings(
     onError(null);
     setSaving(true);
 
-    if (value) {
-      const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-      if (!vapidPublicKey) {
-        onError("通知機能が未設定です(NEXT_PUBLIC_VAPID_PUBLIC_KEY)。管理者にお問い合わせください。");
-        setSaving(false);
-        return;
-      }
-      const subscribeResult = await runAction(
-        () => requestPushSubscription(vapidPublicKey),
-        "通知の許可を取得できませんでした",
-        onError
-      );
-      if (!subscribeResult.ok) {
-        setSaving(false);
-        return;
-      }
-      const subscriptionKeys = subscribeResult.value;
-      if (!subscriptionKeys) {
-        onError("通知が許可されませんでした。ブラウザの通知設定をご確認ください。");
-        setSaving(false);
-        return;
-      }
-      const saveSubResult = await runAction(
-        () => savePushSubscription(userId, subscriptionKeys),
-        "通知購読の保存に失敗しました",
-        onError
-      );
-      if (!saveSubResult.ok) {
-        setSaving(false);
-        return;
-      }
+    if (value && !(await ensurePushSubscription())) {
+      setSaving(false);
+      return;
     }
 
     const saved = await runAction(
-      () => saveNotificationSettings(userId, { reminderTime, enabled: value }),
+      () => saveNotificationSettings(userId, { reminderTime, enabled: value, notifyPartnerRecord }),
       "通知設定の保存に失敗しました",
       onError
     );
@@ -122,5 +126,37 @@ export function useNotificationSettings(
     setSaving(false);
   }
 
-  return { supported, loading, saving, reminderTime, enabled, setReminderTime, setEnabled, reload };
+  // パートナーがきろくを新規に記入したときの通知のON/OFF。ONにする際の購読作成は
+  // リマインドと同じ(ensurePushSubscription)。OFFでも購読は残す(送信側がフラグを見る)。
+  async function setNotifyPartnerRecord(value: boolean) {
+    if (!userId) return;
+    onError(null);
+    setSaving(true);
+
+    if (value && !(await ensurePushSubscription())) {
+      setSaving(false);
+      return;
+    }
+
+    const saved = await runAction(
+      () => saveNotificationSettings(userId, { reminderTime, enabled, notifyPartnerRecord: value }),
+      "通知設定の保存に失敗しました",
+      onError
+    );
+    if (saved.ok) setNotifyPartnerRecordState(value);
+    setSaving(false);
+  }
+
+  return {
+    supported,
+    loading,
+    saving,
+    reminderTime,
+    enabled,
+    notifyPartnerRecord,
+    setReminderTime,
+    setEnabled,
+    setNotifyPartnerRecord,
+    reload,
+  };
 }
