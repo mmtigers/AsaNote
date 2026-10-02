@@ -5,6 +5,7 @@
  * 曜日のズレ(UTC解釈による1日ズレ)とバケットの境界値を特に固定しておく。
  */
 import { describe, expect, it } from "vitest";
+import { WAKE_SLOTS } from "@/lib/wakeTime";
 import type { AggregatableRecord } from "./aggregate";
 import {
   outcomeByDate,
@@ -97,22 +98,28 @@ describe("smoothRateByWeekday", () => {
 });
 
 describe("smoothRateByWakeTime", () => {
-  it("時間帯の境界で振り分ける(上限はその値を含まない)", () => {
+  it("記録画面の3区分の境界で振り分ける(上限はその値を含まない)", () => {
     const stats = smoothRateByWakeTime([
       record({ recordDate: "2026-09-01", wakeTime: "06:29" }),
-      record({ recordDate: "2026-09-02", wakeTime: "06:30" }),
-      record({ recordDate: "2026-09-03", wakeTime: "06:59" }),
-      record({ recordDate: "2026-09-04", wakeTime: "07:00" }),
-      record({ recordDate: "2026-09-05", wakeTime: "07:29" }),
-      record({ recordDate: "2026-09-07", wakeTime: "07:30" }),
+      record({ recordDate: "2026-09-02", wakeTime: "06:59" }),
+      record({ recordDate: "2026-09-03", wakeTime: "07:00" }),
+      record({ recordDate: "2026-09-04", wakeTime: "07:14" }),
+      record({ recordDate: "2026-09-05", wakeTime: "07:15" }),
+      record({ recordDate: "2026-09-07", wakeTime: "07:45" }),
     ]);
 
     expect(stats.map((s) => [s.label, s.total])).toEqual([
-      ["〜6:29", 1],
-      ["6:30〜6:59", 2],
-      ["7:00〜7:29", 2],
-      ["7:30〜", 1],
+      ["7時より前", 2],
+      ["7時〜7時15分", 2],
+      ["7時15分〜", 2],
     ]);
+  });
+
+  it("記録画面で保存される代表値は、選んだ区分にそのまま集計される", () => {
+    const stats = smoothRateByWakeTime(
+      WAKE_SLOTS.map((slot, i) => record({ recordDate: `2026-09-0${i + 1}`, wakeTime: slot.value }))
+    );
+    expect(stats.map((s) => [s.label, s.total])).toEqual(WAKE_SLOTS.map((slot) => [slot.label, 1]));
   });
 
   it("時間帯ごとのスムーズ率を出す", () => {
@@ -123,7 +130,7 @@ describe("smoothRateByWakeTime", () => {
     ]);
 
     expect(stats).toHaveLength(1);
-    expect(stats[0]).toMatchObject({ label: "〜6:29", total: 3, smooth: 2, rate: 67 });
+    expect(stats[0]).toMatchObject({ label: "7時より前", total: 3, smooth: 2, rate: 67 });
   });
 
   it("起床時刻が未入力・壊れている記録は数えない", () => {
@@ -154,12 +161,12 @@ describe("recordsForWakeTimeBucket", () => {
   it("指定した時間帯バケットの記録だけを返す(#3-3の詳細表示)", () => {
     const early = record({ recordDate: "2026-09-01", wakeTime: "06:20" });
     const late = record({ recordDate: "2026-09-02", wakeTime: "07:40" });
-    expect(recordsForWakeTimeBucket([early, late], "before-0630")).toEqual([early]);
+    expect(recordsForWakeTimeBucket([early, late], "before-0700")).toEqual([early]);
   });
 
   it("smoothRateByWakeTimeと同じ境界値で振り分ける", () => {
-    const boundary = record({ recordDate: "2026-09-01", wakeTime: "06:30" });
-    expect(recordsForWakeTimeBucket([boundary], "before-0630")).toEqual([]);
-    expect(recordsForWakeTimeBucket([boundary], "0630-0659")).toEqual([boundary]);
+    const boundary = record({ recordDate: "2026-09-01", wakeTime: "07:00" });
+    expect(recordsForWakeTimeBucket([boundary], "before-0700")).toEqual([]);
+    expect(recordsForWakeTimeBucket([boundary], "0700-0715")).toEqual([boundary]);
   });
 });

@@ -1,4 +1,5 @@
-const CACHE_NAME = "asa-note-shell-v1";
+// v2: アプリ内遷移のRSCデータをキャッシュしないようにした際に上げた(v1の保存を一掃するため)。
+const CACHE_NAME = "asa-note-shell-v2";
 const APP_SHELL = [
   "/",
   "/manifest.webmanifest",
@@ -42,7 +43,13 @@ self.addEventListener("fetch", (event) => {
   }
 
   // Supabase等の他オリジンへのAPIリクエストはキャッシュ対象外(常にネットワークへ)。
-  if (new URL(request.url).origin !== self.location.origin) return;
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return;
+
+  // アプリ内リンク遷移でNext.jsが取得するRSCデータ(URLに`?_rsc=`が付き、`RSC`ヘッダを持つ)は
+  // キャッシュしない。キャッシュ優先で返すと更新後も古いデータが残り続け、保存先も際限なく
+  // 増えるため。取得に失敗したときはNext.jsがページ全体の遷移(上のnavigate分岐)に切り替える。
+  if (url.searchParams.has("_rsc") || request.headers.has("RSC")) return;
 
   event.respondWith(
     caches.match(request).then((cached) => {
