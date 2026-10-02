@@ -40,6 +40,5 @@ export function emptyForm(): FormState {
 export interface Draft {
   date: string;
   step: Step;
-  detailOpen: boolean;
   form: FormState;
 }

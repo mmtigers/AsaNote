@@ -8,7 +8,6 @@ interface Options {
   loaded: boolean;
   date: string;
   step: Step;
-  detailOpen: boolean;
   form: FormState;
 }
 
@@ -17,13 +16,13 @@ interface Options {
 // 「保存完了→goHome()でstepがhomeになる」という遷移も、このホーム到達時の
 // クリア処理に自然に乗る形になっており、保存フロー側で個別に下書きを
 // 消す処理を持つ必要はない。
-export function useDraftPersistence({ loaded, date, step, detailOpen, form }: Options) {
+export function useDraftPersistence({ loaded, date, step, form }: Options) {
   useEffect(() => {
     if (!loaded) return;
     if (step === "home") {
       clearDraft();
       return;
     }
-    saveDraft({ date, step, detailOpen, form });
-  }, [loaded, step, detailOpen, form, date]);
+    saveDraft({ date, step, form });
+  }, [loaded, step, form, date]);
 }

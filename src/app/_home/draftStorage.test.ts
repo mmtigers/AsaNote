@@ -14,7 +14,6 @@ const draft = (overrides: Partial<Draft> = {}): Draft =>
   ({
     date: "2026-09-14",
     step: "result",
-    detailOpen: false,
     form: {
       id: "r1",
       outcome: "reluctant",

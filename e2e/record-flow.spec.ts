@@ -15,9 +15,8 @@ test("記録フォームに入力して保存すると、ホームとタイム�
   await page.getByRole("button", { name: "8時より前", exact: true }).click();
   await expect(page.getByText("8時より前に出発")).toBeVisible();
 
-  await page.getByRole("button", { name: /詳細を追加/ }).click();
   const memo = "E2Eテストからのメモ";
-  await page.getByLabel("振り返りメモ").fill(memo);
+  await page.getByLabel("メモ欄").fill(memo);
 
   await page.getByRole("button", { name: "この日の記録を保存する" }).click();
 
