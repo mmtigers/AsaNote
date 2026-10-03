@@ -1,6 +1,6 @@
 import type { Outcome } from "@/constants/choices";
 
-export type Step = "home" | "result" | "reason";
+export type Step = "home" | "form";
 
 export interface FormState {
   id: string;

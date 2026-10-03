@@ -12,8 +12,7 @@ import { setSelectedChildId } from "@/lib/db/selectedChild";
 import { useRecordStatusForMonth } from "@/lib/db/queries";
 import { RecordHeader } from "./_home/RecordHeader";
 import { HomeStepView } from "./_home/HomeStepView";
-import { ResultStepView } from "./_home/ResultStepView";
-import { ReasonStepView } from "./_home/ReasonStepView";
+import { RecordFormView } from "./_home/RecordFormView";
 import { useStepNavigation } from "./_home/useStepNavigation";
 import { useRecordForm } from "./_home/useRecordForm";
 import { useDraftPersistence } from "./_home/useDraftPersistence";
@@ -96,7 +95,6 @@ export default function HomePage() {
     userId: session?.user.id,
     childId: effectiveChildId,
     cameFromEditLink,
-    goToStep,
     restoreStep,
     goHome,
   });
@@ -175,7 +173,7 @@ export default function HomePage() {
       { entry_point: entryPoint, is_edit: false, date_offset_days: dateOffsetDays },
       { userId: session?.user.id, recordId: form.id }
     );
-    goToStep("result", "forward");
+    goToStep("form", "forward");
   }
 
   // リマインダーの「記録する」は常に「今日」の記録を指す(現在カレンダーで別の日を
@@ -194,7 +192,7 @@ export default function HomePage() {
       { entry_point: "home_edit_existing", is_edit: true, date_offset_days: diffInDays(todayValue, date) },
       { userId: session?.user.id, recordId: form.id }
     );
-    goToStep("result", "forward");
+    goToStep("form", "forward");
   }
 
   // 選択中の日付が今日かどうかで、「今日は/その日は」の文言を出し分ける
@@ -251,17 +249,11 @@ export default function HomePage() {
             />
           )}
 
-          {step === "result" && (
-            <ResultStepView
+          {step === "form" && (
+            <RecordFormView
               isTodaySelected={isTodaySelected}
-              currentOutcome={form.outcome}
-              onSelectOutcome={selectOutcome}
-            />
-          )}
-
-          {step === "reason" && form.outcome && (
-            <ReasonStepView
               outcome={form.outcome}
+              onSelectOutcome={selectOutcome}
               reasonOptions={reasonOptions}
               reasonTags={form.reasonTags}
               onReasonTagsChange={(next) => setForm((f) => ({ ...f, reasonTags: next }))}

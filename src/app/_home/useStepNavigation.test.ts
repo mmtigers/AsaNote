@@ -35,11 +35,11 @@ describe("useStepNavigation", () => {
   it("goToStep(forward)でステップを進め、履歴を積む", () => {
     const { result } = renderHook(() => useStepNavigation());
     act(() => {
-      result.current.goToStep("result", "forward");
+      result.current.goToStep("form", "forward");
     });
-    expect(result.current.step).toBe("result");
+    expect(result.current.step).toBe("form");
     expect(result.current.stepTransition).toEqual({ direction: "forward", seq: 1 });
-    expect(window.history.pushState).toHaveBeenCalledWith({ appStep: "result" }, "");
+    expect(window.history.pushState).toHaveBeenCalledWith({ appStep: "form" }, "");
   });
 
   it("goToStep(backward)では履歴を積まない", () => {
@@ -51,25 +51,16 @@ describe("useStepNavigation", () => {
     expect(window.history.pushState).not.toHaveBeenCalled();
   });
 
-  it("restoreStep('reason')はresult→reasonの順に履歴を積み、アニメーションは発生させない", () => {
+  it("restoreStep('form')はformの履歴のみ積み、アニメーションは発生させない", () => {
     const { result } = renderHook(() => useStepNavigation());
     const seqBefore = result.current.stepTransition.seq;
     act(() => {
-      result.current.restoreStep("reason");
+      result.current.restoreStep("form");
     });
-    expect(result.current.step).toBe("reason");
+    expect(result.current.step).toBe("form");
     expect(result.current.stepTransition.seq).toBe(seqBefore);
-    expect(window.history.pushState).toHaveBeenNthCalledWith(1, { appStep: "result" }, "");
-    expect(window.history.pushState).toHaveBeenNthCalledWith(2, { appStep: "reason" }, "");
-  });
-
-  it("restoreStep('result')はresultの履歴のみ積む", () => {
-    const { result } = renderHook(() => useStepNavigation());
-    act(() => {
-      result.current.restoreStep("result");
-    });
     expect(window.history.pushState).toHaveBeenCalledTimes(1);
-    expect(window.history.pushState).toHaveBeenCalledWith({ appStep: "result" }, "");
+    expect(window.history.pushState).toHaveBeenCalledWith({ appStep: "form" }, "");
   });
 
   it("goBackはブラウザ履歴を1つ戻す", () => {
@@ -90,10 +81,10 @@ describe("useStepNavigation", () => {
     expect(window.history.go).not.toHaveBeenCalled();
   });
 
-  it("goHomeはresult(depth 1)の場合、history.go(-1)を呼ぶ", () => {
+  it("goHomeはform(depth 1)の場合、history.go(-1)を呼ぶ", () => {
     const { result } = renderHook(() => useStepNavigation());
     act(() => {
-      result.current.goToStep("result", "forward");
+      result.current.goToStep("form", "forward");
     });
     act(() => {
       result.current.goHome();
@@ -101,21 +92,10 @@ describe("useStepNavigation", () => {
     expect(window.history.go).toHaveBeenCalledWith(-1);
   });
 
-  it("goHomeはreason(depth 2)の場合、history.go(-2)を呼ぶ", () => {
-    const { result } = renderHook(() => useStepNavigation());
-    act(() => {
-      result.current.restoreStep("reason");
-    });
-    act(() => {
-      result.current.goHome();
-    });
-    expect(window.history.go).toHaveBeenCalledWith(-2);
-  });
-
   it("popstateイベントでステップをbackward遷移させる", () => {
     const { result } = renderHook(() => useStepNavigation());
-    dispatchPopState({ appStep: "result" });
-    expect(result.current.step).toBe("result");
+    dispatchPopState({ appStep: "form" });
+    expect(result.current.step).toBe("form");
     expect(result.current.stepTransition.direction).toBe("backward");
   });
 

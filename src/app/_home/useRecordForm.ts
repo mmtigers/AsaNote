@@ -21,7 +21,6 @@ interface Options {
   // タイムラインの「編集する」からの遷移かどうか。true→false化とrefの寿命は
   // 呼び出し側(URLの?date=パラメータを読むeffect)が管理する。
   cameFromEditLink: RefObject<boolean>;
-  goToStep: (next: Step, direction: "forward" | "backward") => void;
   restoreStep: (target: Step) => void;
   goHome: () => void;
 }
@@ -29,8 +28,8 @@ interface Options {
 // 選択中の日付の記録フォーム(状態の読み込み・編集・保存)を管理する。
 // 保存前の下書き(localStorage)があればそれを優先し、無ければDexieの既存記録
 // (無ければ空フォーム)を読み込む。タイムラインの「編集する」から来た場合は、
-// 読み込んだ内容に応じたステップまで自動で進める。
-export function useRecordForm({ date, today, userId, childId, cameFromEditLink, goToStep, restoreStep, goHome }: Options) {
+// 記録フォームを開いた状態にする。
+export function useRecordForm({ date, today, userId, childId, cameFromEditLink, restoreStep, goHome }: Options) {
   const [form, setForm] = useState(emptyForm);
   const [loaded, setLoaded] = useState(false);
   const [customReasonTags, setCustomReasonTags] = useState<string[]>([]);
@@ -100,8 +99,7 @@ export function useRecordForm({ date, today, userId, childId, cameFromEditLink, 
       if (cameFromEditLink.current) {
         cameFromEditLink.current = false;
         draftRestoredKeyRef.current = restoreKey;
-        const target: Step = existing?.outcome ? "reason" : "result";
-        restoreStep(target);
+        restoreStep("form");
         if (existing) {
           track(
             "record_flow_started",
@@ -150,7 +148,6 @@ export function useRecordForm({ date, today, userId, childId, cameFromEditLink, 
         reasonTags: prevIsSmooth === nextIsSmooth ? f.reasonTags : [],
       };
     });
-    goToStep("reason", "forward");
   }
 
   async function handleSave() {

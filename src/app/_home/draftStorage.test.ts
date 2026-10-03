@@ -13,7 +13,7 @@ import { clearDraft, loadDraft, saveDraft } from "./draftStorage";
 const draft = (overrides: Partial<Draft> = {}): Draft =>
   ({
     date: "2026-09-14",
-    step: "result",
+    step: "form",
     form: {
       id: "r1",
       outcome: "reluctant",
@@ -64,9 +64,18 @@ describe("saveDraft / loadDraft", () => {
 
   it("上書き保存すると新しい内容になる", () => {
     saveDraft(draft());
-    saveDraft(draft({ step: "reason" }));
+    saveDraft(draft({ step: "form" }));
 
-    expect(loadDraft()?.step).toBe("reason");
+    expect(loadDraft()?.step).toBe("form");
+  });
+});
+
+describe("loadDraft(旧ステップの下書き)", () => {
+  it("1ページ化前の step(result/reason) は form として読み込む", () => {
+    window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify({ ...draft(), step: "reason" }));
+    expect(loadDraft()?.step).toBe("form");
+    window.localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify({ ...draft(), step: "result" }));
+    expect(loadDraft()?.step).toBe("form");
   });
 });
 
