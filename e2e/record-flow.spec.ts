@@ -44,8 +44,8 @@ test("記録フローの途中で「記録する」タブを押すと最初の�
   await page.goto("/");
 
   await page.getByRole("button", { name: "今日の様子を記録する" }).click();
-  await expect(page.getByText("今日はどうだった？")).toBeVisible();
-  await expect(page.getByText("朝起きた時間は？")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "今日はどうだった？" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /朝起きた時間は？/ })).toBeVisible();
 
   await page.getByRole("link", { name: "記録する" }).click();
 
