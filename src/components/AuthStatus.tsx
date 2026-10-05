@@ -4,8 +4,10 @@ import Link from "next/link";
 import { useState } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { clearDraft } from "@/app/_home/draftStorage";
 import { clearLocalData } from "@/lib/db/localDb";
 import { usePendingSyncCount } from "@/lib/db/queries";
+import { setSelectedChildId } from "@/lib/db/selectedChild";
 import { countUnsyncedChanges } from "@/lib/db/records";
 import { syncPendingChanges } from "@/lib/db/sync";
 import { getSupabaseClient } from "@/lib/supabase/client";
@@ -30,6 +32,10 @@ export function AuthStatus() {
       } catch (error) {
         console.error(error);
       }
+      // localStorageに残る下書き(メモを含む)と選択中の子どもも、次に使う人へ
+      // 引き継がれないよう消す(#131)。
+      clearDraft();
+      setSelectedChildId(null);
     }
   }
 
