@@ -15,29 +15,14 @@
 //      送信に失敗した購読(410 Gone等、失効した購読)はその場で削除する。
 import { createClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
-
-const JST_TIME_FORMAT = new Intl.DateTimeFormat("ja-JP", {
-  timeZone: "Asia/Tokyo",
-  hour: "2-digit",
-  minute: "2-digit",
-  hourCycle: "h23",
-});
-const JST_DATE_FORMAT = new Intl.DateTimeFormat("en-CA", {
-  timeZone: "Asia/Tokyo",
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-});
-
-function jstTimeNow(now: Date): string {
-  // "21:00"のような"HH:MM"形式。Intlのフォーマット結果("21:00")をそのまま使う。
-  return JST_TIME_FORMAT.format(now);
-}
-
-function jstDateNow(now: Date): string {
-  // en-CAロケールは"YYYY-MM-DD"を返す(DBのrecord_dateと同じ形式)。
-  return JST_DATE_FORMAT.format(now);
-}
+import {
+  jstDateNow,
+  jstTimeNow,
+  reminderPayload,
+  selectReminderTargets,
+  sendToSubscriptions,
+  type PushSubscriptionRow,
+} from "../_shared/pushLogic.ts";
 
 Deno.serve(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -90,8 +75,10 @@ Deno.serve(async (req) => {
     return new Response("failed to load records", { status: 500 });
   }
 
-  const alreadyRecordedUserIds = new Set((todaysRecords ?? []).map((row) => row.user_id as string));
-  const targetUserIds = dueUserIds.filter((id) => !alreadyRecordedUserIds.has(id));
+  const targetUserIds = selectReminderTargets(
+    dueUserIds,
+    (todaysRecords ?? []).map((row) => row.user_id as string)
+  );
 
   if (targetUserIds.length === 0) {
     return new Response(JSON.stringify({ checked: dueUserIds.length, sent: 0 }), {
@@ -109,37 +96,10 @@ Deno.serve(async (req) => {
     return new Response("failed to load push_subscriptions", { status: 500 });
   }
 
-  const payload = JSON.stringify({
-    title: "あさノート",
-    body: "今日の記録がまだのようです",
-    url: "/",
-  });
-
-  let sent = 0;
-  const staleSubscriptionIds: string[] = [];
-
-  await Promise.all(
-    (subscriptions ?? []).map(async (sub) => {
-      try {
-        await webpush.sendNotification(
-          {
-            endpoint: sub.endpoint,
-            keys: { p256dh: sub.p256dh, auth: sub.auth_key },
-          },
-          payload
-        );
-        sent += 1;
-      } catch (error) {
-        // 410 Gone / 404 Not Found はブラウザ側で購読が失効したことを示す。
-        // それ以外(一時的な通信エラー等)は次回の実行に任せ、購読は残す。
-        const statusCode = (error as { statusCode?: number }).statusCode;
-        if (statusCode === 404 || statusCode === 410) {
-          staleSubscriptionIds.push(sub.id as string);
-        } else {
-          console.warn(`push送信に失敗しました(subscription=${sub.id}):`, error);
-        }
-      }
-    })
+  const { sent, staleSubscriptionIds } = await sendToSubscriptions(
+    (subscription, payload) => webpush.sendNotification(subscription, payload),
+    (subscriptions ?? []) as PushSubscriptionRow[],
+    reminderPayload()
   );
 
   if (staleSubscriptionIds.length > 0) {

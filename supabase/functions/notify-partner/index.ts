@@ -13,11 +13,12 @@
 //      送信に失敗した購読(410/404)はその場で削除する。
 import { createClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
-
-function displayNameFromEmail(email: string | undefined | null): string | null {
-  const name = email?.split("@")[0]?.trim();
-  return name ? name : null;
-}
+import {
+  displayNameFromEmail,
+  partnerRecordPayload,
+  sendToSubscriptions,
+  type PushSubscriptionRow,
+} from "../_shared/pushLogic.ts";
 
 Deno.serve(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -95,32 +96,10 @@ Deno.serve(async (req) => {
 
   const { data: author } = await supabase.auth.admin.getUserById(authorId);
   const name = displayNameFromEmail(author?.user?.email);
-  const payload = JSON.stringify({
-    title: "あさノート",
-    body: name ? `${name}さんがきろくを追加しました` : "パートナーがきろくを追加しました",
-    url: "/timeline",
-  });
-
-  let sent = 0;
-  const staleSubscriptionIds: string[] = [];
-
-  await Promise.all(
-    (subscriptions ?? []).map(async (sub) => {
-      try {
-        await webpush.sendNotification(
-          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth_key } },
-          payload
-        );
-        sent += 1;
-      } catch (error) {
-        const statusCode = (error as { statusCode?: number }).statusCode;
-        if (statusCode === 404 || statusCode === 410) {
-          staleSubscriptionIds.push(sub.id as string);
-        } else {
-          console.warn(`push送信に失敗しました(subscription=${sub.id}):`, error);
-        }
-      }
-    })
+  const { sent, staleSubscriptionIds } = await sendToSubscriptions(
+    (subscription, payload) => webpush.sendNotification(subscription, payload),
+    (subscriptions ?? []) as PushSubscriptionRow[],
+    partnerRecordPayload(name)
   );
 
   if (staleSubscriptionIds.length > 0) {
