@@ -33,9 +33,32 @@ describe("MonthCalendar(日付を選べるモード)", () => {
       />
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "15" }));
+    fireEvent.click(screen.getByRole("button", { name: "13" }));
 
-    expect(onSelectDate).toHaveBeenCalledWith("2026-09-15");
+    expect(onSelectDate).toHaveBeenCalledWith("2026-09-13");
+  });
+
+  it("未来日は選べない(押してもonSelectDateを呼ばない)。今日と過去日は選べる(#134)", () => {
+    const onSelectDate = vi.fn();
+    render(
+      <MonthCalendar
+        year={2026}
+        month={9}
+        todayValue="2026-09-14"
+        statusByDate={statusByDate}
+        onMonthChange={() => {}}
+        selectedDate="2026-09-14"
+        onSelectDate={onSelectDate}
+      />
+    );
+
+    const future = screen.getByRole("button", { name: "15" }) as HTMLButtonElement;
+    expect(future.disabled).toBe(true);
+    fireEvent.click(future);
+    expect(onSelectDate).not.toHaveBeenCalled();
+
+    expect((screen.getByRole("button", { name: "14" }) as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByRole("button", { name: "13" }) as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("別の月を見ているときの「今日」で今日の日付に戻す", () => {
