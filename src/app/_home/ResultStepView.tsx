@@ -21,7 +21,7 @@ export function ResultStepView({ isTodaySelected, currentOutcome, onSelectOutcom
     <section>
       <h2 className="mb-3 text-[15px] font-bold">{isTodaySelected ? "今日はどうだった？" : "この日はどうだった？"}</h2>
       {/* 「朝起きた時間は？」の選択肢と同じ大きさ(丸いチップ)にそろえる。 */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex gap-2">
         {OUTCOME_OPTIONS.map((opt) => {
           const isSelected = opt.value === currentOutcome;
           return (
@@ -30,12 +30,12 @@ export function ResultStepView({ isTodaySelected, currentOutcome, onSelectOutcom
               type="button"
               onClick={() => onSelectOutcome(opt.value)}
               aria-pressed={isSelected}
-              className={`flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] font-medium active:scale-[0.98] ${OUTCOME_STYLES[opt.value]} ${
+              className={`flex flex-1 items-center justify-center gap-1 whitespace-nowrap rounded-full border px-2 py-2 text-[13px] font-medium active:scale-[0.98] ${OUTCOME_STYLES[opt.value]} ${
                 isSelected ? "ring-2 ring-offset-1 ring-[var(--accent)]" : ""
               }`}
             >
               <span>{opt.emoji}</span>
-              <span>{opt.label}</span>
+              <span>{opt.shortLabel}</span>
               {isSelected && <span aria-hidden="true">✓</span>}
             </button>
           );

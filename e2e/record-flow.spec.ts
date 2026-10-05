@@ -8,7 +8,7 @@ test("記録フォームに入力して保存すると、ホームとタイム�
   await page.getByRole("button", { name: "今日の様子を記録する" }).click();
 
   // 結果の選択は同じページ内で完結し、画面遷移しない。選ぶと理由欄が現れる。
-  await page.getByRole("button", { name: /スムーズに行けた/ }).click();
+  await page.getByRole("button", { name: /スムーズ/ }).click();
 
   await page.getByRole("button", { name: "早寝早起きできた", exact: true }).click();
 
