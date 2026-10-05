@@ -756,3 +756,40 @@ npm run test:e2e       # Playwright（dev サーバーを自動起動）
 - Dependabot（`.github/dependabot.yml`）: npmとGitHub Actionsを週次（月曜9:00 JST）で確認。npmのminor/patchは1本のグループPRにまとめ、メジャーは個別PR。ただし `eslint` と `typescript` のメジャーは無視（`eslint-config-next` 配下のプラグインや `typescript-eslint` が未対応のため。理由は同ファイルのコメント）。`vitest` 5 と `@types/node` は更新済みで無視対象ではない。
 - Actionsはコミットで固定し、Dependabotが追随する（Supabase CLIの `with.version` は対象外のため手動で上げる）。
 
+## 11. 計測（記録フローのアナリティクス）
+
+「サッと記録できる」（§1.3）が実際に達成できているかを見るため、記録フローの所要時間と離脱を `analytics_events` に計測する（`src/lib/analytics.ts` の `track()`）。
+
+### 11.1 送信の方針
+
+- **ログイン前（オフライン専用利用）は何も送らない**。
+- fire-and-forget。送信失敗は `console.error` に留め、記録の保存（Dexie/Supabase）には影響させない。オフラインキューは持たず、完全オフライン中のイベントは失う（許容）。
+- `record_id` には各記録の `FormState.id`（UUID）を使い、フロー内の一連のイベントを紐づける。
+- 送るのは件数・真偽値・区分名のみで、メモやタグの文言は含めない。
+- 読み取りはクライアントから不可（RLS）。集計はSupabaseダッシュボードのSQL Editor／service role側で行う。
+
+### 11.2 イベント
+
+| イベント | 発火 | 主なプロパティ |
+|---|---|---|
+| `record_flow_started` | ホームの開始ボタン、要約カードの編集ボタン、アプリ内リマインドの「記録する」、タイムライン等の編集リンクで既存記録を開いたとき | `entry_point`（`home_start_button` / `home_edit_existing` / `push_reminder` / `timeline_edit_link`）、`is_edit`、`date_offset_days`（今日=0、過去日は負） |
+| `record_step_viewed` | ホームからフォームへ**ユーザー操作で**進んだとき（下書き復元・編集リンクでは発火しない） | `step`（現行は `form` のみ）、`direction` |
+| `record_outcome_selected` | 結果を選んだとき | `outcome`、`changed_from_existing` |
+| `record_saved` | 保存したとき | `reason_tag_count`、`has_memo`、`depart_time_set`、`is_edit`（下書き復元経由のセッションでは不明のため省略） |
+| `record_flow_paused` | 保存せずにホームへ戻ったとき（戻る・下部ナビ） | `last_step`、`reason`（`bottom_nav_reset` / `back_navigation`） |
+| `record_flow_resumed` | 下書きから復元したとき | `resumed_step` |
+
+- `entry_point: push_reminder` は名前に反して、**アプリ内リマインド**（§4.1）の「記録する」経由を指す（Push通知のタップは計測していない）。**要確認 Q17**
+- `record_flow_paused` と `record_flow_resumed` は対にならない。戻る・リセットで離脱すると下書きも消えるため、その入力が再開されることはない。`record_flow_resumed` が対応するのは、タブ/アプリを閉じて（ホームを経由せず）離れ、下書きが残ったまま再訪したケースのみで、そちらは `paused` 側では検知しない（`beforeunload` 等は未実装）。
+
+### 11.3 集計ビュー（`supabase/schema.sql`）
+
+いずれも `authenticated` / `anon` へgrantしておらず、PostgREST経由では公開されない（ダッシュボード/service role専用）。
+
+| ビュー | 内容 |
+|---|---|
+| `analytics_record_flow_sessions` | 他のビューの土台。`record_id` × セッション（`started`/`resumed` で開始、`saved`/`paused` で終了）に再構成し、所要秒数等を算出 |
+| `analytics_flow_duration_daily` | 主指標。**新規記録・中断なしで完走**したセッションの所要秒数を、日別・`entry_point`別に平均/中央値/p90で集計 |
+| `analytics_step_funnel_daily` | 各ステップ到達数の日別集計（離脱率用）。**`step = 'result'` / `'reason'` を数える定義のまま**で、フローが1画面になった現行アプリは `form` しか送らないため、`reached_result` / `reached_reason` は新しいデータでは常に0になる。**要確認 Q3** |
+| `analytics_pause_resume_daily` | 離脱理由別の件数と、うち再開を伴った件数（上記の理由で再開はほぼ0になる想定） |
+
