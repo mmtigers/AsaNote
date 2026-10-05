@@ -20,7 +20,8 @@ export function ResultStepView({ isTodaySelected, currentOutcome, onSelectOutcom
   return (
     <section>
       <h2 className="mb-3 text-[15px] font-bold">{isTodaySelected ? "今日はどうだった？" : "この日はどうだった？"}</h2>
-      <div className="flex flex-col gap-3">
+      {/* 「朝起きた時間は？」の選択肢と同じ大きさ(丸いチップ)にそろえる。 */}
+      <div className="flex flex-wrap gap-2">
         {OUTCOME_OPTIONS.map((opt) => {
           const isSelected = opt.value === currentOutcome;
           return (
@@ -29,20 +30,13 @@ export function ResultStepView({ isTodaySelected, currentOutcome, onSelectOutcom
               type="button"
               onClick={() => onSelectOutcome(opt.value)}
               aria-pressed={isSelected}
-              className={`relative flex items-center gap-4 rounded-3xl border-2 px-5 py-5 text-left shadow-sm active:scale-[0.98] ${OUTCOME_STYLES[opt.value]} ${
-                isSelected ? "ring-2 ring-offset-2 ring-[var(--accent)]" : ""
+              className={`flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-[13px] font-medium active:scale-[0.98] ${OUTCOME_STYLES[opt.value]} ${
+                isSelected ? "ring-2 ring-offset-1 ring-[var(--accent)]" : ""
               }`}
             >
-              <span className="text-4xl">{opt.emoji}</span>
-              <span className="text-base font-bold">{opt.label}</span>
-              {isSelected && (
-                <span
-                  aria-hidden="true"
-                  className="absolute right-4 top-4 flex h-6 w-6 items-center justify-center rounded-full bg-[var(--accent)] text-sm font-bold text-[var(--accent-ink)]"
-                >
-                  ✓
-                </span>
-              )}
+              <span>{opt.emoji}</span>
+              <span>{opt.label}</span>
+              {isSelected && <span aria-hidden="true">✓</span>}
             </button>
           );
         })}
