@@ -608,3 +608,60 @@ DBに一意制約が無く、2端末でオフライン中に同じ日を新規�
 - 記録の保存・閲覧はIndexedDBで完結するため、ページが開ければオフラインでも記録・閲覧できる。サーバーとの通信（ログイン、グループ、子ども、通知設定）はオンラインが必要。
 - `manifest.webmanifest`: `display: standalone`、`orientation: portrait`、`start_url: /`、アイコン192/512/maskable。
 
+## 8. サーバー運用
+
+### 8.1 構成
+
+- アプリ本体: Next.js（App Router）のPWA。ホスティング先はコードから確定できない（`docs/push-notifications-setup.md` に Vercel を前提とした記述がある）。**要確認 Q12**
+- バックエンド: Supabase（Postgres・Auth・Edge Functions・`pg_cron`・`pg_net`）。クライアントは `src/lib/supabase/client.ts` で遅延生成し、環境変数が未設定でもビルド・SSR・オフライン利用が失敗しないようにしている。
+
+### 8.2 `schema.sql` の自動適用
+
+`supabase/schema.sql` がスキーマ・RLS・SQL関数・計測ビューの正。初回はSupabaseのSQL Editorで実行して構築し、以降は `main` へのマージ時（`schema.sql` または `db-deploy.yml` に変更がある場合）に `.github/workflows/db-deploy.yml` が本番へ適用する（手動実行 `workflow_dispatch` も可）。
+
+- 接続文字列はリポジトリのシークレット `SUPABASE_DB_URL`（Supabase の **Session pooler** の接続文字列。GitHub ActionsのランナーはIPv4のみで、directの接続はIPv6のため使えない）。未設定なら先に失敗させる。
+- `psql --set ON_ERROR_STOP=1 --single-transaction` で適用する（途中で失敗したら何も適用しない）。同時実行はせず、途中で打ち切らない（`concurrency`）。
+- `schema.sql` は冪等（`create table if not exists` / `add column if not exists` / `drop policy if exists`→`create policy` / `create or replace function`）で `drop table` を含まないため、毎回まるごと適用してよい。**列の削除・リネームはこの仕組みでは届かない**。その場合はSQL Editorで手動実施するか、マイグレーション方式への移行を検討する（#46）。
+- CIの `db-types-check` とは役割が別。あちらは一時Postgresに適用して型のずれを調べるだけで、本番には触れない（§10）。
+
+### 8.3 自動化されないデプロイ
+
+| 作業 | 手順の場所 |
+|---|---|
+| Edge Function（`send-reminders` / `notify-partner`）のデプロイ、VAPIDシークレット設定 | `docs/push-notifications-setup.md` |
+| `pg_cron` の登録（`supabase/cron-reminders.sql`） | 同上。`<PROJECT_REF>` と `<SERVICE_ROLE_KEY>` を実値に置き換えてSQL Editorで実行 |
+| パートナー通知のトリガー作成（`supabase/partner-notify-trigger.sql`） | 同上 |
+| Supabase Auth の URL 設定 | 下記 |
+
+### 8.4 環境変数・シークレット
+
+| 名前 | 置き場所 | 用途 |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` | ビルド環境（ローカルは `.env.local`） | Supabaseへの接続（公開してよい値） |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | 同上（ビルド時に埋め込まれる。変更後は再デプロイが必要） | Push購読の作成。未設定だと通知をONにできない |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | Supabase Edge Functionのシークレット（`supabase secrets set`） | Push送信。秘密鍵は絶対にコミットしない |
+| `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | Edge Functionには自動注入 | Edge Functionのservice role接続 |
+| `SUPABASE_DB_URL` | GitHubリポジトリのシークレット | `db-deploy.yml` |
+| `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | 実行時の環境変数（手元） | `scripts/import-records.mjs` |
+
+### 8.5 Supabase Auth の設定
+
+ダッシュボードの Authentication → URL Configuration で、**Site URL と Redirect URLs** にアプリのURL（開発は `http://localhost:3000`、本番は実ドメイン）を登録する。未設定だとマジックリンクのリダイレクトが失敗する。
+
+### 8.6 スクリプト
+
+| スクリプト | 用途 |
+|---|---|
+| `npm run db:types`（`scripts/gen-db-types.sh`） | Dockerの一時Postgresに `supabase/ci/auth-stub.sql` と `schema.sql` を適用し、`supabase gen types` で `src/lib/db/database.types.ts` を再生成する（手で編集しない） |
+| `scripts/import-records.mjs` | 過去の記録を指定メールのユーザー名義でまとめて登録する管理者向けスクリプト。service role で動き、同じユーザー・日付（・子ども）の記録があれば更新、無ければ作成する（冪等）。使い方はファイル冒頭のコメント |
+
+### 8.7 ローカル開発
+
+```bash
+npm install
+cp .env.local.example .env.local   # Supabase の URL / anon key（Pushを試すなら VAPID 公開鍵も）
+npm run dev
+```
+
+Supabase未接続でも、ログインせずに端末内での記録・閲覧はできる。このNext.jsは一般的な知識と異なる破壊的変更を含むため、実装前に `node_modules/next/dist/docs/` の該当ガイドを読むこと（`AGENTS.md`）。
+
