@@ -723,3 +723,36 @@ docs/                     SPEC.md（本書）, push-notifications-setup.md
 - `supabase/functions/` はDeno向けで、このNode/Next.jsプロジェクトの `tsc` と ESLint の対象外（`tsconfig.json` の `exclude` と `eslint.config.mjs` の `globalIgnores`）。純粋ロジック（`_shared/pushLogic.ts`）だけ切り出してあり、Vitestで検証する。
 - 選択肢（結果・理由タグ）を増減するときは `src/constants/choices.ts` だけを触る。旧フォーム由来の選択肢は、過去記録の表示のためだけに残している。
 
+## 10. テスト・CI
+
+### 10.1 ローカルコマンド
+
+```bash
+npm run lint           # ESLint
+npm run test           # Vitest（ユニット）
+npm run test:coverage  # カバレッジ付き（CIと同じ。閾値なし）
+npm run build          # 型チェック込みの本番ビルド
+npm run test:e2e       # Playwright（dev サーバーを自動起動）
+```
+
+### 10.2 テストの方針
+
+- **ユニット（Vitest）**: `src/**/*.test.{ts,tsx}` と `supabase/functions/**/*.test.ts`。環境は jsdom、IndexedDBは `fake-indexeddb`（`vitest.setup.ts`）。フォームの状態遷移、日付処理、同期、エクスポート抽出、グループ操作、集計、Pushの純粋ロジックなど主要ロジックにはテストが付随する。カバレッジは計測・可視化が目的で、閾値による失敗は設けていない。
+- **E2E（Playwright）**: `e2e/record-flow.spec.ts`。**ログイン不要の範囲のみ**（Supabaseはダミー値）。(1) 記録の入力→保存→ホームとタイムラインへの反映→編集リンク、(2) フォームの途中で下部ナビの「記録する」を押すと最初の画面に戻る。グループ・ログインを伴うE2Eは未整備。chromiumのみ。
+- `src/lib/ci-workflow.test.ts` が `ci.yml` のアクション参照のSHA固定を検査する。
+
+### 10.3 CIジョブ（`.github/workflows/ci.yml`）
+
+トリガー: `main` / `master` への push と、それらへのPR（`opened` / `synchronize` / `reopened` / `labeled` / `unlabeled` / `edited`。ラベル・PR本文による例外指定を直後に反映するため）。同じ参照の古い実行は打ち切る。全ジョブ読み取り専用権限（`contents: read`）で、タイムアウトを設定している。
+
+| ジョブ | 内容 |
+|---|---|
+| `lint-build-test` | `npm ci` → `npm audit --audit-level=high --omit=dev`（本番依存のみ） → `lint` → `next typegen` → `tsc --noEmit` → `test:coverage`（`coverage-report` 成果物を14日保存） → `build`（ダミーのSupabase環境変数） |
+| `e2e-test` | chromiumを入れて `npm run test:e2e`。失敗時のみ `playwright-report` を7日保存 |
+| `db-types-check` | `postgres:16` に `auth-stub.sql` と `schema.sql` を適用し、固定版のSupabase CLI（2.117.0）で `supabase gen types` した結果が `src/lib/db/database.types.ts` と一致するか検査。ずれたら `npm run db:types`（要Docker）で再生成を促す |
+| `release-notes-check` | `scripts/check-release-notes.mjs`（テスト: `src/lib/releaseNotesCheck.test.ts`）。判定条件と例外は本書冒頭の更新ルール |
+
+- 本番への反映は別のワークフロー（`db-deploy.yml`、§8.2）。
+- Dependabot（`.github/dependabot.yml`）: npmとGitHub Actionsを週次（月曜9:00 JST）で確認。npmのminor/patchは1本のグループPRにまとめ、メジャーは個別PR。ただし `eslint` と `typescript` のメジャーは無視（`eslint-config-next` 配下のプラグインや `typescript-eslint` が未対応のため。理由は同ファイルのコメント）。`vitest` 5 と `@types/node` は更新済みで無視対象ではない。
+- Actionsはコミットで固定し、Dependabotが追随する（Supabase CLIの `with.version` は対象外のため手動で上げる）。
+
