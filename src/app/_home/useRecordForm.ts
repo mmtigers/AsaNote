@@ -34,6 +34,8 @@ export function useRecordForm({ date, today, userId, childId, cameFromEditLink, 
   const [loaded, setLoaded] = useState(false);
   const [customReasonTags, setCustomReasonTags] = useState<string[]>([]);
   const [toast, setToast] = useState(false);
+  // 保存に失敗したときのエラー文。失敗時はフォームを保持し、トースト・ホーム遷移もしない。
+  const [saveError, setSaveError] = useState<string | null>(null);
   // この日付に元々(このセッション開始前から)outcome入りの記録が既にあったか。
   // record_savedのis_edit判定に使う(#計測)。下書き復元パスはDexieへ問い合わせ直さない
   // ため(既存の性能上の判断。下のuseEffect参照)、その場合はundefinedのまま=不明として
@@ -154,23 +156,29 @@ export function useRecordForm({ date, today, userId, childId, cameFromEditLink, 
     // #57: textarea の maxLength をすり抜ける経路(貼り付け・下書き復元・IME)があっても、
     // DB の CHECK 制約(2000字)を超えたメモを保存しない。超えると同期が永久に失敗し続ける。
     const memo = form.memo.slice(0, MEMO_MAX_LENGTH);
-    await saveRecord({
-      id: form.id,
-      recordDate: date,
-      outcome: form.outcome,
-      reasonTags: form.reasonTags,
-      departTime: form.departTime || null,
-      memo: memo || null,
-      conditionScale: form.conditionScale,
-      wakeTime: form.wakeTime || null,
-      wakeTags: form.wakeTags,
-      triggerTags: form.triggerTags,
-      responseTags: form.responseTags,
-      companion: form.companion || null,
-      handoff: form.handoff || null,
-      userId: userId ?? null,
-      childId,
-    });
+    setSaveError(null);
+    try {
+      await saveRecord({
+        id: form.id,
+        recordDate: date,
+        outcome: form.outcome,
+        reasonTags: form.reasonTags,
+        departTime: form.departTime || null,
+        memo: memo || null,
+        conditionScale: form.conditionScale,
+        wakeTime: form.wakeTime || null,
+        wakeTags: form.wakeTags,
+        triggerTags: form.triggerTags,
+        responseTags: form.responseTags,
+        companion: form.companion || null,
+        handoff: form.handoff || null,
+        userId: userId ?? null,
+        childId,
+      });
+    } catch {
+      setSaveError("保存できませんでした。入力内容はそのまま残っています。もう一度お試しください。");
+      return;
+    }
     const properties: Record<string, unknown> = {
       reason_tag_count: form.reasonTags.length,
       has_memo: !!memo,
@@ -195,6 +203,7 @@ export function useRecordForm({ date, today, userId, childId, cameFromEditLink, 
     customReasonTags,
     setCustomReasonTags,
     toast,
+    saveError,
     reasonOptions,
     preview,
     selectedOutcome,

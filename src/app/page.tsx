@@ -83,6 +83,7 @@ export default function HomePage() {
     loaded,
     setCustomReasonTags,
     toast,
+    saveError,
     reasonOptions,
     preview,
     selectedOutcome,
@@ -266,6 +267,7 @@ export default function HomePage() {
               onMemoChange={(value) => setForm((f) => ({ ...f, memo: value }))}
               preview={preview}
               loaded={loaded}
+              saveError={saveError}
               onSave={handleSave}
             />
           )}

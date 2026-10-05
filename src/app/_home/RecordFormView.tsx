@@ -23,6 +23,7 @@ interface RecordFormViewProps {
   onMemoChange: (value: string) => void;
   preview: string;
   loaded: boolean;
+  saveError: string | null;
   onSave: () => void;
 }
 
@@ -42,6 +43,7 @@ export function RecordFormView({
   onMemoChange,
   preview,
   loaded,
+  saveError,
   onSave,
 }: RecordFormViewProps) {
   return (
@@ -97,6 +99,11 @@ export function RecordFormView({
 
       {!outcome && (
         <p className="text-center text-[12px] text-[var(--sub)]">「{isTodaySelected ? "今日" : "この日"}はどうだった？」を選ぶと保存できます</p>
+      )}
+      {saveError && (
+        <p role="alert" className="text-center text-[13px] font-semibold text-[var(--accent)]">
+          {saveError}
+        </p>
       )}
       <button
         type="button"

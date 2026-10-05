@@ -52,6 +52,7 @@ export default function TimelinePage() {
   // 「常にすべてから始める」方針に揃える。
   const [filterOutcome, setFilterOutcome] = useState<Outcome | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState(false);
 
   const visibleRecords = records?.filter(
     (r) =>
@@ -61,7 +62,12 @@ export default function TimelinePage() {
 
   async function handleConfirmDelete() {
     if (!deleteTarget) return;
-    await deleteRecord(deleteTarget);
+    setDeleteError(false);
+    try {
+      await deleteRecord(deleteTarget);
+    } catch {
+      setDeleteError(true);
+    }
     setDeleteTarget(null);
   }
 
@@ -200,6 +206,12 @@ export default function TimelinePage() {
             );
           })}
         </ul>
+      )}
+
+      {deleteError && (
+        <p role="alert" className="text-center text-[13px] font-semibold text-[var(--accent)]">
+          削除できませんでした。もう一度お試しください。
+        </p>
       )}
 
       <ConfirmDialog

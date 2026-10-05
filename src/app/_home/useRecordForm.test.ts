@@ -212,6 +212,32 @@ describe("useRecordForm", () => {
     expect(result.current.toast).toBe(false);
   });
 
+  it("saveRecordが失敗したら、エラーを出し、toast・goHomeをせずフォームを保持する(#132)", async () => {
+    saveRecordMock.mockRejectedValueOnce(new Error("QuotaExceededError"));
+    const { result, goHome } = renderUseRecordForm();
+    await waitFor(() => expect(result.current.loaded).toBe(true));
+    act(() => {
+      result.current.setForm((f) => ({ ...f, memo: "入力中のメモ" }));
+    });
+
+    await act(async () => {
+      await result.current.handleSave();
+    });
+
+    expect(result.current.saveError).not.toBeNull();
+    expect(result.current.toast).toBe(false);
+    expect(goHome).not.toHaveBeenCalled();
+    expect(trackMock).not.toHaveBeenCalledWith("record_saved", expect.anything(), expect.anything());
+    expect(result.current.form.memo).toBe("入力中のメモ");
+
+    await act(async () => {
+      await result.current.handleSave();
+    });
+
+    expect(result.current.saveError).toBeNull();
+    expect(goHome).toHaveBeenCalledTimes(1);
+  });
+
   it("日付を切り替えた後は、前の日付のis_edit判定を引きずらない(#バグ修正)", async () => {
     const existingOnDateA = makeExisting({ outcome: "smooth" });
     findLatestOwnRecordForDateMock.mockResolvedValueOnce(existingOnDateA);
