@@ -793,3 +793,19 @@ npm run test:e2e       # Playwright（dev サーバーを自動起動）
 | `analytics_step_funnel_daily` | 各ステップ到達数の日別集計（離脱率用）。**`step = 'result'` / `'reason'` を数える定義のまま**で、フローが1画面になった現行アプリは `form` しか送らないため、`reached_result` / `reached_reason` は新しいデータでは常に0になる。**要確認 Q3** |
 | `analytics_pause_resume_daily` | 離脱理由別の件数と、うち再開を伴った件数（上記の理由で再開はほぼ0になる想定） |
 
+## 12. 非機能要件
+
+| 区分 | 要件・現状 |
+|---|---|
+| 対応環境 | スマートフォンでの縦向き・片手操作を想定（`max-w-md` の1カラム、下部ナビ、`orientation: portrait`）。IndexedDB・Service Worker が使えるブラウザが前提。Push通知はさらに Push API と Notification が必要で、iOSはホーム画面に追加したPWAとして開く必要がある。対応ブラウザの公式な範囲は確認できない（**要確認 Q12**） |
+| オフライン | 記録の保存・閲覧は通信に依存しない（IndexedDB先行）。通信が戻れば自動で同期する（§7）。ログイン・グループ・子ども・通知設定はオンライン必須 |
+| データ整合 | 記録IDはクライアント生成で同期は冪等。未送信の変更があるうちは端末データを消さない（ログアウト時の確認）。競合は「後から同期した側が残る」割り切り（§7.4） |
+| パフォーマンス | 数値目標（応答時間・同期時間など）はコード・文書に無い。実装上、タイムライン・傾向は端末内の全記録を読み込んで画面側で絞る（家族1組の記録量を前提）。pull は500件ずつのページング |
+| 時刻・日付 | 日付は端末のローカルタイムゾーン（日本）として解釈し、`new Date("YYYY-MM-DD")` のUTC解釈による1日ずれを避ける（`src/lib/date.ts`）。Pushのリマインドは**JST固定**。端末のタイムゾーンがJSTでない場合、アプリ内リマインド（端末時刻）とPush（JST）の基準がずれる |
+| アクセシビリティ | 選択ボタンに `aria-pressed`、保存トーストに `role="status"` / `aria-live`、確認ダイアログに `role="alertdialog"`、フォーカスリング、`<html lang="ja">`。`prefers-reduced-motion` で画面遷移アニメーションを実質停止。**ピンチ拡大は意図的に禁止**している（ホーム画面起動のPWAでネイティブに近い操作感を保ち、入力時の自動ズームやダブルタップ拡大を避けるため。WCAG 1.4.4 の観点では望ましくないと承知の上の判断で、2026-09-18に決定。見直すなら本文のコントラストと文字サイズを確認し、`userScalable` と `maximumScale` をセットで外す。`src/app/layout.tsx`） |
+| 表示テーマ | OSのダークモードに追従（`prefers-color-scheme`）。結果ごとの色は淡色背景＋ドット＋文言の併用 |
+| フォント | Google Fonts（Zen Maru Gothic / Noto Sans JP）を外部から取得。ServiceWorkerは他オリジンをキャッシュしないため、オフライン時は代替フォント（**要確認 Q18**） |
+| 計測 | §11。ログイン中のみ、内容は含めない |
+| 保守性 | 選択肢は `constants/choices.ts`、所有判定は `ownership.ts`、localStorageの定型は `localStorageStore.ts` に集約（片方だけ直して食い違うのを防ぐ） |
+| エラー表示 | 想定外エラーは `error.tsx` / `global-error.tsx`（「記録はこの端末に保存されている」旨を案内）、404は `not-found.tsx`。いずれも日本語 |
+
