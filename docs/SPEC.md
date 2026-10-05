@@ -399,7 +399,7 @@ Supabase Edge Function `send-reminders`（`supabase/functions/send-reminders/ind
 | `wakeTags` / `triggerTags` / `responseTags` | `wake_tags` / `trigger_tags` / `response_tags` | text[], not null | 旧フォーム（〜v1）のタグ。入力不可、表示・エクスポートのためだけに保持 |
 | `companion` / `handoff` | `companion` / `handoff` | text, null可 | 旧フォームの同行者・引き渡し先。同上 |
 | `syncStatus` | （サーバーに無い） | `"pending"` \| `"synced"` | ローカル専用。§5.4 |
-| （対応なし） | `struggled` | boolean, null可 | 旧フォームの「登校を渋ったか」。**アプリは読み書きしない**（`schema.sql` と生成型にのみ現れる）。削除は #46 で扱う方針（時期は **要確認 Q20**） |
+| （対応なし） | `struggled` | boolean, null可 | 旧フォームの「登校を渋ったか」。**アプリは読み書きしない**（`schema.sql` と生成型にのみ現れる）。列の削除は #46 で扱う方針で、旧タグ群とまとめて2027年9月頃に再検討する（[#114](https://github.com/mmtigers/AsaNote/issues/114)） |
 
 索引: `idx_records_user_id`、`idx_records_record_date`。**`(user_id, record_date, child_id)` の一意制約は無い**（§7.5）。
 
@@ -612,7 +612,7 @@ DBに一意制約が無く、2端末でオフライン中に同じ日を新規�
 
 ### 8.1 構成
 
-- アプリ本体: Next.js（App Router）のPWA。ホスティング先はコードから確定できない（`docs/push-notifications-setup.md` に Vercel を前提とした記述がある）。**要確認 Q12**
+- アプリ本体: Next.js（App Router）のPWA。ホスティング先は Vercel（プロジェクト名 `go-to-school`。PRごとにプレビューがデプロイされる）。本番URLや対応ブラウザの公式範囲は確認できない。**要確認 Q12**
 - バックエンド: Supabase（Postgres・Auth・Edge Functions・`pg_cron`・`pg_net`）。クライアントは `src/lib/supabase/client.ts` で遅延生成し、環境変数が未設定でもビルド・SSR・オフライン利用が失敗しないようにしている。
 
 ### 8.2 `schema.sql` の自動適用
@@ -828,24 +828,24 @@ npm run test:e2e       # Playwright（dev サーバーを自動起動）
 
 ### 13.2 既知の制約・未解決事項
 
-仕様として確定しているものと、意図が未確認のもの（要確認 Qn）を含む。
+仕様として確定しているものと、意図が未確認のもの（要確認 Qn）を含む。解決・調査が必要なものは Issue で追跡している（各項目の末尾のリンク）。
 
 - **記録の一意性はアプリ側のみ**: DBに `(user_id, record_date, child_id)` の一意制約が無く、2端末でオフライン中に同じ日を作ると2件になる（§7.5）。
 - **競合は順序依存**: 後から同期した側が残る（§7.4）。
-- **パートナーの記録の反映タイミング**: pull は起動時・ログイン・グループ参加/脱退時のみ（§7.3）。Q9
-- **子ども一覧はオンライン必須**: オフラインで起動して子ども一覧を取得できないと、複数の子どもがいる家庭でも記録が `childId: null` で保存される。Q8
-- **タイムライン/エクスポートで子どもを識別しにくい**: カードに子ども名が出ない。エクスポートは子どもで分けられない。Q14
-- **グループは1ユーザー1つ**。3人以上の運用は未検証。最後のメンバーが脱退したグループ・招待コードは残る。子どもの作成者が脱退すると、相手からは（RLSの条件が成り立たず）その子どもが見えなくなる。Q10
-- **招待コードの総当たり耐性**: アプリ側の試行制限なし。Q11
-- **Pushのリマインドは分単位の完全一致**: その分に実行が欠けるとその日は届かない（§4.3）。
-- **ログアウトで消えないもの**: `localStorage`（下書き等）とPush購読。Q16 / Q5
-- **IndexedDB書き込み失敗の専用UIなし**（§3.1.7）。
-- **初回訪問直後のオフライン起動**: 未検証（§7.7）。Q15
-- **未来日の記録が可能**。Q19
-- **表示の不統一**: タイムライン/CSVの起床時刻は代表値で出る（Q1）。印刷のタイトルに `.csv` が付く（Q2）。
-- **計測**: 段階別ビューが旧ステップ名のまま（Q3）。`entry_point` の名称と実態が違う（Q17）。
-- **死蔵コード**: `ConditionScalePicker`（Q4）、`unsubscribeCurrentDevice`（Q5）。
-- **テーマ色の不一致**: `manifest` の `theme_color`（`#f6f3ec`）と layout の `themeColor`・CSSの背景（`#fff5f6`）が異なる。Q7
+- **パートナーの記録の反映タイミング**: pull は起動時・ログイン・グループ参加/脱退時のみ（§7.3）。Q9 → [#125](https://github.com/mmtigers/AsaNote/issues/125)
+- **子ども一覧はオンライン必須**: オフラインで起動して子ども一覧を取得できないと、複数の子どもがいる家庭でも記録が `childId: null` で保存される。Q8 → [#126](https://github.com/mmtigers/AsaNote/issues/126)
+- **タイムライン/エクスポートで子どもを識別しにくい**: カードに子ども名が出ない。エクスポートは子どもで分けられない。Q14 → [#127](https://github.com/mmtigers/AsaNote/issues/127)
+- **グループは1ユーザー1つ**。3人以上の運用は未検証。最後のメンバーが脱退したグループ・招待コードは残る。子どもの作成者が脱退すると、相手からは（RLSの条件が成り立たず）その子どもが見えなくなる。Q10 → [#128](https://github.com/mmtigers/AsaNote/issues/128)
+- **招待コードの総当たり耐性**: アプリ側の試行制限なし。Q11 → [#129](https://github.com/mmtigers/AsaNote/issues/129)
+- **Pushのリマインドは分単位の完全一致**: その分に実行が欠けるとその日は届かない（§4.3）。 → [#130](https://github.com/mmtigers/AsaNote/issues/130)
+- **ログアウトで消えないもの**: `localStorage`（下書き等）とPush購読。Q16 / Q5 → [#131](https://github.com/mmtigers/AsaNote/issues/131)
+- **IndexedDB書き込み失敗の専用UIなし**（§3.1.7）。 → [#132](https://github.com/mmtigers/AsaNote/issues/132)
+- **初回訪問直後のオフライン起動**: 未検証（§7.7）。Q15 → [#133](https://github.com/mmtigers/AsaNote/issues/133)
+- **未来日の記録が可能**。Q19 → [#134](https://github.com/mmtigers/AsaNote/issues/134)
+- **表示の不統一**: タイムライン/CSVの起床時刻は代表値で出る（Q1）。印刷のタイトルに `.csv` が付く（Q2）。 → [#135](https://github.com/mmtigers/AsaNote/issues/135)
+- **計測**: 段階別ビューが旧ステップ名のまま（Q3）。`entry_point` の名称と実態が違う（Q17）。 → [#136](https://github.com/mmtigers/AsaNote/issues/136)
+- **死蔵コード**: `ConditionScalePicker`（Q4 → [#137](https://github.com/mmtigers/AsaNote/issues/137)）、`unsubscribeCurrentDevice`（Q5 → [#131](https://github.com/mmtigers/AsaNote/issues/131)）。
+- **テーマ色の不一致**: `manifest` の `theme_color`（`#f6f3ec`）と layout の `themeColor`・CSSの背景（`#fff5f6`）が異なる。Q7 → [#137](https://github.com/mmtigers/AsaNote/issues/137)
 
 ## 14. 用語集
 
@@ -885,7 +885,7 @@ npm run test:e2e       # Playwright（dev サーバーを自動起動）
 | Q9 | パートナーの新規記録が反映されるのは、起動時・ログイン・グループ参加/脱退時のみ。復帰時の取得や定期取得は不要か | §7.3 | `src/lib/auth/AuthProvider.tsx`, `src/app/group/useGroupAdmin.ts` |
 | Q10 | 最後のメンバーが脱退したグループ・招待コードの後始末が無い。子どもの作成者が脱退すると相手から子どもが見えなくなる | §13.2 | `supabase/schema.sql`（`children` / `group_members` ポリシー） |
 | Q11 | 招待コード（8文字×32種）にアプリ側の試行回数制限が無い。Supabase側のレート制限に任せる想定か | §6.4 | `src/lib/db/groups.ts`, `schema.sql` |
-| Q12 | ホスティング先（Vercel は手順書の記述のみ）、本番URL、対応ブラウザ・OSの公式な範囲 | §8.1, §12 | `docs/push-notifications-setup.md` |
+| Q12 | 本番URL、対応ブラウザ・OSの公式な範囲（ホスティング先は Vercel と確認済み） | §8.1, §12 | `docs/push-notifications-setup.md`、PRのVercelプレビュー |
 | Q13 | 想定利用者の範囲（家族内の限定運用か一般公開か）、データの保持期間、退会（アカウント・データ削除）の方針。退会機能はコードに無い | §1.2, §6.5 | README、コード全般 |
 | Q14 | タイムラインのカードに子ども名が出ない／エクスポートが子どもで分かれない。意図か | §3.2, §3.4 | `src/app/timeline/page.tsx`, `src/app/export/page.tsx` |
 | Q15 | 初回訪問直後にオフラインで起動できるか（プリキャッシュは `/` とアイコンのみで、JS等は遅延キャッシュ）。未検証 | §7.7 | `public/sw.js` |
@@ -893,5 +893,4 @@ npm run test:e2e       # Playwright（dev サーバーを自動起動）
 | Q17 | 計測の `entry_point: "push_reminder"` はアプリ内リマインド経由。名称を直すか、Push通知のタップを別に計測するか | §11.2 | `src/app/page.tsx` |
 | Q18 | Google Fonts を外部から取得（CSSの `@import`）。プライバシー・オフライン時の見た目の方針 | §6.5, §12 | `src/app/globals.css`, `public/sw.js` |
 | Q19 | ホームのカレンダーは未来日も選べて記録できる。意図か | §3.1.1 | `src/components/MonthCalendar.tsx`, `src/app/page.tsx` |
-| Q20 | `struggled` 列の削除時期。旧版のSPECに「2027年9月頃」とあったが、コード・他文書に根拠が無い | §5.1 | `supabase/schema.sql`, `.github/workflows/db-deploy.yml`（#46への言及のみ） |
 
