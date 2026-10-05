@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCsvContent,
+  buildCsvFilename,
   buildExportFilename,
   selectExportEntries,
   type CsvableRecord,
@@ -129,7 +130,7 @@ describe("buildCsvContent", () => {
     );
     const [header, row] = csv.split("\r\n");
     expect(header).toBe("日付,曜日,結果,起床時刻,出発時刻,タグ,メモ,記録者");
-    expect(row).toBe("2026-09-10,木,スムーズに行けた,07:00,8時より前,早寝早起きできた,順調でした,自分");
+    expect(row).toBe("2026-09-10,木,スムーズに行けた,7時〜7時15分,8時より前,早寝早起きできた,順調でした,自分");
   });
 
   it("パートナーの記録は記録者列を「パートナー」にし、個人情報は含めない", () => {
@@ -157,10 +158,16 @@ describe("buildCsvContent", () => {
 
 describe("buildExportFilename", () => {
   it("開始日と終了日が同じなら単日形式にする", () => {
-    expect(buildExportFilename("2026-09-10", "2026-09-10")).toBe("asanote_20260910.csv");
+    expect(buildExportFilename("2026-09-10", "2026-09-10")).toBe("asanote_20260910");
   });
 
   it("開始日と終了日が違えば期間形式にする", () => {
-    expect(buildExportFilename("2026-09-01", "2026-09-30")).toBe("asanote_20260901-20260930.csv");
+    expect(buildExportFilename("2026-09-01", "2026-09-30")).toBe("asanote_20260901-20260930");
+  });
+});
+
+describe("buildCsvFilename", () => {
+  it("印刷用の名前に .csv を付ける", () => {
+    expect(buildCsvFilename("2026-09-10", "2026-09-10")).toBe("asanote_20260910.csv");
   });
 });

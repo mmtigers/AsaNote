@@ -1,6 +1,7 @@
 import { isOwnRecord } from "@/lib/db/ownership";
 import { OUTCOME_OPTIONS, type Outcome } from "@/constants/choices";
 import { departTimeLabel } from "@/lib/departTime";
+import { wakeTimeLabel } from "@/lib/wakeTime";
 import { parseDateInputValue, WEEKDAYS } from "@/lib/date";
 
 export interface ExportableRecord {
@@ -43,10 +44,15 @@ export function selectExportEntries<T extends ExportableRecord>(
 // エクスポートファイル名(#2-2)。「印刷する」→「PDFとして保存」時にブラウザが
 // document.title を保存ファイル名の候補にすることを利用し、対象期間を含める。
 // 単日なら asanote_YYYYMMDD、期間があれば asanote_YYYYMMDD-YYYYMMDD。
+// 拡張子は付けない(印刷用タイトルにそのまま使う。CSVは buildCsvFilename)。
 export function buildExportFilename(startDate: string, endDate: string): string {
   const start = startDate.replaceAll("-", "");
   const end = endDate.replaceAll("-", "");
-  return start === end ? `asanote_${start}.csv` : `asanote_${start}-${end}.csv`;
+  return start === end ? `asanote_${start}` : `asanote_${start}-${end}`;
+}
+
+export function buildCsvFilename(startDate: string, endDate: string): string {
+  return `${buildExportFilename(startDate, endDate)}.csv`;
 }
 
 const CSV_HEADER = ["日付", "曜日", "結果", "起床時刻", "出発時刻", "タグ", "メモ", "記録者"];
@@ -75,7 +81,7 @@ export function buildCsvContent<T extends CsvableRecord>(
       record.recordDate,
       weekday,
       outcomeLabel,
-      record.wakeTime ?? "",
+      wakeTimeLabel(record.wakeTime) ?? "",
       departTimeLabel(record.departTime) ?? "",
       tags.join("、"),
       record.memo ?? "",
