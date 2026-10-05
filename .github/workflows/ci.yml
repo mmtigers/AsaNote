@@ -31,8 +31,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # 本番に入る依存(dependencies)だけを検査する。devDependencies(eslint-config-next 経由の
+      # braces, GHSA-vfj7-8cjw-p6xm)には npm 上に修正版が無く、本番コードには入らないため対象外。
+      # braces に修正版が出たら --omit=dev を外して全依存の検査へ戻す。
       - name: Security audit
-        run: npm audit --audit-level=high
+        run: npm audit --audit-level=high --omit=dev
 
       - name: Lint
         run: npm run lint

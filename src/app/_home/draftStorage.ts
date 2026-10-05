@@ -6,7 +6,11 @@ import type { Draft } from "./types";
 export function loadDraft(): Draft | null {
   try {
     const raw = window.localStorage.getItem(DRAFT_STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as Draft) : null;
+    if (!raw) return null;
+    const draft = JSON.parse(raw) as Draft;
+    // 記録フローが1ページ化される前の下書きは step が "result" / "reason" になっている。
+    // 入力途中の内容を失わないよう、home 以外はすべて "form" として扱う。
+    return { ...draft, step: (draft.step as string) === "home" ? "home" : "form" };
   } catch {
     return null;
   }

@@ -18,8 +18,8 @@ interface ResultStepViewProps {
 
 export function ResultStepView({ isTodaySelected, currentOutcome, onSelectOutcome }: ResultStepViewProps) {
   return (
-    <>
-      <h2 className="text-[15px] font-bold">{isTodaySelected ? "今日はどうだった？" : "この日はどうだった？"}</h2>
+    <section>
+      <h2 className="mb-3 text-[15px] font-bold">{isTodaySelected ? "今日はどうだった？" : "この日はどうだった？"}</h2>
       <div className="flex flex-col gap-3">
         {OUTCOME_OPTIONS.map((opt) => {
           const isSelected = opt.value === currentOutcome;
@@ -47,6 +47,6 @@ export function ResultStepView({ isTodaySelected, currentOutcome, onSelectOutcom
           );
         })}
       </div>
-    </>
+    </section>
   );
 }

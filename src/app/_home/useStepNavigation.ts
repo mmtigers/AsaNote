@@ -5,14 +5,14 @@ import type { Step } from "./types";
 
 // 各ステップがホームから何回分の画面遷移(=ブラウザ履歴のpushState)を経ているか。
 // スマホのバックボタンでホームまで一気に戻したいときに history.go(-depth) で使う。
-const STEP_DEPTH: Record<Step, number> = { home: 0, result: 1, reason: 2 };
+const STEP_DEPTH: Record<Step, number> = { home: 0, form: 1 };
 
 export interface StepTransition {
   direction: "forward" | "backward";
   seq: number;
 }
 
-// 記録フローのステップ(home→result→reason)と、それに連動するブラウザ履歴・画面遷移
+// 記録フローのステップ(home→form)と、それに連動するブラウザ履歴・画面遷移
 // アニメーションをまとめて管理する。ステップ遷移をhistory.pushStateに積んでおくことで、
 // スマホ/ブラウザの戻るボタンでアプリごと閉じてしまわず一つ前のステップに戻れるようにする。
 export function useStepNavigation() {
@@ -26,7 +26,7 @@ export function useStepNavigation() {
   });
 
   // 初回マウント時に現在の履歴エントリを「home」として登録しておく(以降の
-  // goToStep("forward")呼び出しで、この上にresult→reasonを積んでいく)。
+  // goToStep("forward")呼び出しで、この上にformを積んでいく)。
   useEffect(() => {
     window.history.replaceState({ ...(window.history.state ?? {}), appStep: "home" }, "");
   }, []);
@@ -45,11 +45,8 @@ export function useStepNavigation() {
   // draft復元・編集リンクからの自動遷移など、ユーザー操作を介さずにステップを進める場合も、
   // 上と同じ理由でその分の履歴エントリを積んでおく。
   const pushHistoryToStep = useCallback((target: Step) => {
-    if (target === "result" || target === "reason") {
-      window.history.pushState({ appStep: "result" }, "");
-    }
-    if (target === "reason") {
-      window.history.pushState({ appStep: "reason" }, "");
+    if (target === "form") {
+      window.history.pushState({ appStep: "form" }, "");
     }
   }, []);
 

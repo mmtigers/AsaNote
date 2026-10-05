@@ -54,7 +54,6 @@ function makeExisting(overrides: Partial<LocalRecord> = {}): LocalRecord {
 function renderUseRecordForm(
   overrides: Partial<{ date: string; today: string; userId: string | null; childId: string | null; cameFromEditLink: boolean }> = {}
 ) {
-  const goToStep = vi.fn();
   const restoreStep = vi.fn();
   const goHome = vi.fn();
   const cameFromEditLink = { current: overrides.cameFromEditLink ?? false };
@@ -66,13 +65,12 @@ function renderUseRecordForm(
       userId: overrides.userId ?? "user-1",
       childId: overrides.childId ?? null,
       cameFromEditLink,
-      goToStep,
       restoreStep,
       goHome,
     })
   );
 
-  return { ...hook, goToStep, restoreStep, goHome, cameFromEditLink };
+  return { ...hook, restoreStep, goHome, cameFromEditLink };
 }
 
 beforeEach(() => {
@@ -91,7 +89,7 @@ describe("useRecordForm", () => {
   it("下書きが同じ日付にあれば、それをフォームへ復元しステップも復元する", async () => {
     const draft: Draft = {
       date: "2025-09-14",
-      step: "reason" as Step,
+      step: "form" as Step,
       form: {
         id: "draft-id",
         outcome: "reluctant",
@@ -114,7 +112,7 @@ describe("useRecordForm", () => {
     await waitFor(() => expect(result.current.loaded).toBe(true));
 
     expect(result.current.form).toEqual(draft.form);
-    expect(restoreStep).toHaveBeenCalledWith("reason");
+    expect(restoreStep).toHaveBeenCalledWith("form");
     expect(findLatestOwnRecordForDateMock).not.toHaveBeenCalled();
   });
 
@@ -143,7 +141,7 @@ describe("useRecordForm", () => {
     expect(result.current.form.reasonTags).toEqual([]);
   });
 
-  it("編集リンク経由でoutcome済みの記録があればreasonステップへ自動遷移する", async () => {
+  it("編集リンク経由でoutcome済みの記録があればformステップへ自動遷移する", async () => {
     const existing = makeExisting({ outcome: "reluctant", memo: "メモあり" });
     findLatestOwnRecordForDateMock.mockResolvedValue(existing);
 
@@ -151,10 +149,10 @@ describe("useRecordForm", () => {
 
     await waitFor(() => expect(result.current.loaded).toBe(true));
 
-    expect(restoreStep).toHaveBeenCalledWith("reason");
+    expect(restoreStep).toHaveBeenCalledWith("form");
   });
 
-  it("編集リンク経由でoutcome未設定の記録ならresultステップへ自動遷移する", async () => {
+  it("編集リンク経由でoutcome未設定の記録でもformステップへ自動遷移する", async () => {
     const existing = makeExisting({ outcome: null });
     findLatestOwnRecordForDateMock.mockResolvedValue(existing);
 
@@ -162,14 +160,14 @@ describe("useRecordForm", () => {
 
     await waitFor(() => expect(result.current.loaded).toBe(true));
 
-    expect(restoreStep).toHaveBeenCalledWith("result");
+    expect(restoreStep).toHaveBeenCalledWith("form");
   });
 
   it("selectOutcomeは同じカテゴリ内の切り替えならreasonTagsを維持する", async () => {
     const existing = makeExisting({ outcome: "reluctant", reasonTags: ["注意された"] });
     findLatestOwnRecordForDateMock.mockResolvedValue(existing);
 
-    const { result, goToStep } = renderUseRecordForm();
+    const { result } = renderUseRecordForm();
     await waitFor(() => expect(result.current.loaded).toBe(true));
 
     act(() => {
@@ -177,7 +175,6 @@ describe("useRecordForm", () => {
     });
 
     expect(result.current.form.reasonTags).toEqual(["注意された"]);
-    expect(goToStep).toHaveBeenCalledWith("reason", "forward");
   });
 
   it("selectOutcomeはsmooth⇔非smoothの切り替えでreasonTagsをリセットする", async () => {
@@ -219,8 +216,7 @@ describe("useRecordForm", () => {
     const existingOnDateA = makeExisting({ outcome: "smooth" });
     findLatestOwnRecordForDateMock.mockResolvedValueOnce(existingOnDateA);
 
-    const goToStep = vi.fn();
-    const restoreStep = vi.fn();
+      const restoreStep = vi.fn();
     const goHome = vi.fn();
     const cameFromEditLink = { current: false };
 
@@ -232,8 +228,7 @@ describe("useRecordForm", () => {
           userId: "user-1",
           childId: null,
           cameFromEditLink,
-          goToStep,
-          restoreStep,
+              restoreStep,
           goHome,
         }),
       { initialProps: { date: "2025-09-14" } }
@@ -245,7 +240,7 @@ describe("useRecordForm", () => {
     // 日付Bへ切り替え。日付Bは下書きのみが存在するケース(is_edit不明のまま)。
     const draftOnDateB: Draft = {
       date: "2025-09-15",
-      step: "reason" as Step,
+      step: "form" as Step,
       form: {
         id: "draft-b-id",
         outcome: "reluctant",
