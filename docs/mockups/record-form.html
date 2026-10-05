@@ -25,6 +25,18 @@ summary .t{font-weight:700}
 summary .s{font-size:12px;color:var(--sub);text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:55%}
 summary::after{content:"＋";color:var(--sub);margin-left:4px}
 details[open] summary::after{content:"－"}
+.h2s{font-size:11px;font-weight:400;color:var(--sub);margin-left:4px}
+.memofoot{text-align:right;font-size:11px;color:var(--sub);margin:2px 2px 8px}
+.tl{padding:8px 0;border-bottom:1px dashed var(--line)}
+.tl:last-child{border-bottom:0}
+.tl .l{font-size:13px;color:var(--sub);margin-bottom:5px}
+.tl .opts{display:flex;gap:6px}
+.tl .opts button{flex:1;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:12px;padding:9px 0;font:inherit;font-size:14px;font-weight:700}
+.tl .opts button.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.tl .opts button.more{flex:0 0 auto;padding:9px 12px;color:var(--sub);font-weight:400;font-size:13px}
+.tl .opts button.more.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent);font-weight:700}
+.tl select{display:none;margin-top:6px;width:100%;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;padding:8px;font:inherit;font-size:14px}
+.tl.open select{display:block}
 details .body{padding:0 14px 14px}
 h2{font-size:15px;margin:0 0 10px}
 .req{font-size:11px;color:var(--accent-ink);background:var(--accent);border-radius:999px;padding:1px 8px;margin-left:6px;vertical-align:2px}
@@ -72,7 +84,7 @@ textarea{min-height:84px;resize:vertical}
 </head>
 <body>
 <div class="wrap">
-  <div class="note">モックです(保存はされません)。実際にタップして試せます。「穏やか」と「荒れた」を切り替えると、荒れの項目が出入りします。</div>
+  <div class="note">モックです(保存はされません)。実際にタップして試せます。選択肢は最初から全部見えています。「荒れた」を選ぶと荒れの項目が増えます。</div>
 
   <div class="head"><span class="back">← もどる</span><h1>10月5日(月)のきろく</h1><span style="width:40px"></span></div>
 
@@ -91,80 +103,60 @@ textarea{min-height:84px;resize:vertical}
   <div class="copy"><span>前日の時刻・自由時間を引き継げます</span><button id="carry">昨日と同じにする</button></div>
 
   <!-- 2. 節目の時刻 -->
-  <details open>
-    <summary><span class="t">⏰ 節目の時刻(だいたいでOK)</span><span class="s" id="s-times">未入力</span></summary>
-    <div class="body" id="times"></div>
-  </details>
+  <section>
+    <h2>⏰ 節目の時刻 <span class="h2s">だいたいでOK・近いものをタップ</span></h2>
+    <div id="times"></div>
+  </section>
 
-  <!-- 4. 夕食 -->
-  <details>
-    <summary><span class="t">🍚 夕食</span><span class="s" id="s-dinner">未入力</span></summary>
-    <div class="body">
-      <div class="chips seg" id="dinner"></div>
-      <div id="dinnerWhy" style="display:none">
-        <div class="sub">理由</div>
-        <div class="chips" id="dinnerWhyChips"></div>
-      </div>
+  <!-- 3. 夕食 -->
+  <section>
+    <h2>🍚 夕食</h2>
+    <div class="chips seg" id="dinner"></div>
+    <div id="dinnerWhy" style="display:none">
+      <div class="sub">理由</div>
+      <div class="chips" id="dinnerWhyChips"></div>
     </div>
-  </details>
+  </section>
 
-  <!-- 5. 自由時間・友達 -->
-  <details>
-    <summary><span class="t">📺 自由時間・友達</span><span class="s" id="s-free">未入力</span></summary>
-    <div class="body">
-      <div class="sub" style="margin-top:0">自由時間にしたこと</div>
-      <div class="chips" id="free"></div>
-      <div class="sub">友達・予定</div>
-      <div class="chips" id="friend"></div>
-      <div style="margin-top:8px"><input type="text" id="friendMemo" placeholder="相手・場所など(任意)"></div>
-    </div>
-  </details>
+  <!-- 4. 自由時間・友達 -->
+  <section>
+    <h2>📺 自由時間・友達</h2>
+    <div class="sub" style="margin-top:0">自由時間にしたこと</div>
+    <div class="chips" id="free"></div>
+    <div class="sub">友達・予定</div>
+    <div class="chips" id="friend"></div>
+  </section>
 
-  <!-- 6. 荒れ(荒れた日だけ) -->
-  <details id="roughBox" open style="display:none">
-    <summary><span class="t">🌩 荒れたときのこと</span><span class="s" id="s-rough">未入力</span></summary>
-    <div class="body">
-      <div class="sub" style="margin-top:0">きっかけ</div>
-      <div class="chips" id="trigger"></div>
-      <div class="sub">行動</div>
-      <div class="chips" id="behavior"></div>
-      <div class="sub">親の対応</div>
-      <div class="chips" id="response"></div>
-      <div class="sub">効いた?</div>
-      <div class="chips seg" id="effect"></div>
-    </div>
-  </details>
+  <!-- 5. 荒れ(荒れた日だけ) -->
+  <section id="roughBox" style="display:none">
+    <h2>🌩 荒れたときのこと</h2>
+    <div class="sub" style="margin-top:0">きっかけ</div>
+    <div class="chips" id="trigger"></div>
+    <div class="sub">行動</div>
+    <div class="chips" id="behavior"></div>
+    <div class="sub">親の対応</div>
+    <div class="chips" id="response"></div>
+    <div class="sub">効いた?</div>
+    <div class="chips seg" id="effect"></div>
+  </section>
 
-  <!-- 7. からだ -->
-  <details>
-    <summary><span class="t">🩺 からだ</span><span class="s" id="s-body">未入力</span></summary>
-    <div class="body"><div class="chips" id="bodyTags"></div></div>
-  </details>
+  <!-- 6. からだ -->
+  <section>
+    <h2>🩺 からだ</h2>
+    <div class="chips" id="bodyTags"></div>
+  </section>
 
-  <!-- 8. 振り返り -->
-  <details>
-    <summary><span class="t">📝 よかったこと・明日・メモ</span><span class="s" id="s-memo">未入力</span></summary>
-    <div class="body">
-      <div class="sub" style="margin-top:0">よかったこと</div>
-      <input type="text" id="good" placeholder="例: 友達を家に呼べた">
-      <div class="sub">明日の予定</div>
-      <input type="text" id="tomorrow" placeholder="例: こらくるで5人と約束">
-      <div class="sub">メモ <span id="count">0/2000</span></div>
-      <textarea id="memo" maxlength="2000" placeholder="自由に"></textarea>
-    </div>
-  </details>
-
-  <!-- 写真 -->
-  <details>
-    <summary><span class="t">📷 写真</span><span class="s" id="s-photo">なし</span></summary>
-    <div class="body">
-      <div class="photos" id="photos"></div>
-      <label class="addphoto">＋ 写真を追加(カメラ / アルバム)
-        <input type="file" id="photoIn" accept="image/*" multiple hidden>
-      </label>
-      <div class="sub">1日5枚まで。保存時に自動で縮小します。圏外でも端末に保存され、通信できると同期します。</div>
-    </div>
-  </details>
+  <!-- 7. メモ(写真つき) -->
+  <section>
+    <h2>📝 メモ <span class="h2s">よかったこと・明日の予定なども、ここにまとめて</span></h2>
+    <textarea id="memo" maxlength="2000" placeholder="自由に書けます(例: 友達を家に呼べた / 明日はこらくるで5人と約束)"></textarea>
+    <div class="memofoot"><span id="count">0/2000</span></div>
+    <div class="photos" id="photos"></div>
+    <label class="addphoto">📷 写真を追加(カメラ / アルバム)
+      <input type="file" id="photoIn" accept="image/*" multiple hidden>
+    </label>
+    <div class="sub">1日5枚まで。保存時に自動で縮小します。圏外でも端末に保存され、通信できると同期します。</div>
+  </section>
 
   <!-- プレビュー -->
   <section>
@@ -184,8 +176,9 @@ const $=id=>document.getElementById(id);
 const state={kid:"智矢",outcome:null,times:{},photos:[],dinner:null,dinnerWhy:new Set(),free:new Set(),friend:new Set(),trigger:new Set(),behavior:new Set(),response:new Set(),effect:null,body:new Set()};
 const OPT={
  kids:["智矢","涼花"],
- // [key, label, 開始, 終了, 刻み(分)] — よく使う範囲だけを選択肢にする
- times:[["arrive","帰宅","14:00","17:00",15],["hwStart","宿題 開始","15:00","20:00",30],["hwEnd","宿題 終了","15:30","21:00",30],["dinner","夕食","17:00","20:00",30],["bath","お風呂","18:00","21:00",30],["prep","明日の準備 完了","18:00","21:30",30],["bed","消灯","19:30","22:00",15]],
+ // [key, label, 候補3つ, ほか(選択メニュー)の範囲 開始, 終了, 刻み(分)]
+ // 候補は、実装では「その子・その項目でよく選ぶ時刻」の上位3つに自動で入れ替える。
+ times:[["arrive","帰宅",["14:45","15:00","15:30"],"14:00","17:00",15],["hwStart","宿題 開始",["15:30","16:00","17:00"],"15:00","20:00",30],["hwEnd","宿題 終了",["16:30","17:30","19:30"],"15:30","21:00",30],["dinner","夕食",["17:30","18:00","18:30"],"17:00","20:00",30],["bath","お風呂",["19:00","19:30","20:00"],"18:00","21:00",30],["prep","明日の準備 完了",["19:30","20:00","20:30"],"18:00","21:30",30],["bed","消灯",["20:00","20:30","21:00"],"19:30","22:00",15]],
  dinner:[["ate","食べた"],["little","少し"],["no","食べず"]],
  dinnerWhy:["においが苦手","メニューが好みでない","テレビに集中","疲れ・眠い","食欲がない"],
  free:["TV","YouTube","ドラえもん","ゲーム","たまごっち","外遊び","友達と","お絵描き","運動遊び"],
@@ -237,20 +230,18 @@ function paint(){
 OPT.kids.forEach(k=>{const b=document.createElement("button");b.className="kid";b.textContent=k;b.onclick=()=>{state.kid=k;render();};$("kids").appendChild(b);});
 // outcome
 $("outcome").querySelectorAll("button").forEach(b=>b.onclick=()=>{state.outcome=b.dataset.v;render();});
-// times: 選択メニュー(タップで選ぶ)。「いま」は15分単位に丸めて入れる。
+// times: 3つの候補ボタン+「ほか」(選択メニュー)。もう一度押すと解除。
 const hm=m=>String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0");
 const toMin=t=>{const [h,m]=t.split(":").map(Number);return h*60+m;};
-OPT.times.forEach(([k,l,from,to,step])=>{
-  const r=document.createElement("div");r.className="row";
-  let opts='<option value="">--:--</option>';
+OPT.times.forEach(([k,l,cands,from,to,step])=>{
+  const r=document.createElement("div");r.className="tl";r.dataset.k=k;
+  let opts='<option value="">ほかの時刻を選ぶ</option>';
   for(let m=toMin(from);m<=toMin(to);m+=step)opts+=`<option value="${hm(m)}">${hm(m)}ごろ</option>`;
-  r.innerHTML=`<span class="l">${l}</span><select id="t-${k}">${opts}</select><button class="now" data-k="${k}">いま</button>`;
+  r.innerHTML=`<div class="l">${l}</div><div class="opts">${cands.map(c=>`<button data-t="${c}">${c}</button>`).join("")}<button class="more">ほか</button></div><select>${opts}</select>`;
   $("times").appendChild(r);
+  r.querySelectorAll("[data-t]").forEach(b=>b.onclick=()=>{state.times[k]=state.times[k]===b.dataset.t?"":b.dataset.t;r.classList.remove("open");render();});
+  r.querySelector(".more").onclick=()=>{r.classList.toggle("open");render();};
   r.querySelector("select").onchange=e=>{state.times[k]=e.target.value;render();};
-  r.querySelector(".now").onclick=()=>{
-    const d=new Date();let m=Math.round((d.getHours()*60+d.getMinutes())/step)*step;
-    m=Math.min(Math.max(m,toMin(from)),toMin(to));
-    state.times[k]=hm(m);$("t-"+k).value=hm(m);render();};
 });
 chips($("dinner"),OPT.dinner,"dinner",{single:true});
 chips($("dinnerWhyChips"),OPT.dinnerWhy,"dinnerWhy");
@@ -262,8 +253,7 @@ chips($("response"),OPT.response,"response");
 chips($("effect"),OPT.effect,"effect",{single:true});
 chips($("bodyTags"),OPT.body,"body");
 $("carry").onclick=()=>{
-  const y={arrive:"15:00",hwStart:"16:00",hwEnd:"16:30",dinner:"18:00",bath:"19:00",prep:"20:00",bed:"20:30"};
-  Object.assign(state.times,y);OPT.times.forEach(([k])=>{$("t-"+k).value=state.times[k];});
+  Object.assign(state.times,{arrive:"15:00",hwStart:"16:00",hwEnd:"16:30",dinner:"18:00",bath:"19:00",prep:"20:00",bed:"20:30"});
   ["TV","ドラえもん"].forEach(x=>state.free.add(x));render();};
 // photos
 const PH_MAX=5;
@@ -273,20 +263,9 @@ $("photoIn").onchange=e=>{
   e.target.value="";
 };
 $("memo").oninput=()=>{$("count").textContent=$("memo").value.length+"/2000";render();};
-["good","tomorrow","friendMemo"].forEach(id=>$(id).oninput=render);
 $("save").onclick=()=>{$("toast").style.display="block";setTimeout(()=>$("toast").style.display="none",1400);};
 
 const lab=(list,v)=>(list.find(x=>x[0]===v)||[])[1];
-function summary(){
-  const nt=Object.values(state.times).filter(Boolean).length;
-  $("s-times").textContent=nt?`${nt}/7 入力`:"未入力";
-  $("s-photo").textContent=state.photos.length?state.photos.length+"枚":"なし";
-  $("s-dinner").textContent=state.dinner?lab(OPT.dinner,state.dinner):"未入力";
-  const fr=[...state.free,...state.friend];$("s-free").textContent=fr.length?fr.slice(0,3).join("・")+(fr.length>3?"…":""):"未入力";
-  const rg=[...state.trigger,...state.behavior,...state.response];$("s-rough").textContent=rg.length?rg.length+"件":"未入力";
-  $("s-body").textContent=state.body.size?[...state.body].join("・"):"未入力";
-  const m=[$("good").value,$("tomorrow").value,$("memo").value].filter(Boolean).length;$("s-memo").textContent=m?m+"件":"未入力";
-}
 function preview(){
   if(!state.outcome){$("preview").innerHTML="<small>選んだ内容から自動で文章を作ります</small>今夜の様子を選ぶと表示されます。";return;}
   const p=[];
@@ -302,7 +281,6 @@ function preview(){
   }
   if(state.photos.length)p.push(`写真${state.photos.length}枚。`);
   if(state.body.size)p.push("からだ: "+[...state.body].join("・")+"。");
-  if($("good").value)p.push("よかったこと: "+$("good").value+"。");
   if(state.times.bed)p.push(`${state.times.bed}ごろに消灯。`);
   if($("memo").value)p.push($("memo").value);
   $("preview").innerHTML="<small>"+state.kid+"・自動生成(保存はしません)</small>"+p.join("");
@@ -310,14 +288,20 @@ function preview(){
 function render(){
   document.querySelectorAll(".kid").forEach(b=>b.classList.toggle("on",b.textContent===state.kid));
   $("outcome").querySelectorAll("button").forEach(b=>b.classList.toggle("on",b.dataset.v===state.outcome));
-  OPT.times.forEach(([k])=>$("t-"+k).classList.toggle("set",!!state.times[k]));
+  document.querySelectorAll(".tl").forEach(r=>{
+    const k=r.dataset.k,v=state.times[k]||"",cands=[...r.querySelectorAll("[data-t]")].map(b=>b.dataset.t);
+    r.querySelectorAll("[data-t]").forEach(b=>b.classList.toggle("on",b.dataset.t===v));
+    const more=r.querySelector(".more"),custom=v&&!cands.includes(v);
+    more.classList.toggle("on",!!custom);more.textContent=custom?v+"ごろ":"ほか";
+    r.querySelector("select").value=custom?v:"";
+  });
   $("photos").innerHTML=state.photos.map((src,i)=>`<div class="ph"><img src="${src}" alt="写真${i+1}"><button data-i="${i}" aria-label="削除">×</button></div>`).join("");
   $("photos").querySelectorAll("button").forEach(b=>b.onclick=()=>{state.photos.splice(+b.dataset.i,1);render();});
   document.querySelector(".addphoto").style.display=state.photos.length>=PH_MAX?"none":"block";
   $("roughBox").style.display=(state.outcome==="rough"||state.outcome==="storm")?"block":"none";
   $("dinnerWhy").style.display=(state.dinner==="little"||state.dinner==="no")?"block":"none";
   $("save").disabled=!state.outcome;$("hint").style.display=state.outcome?"none":"block";
-  paint();summary();preview();
+  paint();preview();
 }
 render();
 </script>
