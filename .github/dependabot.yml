@@ -16,21 +16,15 @@ updates:
         update-types:
           - "patch"
           - "minor"
-    # メジャーは互換確認が必要なため個別PRのまま残す:
-    # - eslint 9→10 (eslint-config-next の対応待ち)
-    # - typescript 5→7
-    # - vitest / @vitest/coverage-v8 4→5
-    # - @types/node 20→22(CI の Node 22 に合わせて上げる判断は別途)
+    # メジャーは互換確認が必要なため個別PRのまま残す。以下は Issue #116 で試して保留したもの:
+    # - eslint 9→10: eslint-config-next 配下の eslint-plugin-react / import / jsx-a11y が未対応
+    #   (lint 実行時に `getFilename is not a function` で落ちる)
+    # - typescript 5→7: tsc は通るが typescript-eslint の peer が `<6.1.0` で、lint が起動しない
+    # vitest / @vitest/coverage-v8 5 と @types/node 22 は Issue #116 で更新済みのため ignore を外した。
     ignore:
       - dependency-name: "eslint"
         update-types: ["version-update:semver-major"]
       - dependency-name: "typescript"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "vitest"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "@vitest/coverage-v8"
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
