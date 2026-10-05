@@ -2,6 +2,7 @@
 
 import type { Session } from "@supabase/supabase-js";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { pullFromCloud, syncPendingChanges } from "@/lib/db/sync";
 import { getSupabaseClient } from "@/lib/supabase/client";
 
 interface AuthState {
@@ -34,9 +35,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (cancelled) return;
       setSession(data.session);
       setLoading(false);
+      // 既にログイン済みの状態でアプリを開いた場合(=起動時)、この端末のIndexedDBが空
+      // (再インストール・別端末)でもクラウドの記録を復元できるようにする。
+      if (data.session) void pullFromCloud();
 
-      const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      const { data: listener } = supabase.auth.onAuthStateChange((event, nextSession) => {
         setSession(nextSession);
+        // SIGNED_IN は新規ログイン(マジックリンク経由)時にのみ発火する。
+        // TOKEN_REFRESHED 等の度に毎回 pull すると無駄なので絞る。
+        if (event === "SIGNED_IN") void pullFromCloud();
+        if (nextSession) void syncPendingChanges();
       });
       unsubscribe = () => listener.subscription.unsubscribe();
     }

@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   createChild: vi.fn(),
   updateChild: vi.fn(),
   deleteChild: vi.fn(),
+  pullFromCloud: vi.fn(),
 }));
 
 vi.mock("@/lib/auth/AuthProvider", () => ({ useAuth: mocks.useAuth }));
@@ -34,6 +35,8 @@ vi.mock("@/lib/db/children", () => ({
   updateChild: mocks.updateChild,
   deleteChild: mocks.deleteChild,
 }));
+
+vi.mock("@/lib/db/sync", () => ({ pullFromCloud: mocks.pullFromCloud }));
 
 import GroupPage from "./page";
 
@@ -70,6 +73,7 @@ function setupSignedIn({ group = null as typeof GROUP | null, children = [] as R
 beforeEach(() => {
   // 実装が失敗経路で console.error を呼ぶので、テスト出力を汚さないよう抑える
   vi.spyOn(console, "error").mockImplementation(() => {});
+  mocks.pullFromCloud.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
@@ -280,7 +284,7 @@ describe("GroupPage: グループ操作", () => {
     expect(screen.getByRole("button", { name: "招待コードを発行する" })).toBeTruthy();
   });
 
-  it("参加に成功したらグループとお子さまを取り直す", async () => {
+  it("参加に成功したらクラウドから引き直す", async () => {
     setupSignedIn();
     mocks.joinGroupByCode.mockResolvedValue(undefined);
 
@@ -291,7 +295,7 @@ describe("GroupPage: グループ操作", () => {
     fireEvent.change(input, { target: { value: "ABCD1234" } });
     fireEvent.click(screen.getByRole("button", { name: "参加する" }));
 
-    await waitFor(() => expect(mocks.joinGroupByCode).toHaveBeenCalled());
+    await waitFor(() => expect(mocks.pullFromCloud).toHaveBeenCalled());
     expect(mocks.joinGroupByCode).toHaveBeenCalledWith("ABCD1234");
     // 参加後は refresh() が走り、成功した入力は消える
     expect(mocks.getMyGroup).toHaveBeenCalledTimes(2);
@@ -311,6 +315,7 @@ describe("GroupPage: グループ操作", () => {
 
     await waitFor(() => expect(screen.getByText(/参加に失敗しました/)).toBeTruthy());
     expect(input.value).toBe("WRONG");
+    expect(mocks.pullFromCloud).not.toHaveBeenCalled();
   });
 
   it("グループを抜けるのも確認ダイアログを経てから実行される", async () => {
@@ -327,6 +332,7 @@ describe("GroupPage: グループ操作", () => {
 
     await waitFor(() => expect(screen.getByRole("button", { name: "グループを作る" })).toBeTruthy());
     expect(mocks.leaveGroup).toHaveBeenCalled();
+    expect(mocks.pullFromCloud).toHaveBeenCalled();
   });
 });
 

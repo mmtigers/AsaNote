@@ -10,6 +10,7 @@ import {
   joinGroupByCode,
   leaveGroup,
 } from "@/lib/db/groups";
+import { pullFromCloud } from "@/lib/db/sync";
 import type { Group, GroupInvite, GroupMemberProfile } from "@/types/models";
 import { runAction, runSilently } from "./runAction";
 
@@ -124,6 +125,7 @@ export function useGroupAdmin({
     await runSilently(async () => {
       await refresh();
       await onJoined();
+      void pullFromCloud();
     });
     setJoining(false);
   }
@@ -177,6 +179,7 @@ export function useGroupAdmin({
         setGroup(null);
         setMembers([]);
         setInvite(null);
+        void pullFromCloud();
       },
       "グループを抜ける処理に失敗しました",
       onError

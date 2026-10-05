@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { registerSyncListeners } from "@/lib/db/sync";
 
 export function ServiceWorkerRegister() {
   useEffect(() => {
@@ -9,6 +10,8 @@ export function ServiceWorkerRegister() {
         console.error("Service worker registration failed:", error);
       });
     }
+
+    registerSyncListeners();
   }, []);
 
   return null;

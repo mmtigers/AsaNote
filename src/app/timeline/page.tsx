@@ -1,8 +1,122 @@
-export default function Page() {
+"use client";
+
+import Link from "next/link";
+import { useMemo, useState } from "react";
+import { ChildSwitcher } from "@/components/ChildSwitcher";
+import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { Skeleton } from "@/components/Skeleton";
+import { OUTCOME_OPTIONS } from "@/constants/choices";
+import { OUTCOME_SOFT_STYLES } from "@/constants/outcomeStyles";
+import { useAuth } from "@/lib/auth/AuthProvider";
+import { formatDateShort } from "@/lib/date";
+import { useChildren } from "@/lib/db/children";
+import type { LocalRecord } from "@/lib/db/localDb";
+import { canEditRecord } from "@/lib/db/ownership";
+import { useRecordPhotos } from "@/lib/db/photos";
+import { useRecordsTimeline } from "@/lib/db/queries";
+import { deleteRecord } from "@/lib/db/records";
+import { useGroupMembers, buildMemberEmailMap } from "@/lib/db/groups";
+import { buildRecordPreview } from "@/lib/recordPreview";
+
+interface RecordCardProps {
+  record: LocalRecord;
+  childName: string | null;
+  ownerLabel: string | null;
+  editable: boolean;
+  onDelete: () => void;
+}
+
+function RecordCard({ record, childName, ownerLabel, editable, onDelete }: RecordCardProps) {
+  const photos = useRecordPhotos(record.id);
+  const outcome = OUTCOME_OPTIONS.find((o) => o.value === record.outcome);
+  const preview = buildRecordPreview({ ...record, photoCount: photos?.length ?? 0 });
+  const editHref = `/?date=${record.recordDate}${record.childId ? `&childId=${record.childId}` : ""}`;
+
   return (
-    <main className="mx-auto max-w-md px-4 py-6">
-      <h1 className="text-xl font-bold">これまでの記録</h1>
-      <p className="mt-2 text-sm text-[var(--sub)]">準備中です。</p>
+    <li className={`rounded-2xl border border-[var(--line)] p-3.5 ${record.outcome ? OUTCOME_SOFT_STYLES[record.outcome] : "bg-[var(--surface)]"}`}>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-bold">
+          {formatDateShort(record.recordDate)} {outcome?.emoji} {outcome?.label}
+        </p>
+        <p className="text-[11px] text-[var(--sub)]">{[childName, ownerLabel].filter(Boolean).join(" ・ ")}</p>
+      </div>
+      {preview && <p className="mt-1.5 text-[13px] leading-relaxed">{preview}</p>}
+      {editable && (
+        <div className="mt-2 flex gap-3 text-xs">
+          <Link href={editHref} className="font-semibold text-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]">
+            ✏️ 編集
+          </Link>
+          <button type="button" onClick={onDelete} className="text-[var(--sub)] underline underline-offset-2 focus:ring-2 focus:ring-[var(--accent)]">
+            削除
+          </button>
+        </div>
+      )}
+    </li>
+  );
+}
+
+export default function TimelinePage() {
+  const { session, loading: authLoading } = useAuth();
+  const userId = session?.user.id ?? null;
+  const records = useRecordsTimeline();
+  const children = useChildren();
+  const members = useGroupMembers();
+  const [filterChildId, setFilterChildId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<LocalRecord | null>(null);
+
+  const childList = useMemo(() => children ?? [], [children]);
+  const childNames = useMemo(() => new Map(childList.map((c) => [c.id, c.name])), [childList]);
+  const memberEmails = useMemo(() => buildMemberEmailMap(members), [members]);
+  const visible = useMemo(
+    () => (records ?? []).filter((r) => !filterChildId || r.childId === filterChildId),
+    [records, filterChildId]
+  );
+
+  return (
+    <main className="mx-auto flex max-w-md flex-col gap-4 px-4 pt-6">
+      <h1 className="text-lg font-bold">これまでの記録</h1>
+
+      {childList.length >= 2 && (
+        <ChildSwitcher childList={childList} selectedId={filterChildId} onSelect={setFilterChildId} allowAll />
+      )}
+
+      {records === undefined || authLoading ? (
+        <div className="flex flex-col gap-3">
+          <Skeleton className="h-20 w-full" />
+          <Skeleton className="h-20 w-full" />
+        </div>
+      ) : visible.length === 0 ? (
+        <p className="text-sm text-[var(--sub)]">まだ記録がありません。「記録する」から今夜のようすを残してみましょう。</p>
+      ) : (
+        <ul className="flex flex-col gap-3">
+          {visible.map((r) => {
+            const own = !r.userId || r.userId === userId;
+            return (
+              <RecordCard
+                key={r.id}
+                record={r}
+                childName={r.childId ? (childNames.get(r.childId) ?? null) : null}
+                ownerLabel={own ? null : `パートナー ${r.userId ? (memberEmails.get(r.userId) ?? "") : ""}`.trim()}
+                editable={canEditRecord(r, userId, authLoading)}
+                onDelete={() => setPendingDelete(r)}
+              />
+            );
+          })}
+        </ul>
+      )}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        message="この記録を削除します。写真も一緒に消えます。よろしいですか？"
+        confirmLabel="削除する"
+        cancelLabel="やめる"
+        onConfirm={async () => {
+          const target = pendingDelete;
+          setPendingDelete(null);
+          if (target) await deleteRecord(target.id);
+        }}
+        onCancel={() => setPendingDelete(null)}
+      />
     </main>
   );
 }
