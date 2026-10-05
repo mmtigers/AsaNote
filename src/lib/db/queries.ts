@@ -48,6 +48,15 @@ export function useOwnRecordForDate(recordDate: string, userId: string | null, c
   }, [recordDate, userId, childId]);
 }
 
+// 記録ごとの写真枚数(エクスポートのCSV用)。
+export function usePhotoCounts() {
+  return useLiveQuery(async () => {
+    const map = new Map<string, number>();
+    for (const p of await localDb.photos.toArray()) map.set(p.recordId, (map.get(p.recordId) ?? 0) + 1);
+    return map;
+  }, []);
+}
+
 // 未同期件数(AuthStatus の表示用)。
 export function usePendingSyncCount() {
   return useLiveQuery(
