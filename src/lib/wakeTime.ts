@@ -25,3 +25,8 @@ export function wakeSlotOfTimeValue(value: string | null | undefined): WakeSlot 
   if (minutes === null) return null;
   return WAKE_SLOTS.find((slot) => minutes < slot.untilMinutes) ?? null;
 }
+
+// タイムライン・CSVで使う表示名。未入力・想定外の値はnull(その節を出さない)。
+export function wakeTimeLabel(value: string | null | undefined): string | null {
+  return wakeSlotOfTimeValue(value)?.label ?? null;
+}

@@ -15,6 +15,7 @@ import { useRecordsTimeline } from "@/lib/db/queries";
 import type { LocalRecord } from "@/lib/db/localDb";
 import { OUTCOME_OPTIONS, type Outcome } from "@/constants/choices";
 import { formatDateShort } from "@/lib/date";
+import { wakeTimeLabel } from "@/lib/wakeTime";
 
 const OUTCOME_BADGE_STYLES = {
   accent: "bg-[var(--accent-soft)] text-[var(--accent)]",
@@ -177,7 +178,7 @@ export default function TimelinePage() {
                   <div className="flex flex-wrap gap-1.5 last:mb-0">
                     {record.wakeTime && (
                       <span className="whitespace-nowrap rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[11px] text-[var(--sub)]">
-                        {record.wakeTime}起床
+                        {wakeTimeLabel(record.wakeTime) ?? record.wakeTime}起床
                       </span>
                     )}
                     {legacy && (
