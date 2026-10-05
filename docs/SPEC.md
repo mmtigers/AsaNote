@@ -477,7 +477,7 @@ stateDiagram-v2
 
 ### 6.3 SECURITY DEFINER関数
 
-すべて `set search_path = public`、`authenticated` ロールにのみ実行を許可する。
+`create_group` / `redeem_group_invite` / `get_group_members` / `is_fellow_group_member` は `set search_path = public` で、`authenticated` ロールへ `execute` を付与している（`PUBLIC` からの `revoke` は無いが、いずれも `auth.uid()` に依存するため、未ログインでは実質的に何も返さない・作れない（推定））。
 
 | 関数 | 用途 |
 |---|---|
