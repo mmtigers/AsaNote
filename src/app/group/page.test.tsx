@@ -36,6 +36,13 @@ vi.mock("@/lib/db/children", () => ({
   deleteChild: mocks.deleteChild,
 }));
 
+vi.mock("@/lib/db/notificationSettings", () => ({
+  DEFAULT_REMINDER_TIME: "21:00",
+  fetchNotificationSettings: vi.fn().mockResolvedValue({ reminderTime: "21:00", enabled: false }),
+  saveNotificationSettings: vi.fn(),
+  savePushSubscription: vi.fn(),
+}));
+
 vi.mock("@/lib/db/sync", () => ({ pullFromCloud: mocks.pullFromCloud }));
 
 import GroupPage from "./page";

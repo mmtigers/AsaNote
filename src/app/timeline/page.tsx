@@ -74,7 +74,12 @@ export default function TimelinePage() {
 
   return (
     <main className="mx-auto flex max-w-md flex-col gap-4 px-4 pt-6">
-      <h1 className="text-lg font-bold">これまでの記録</h1>
+      <div className="flex items-center justify-between gap-2">
+        <h1 className="text-lg font-bold">これまでの記録</h1>
+        <Link href="/export" className="text-xs font-semibold text-[var(--accent)] underline underline-offset-2">
+          エクスポート
+        </Link>
+      </div>
 
       {childList.length >= 2 && (
         <ChildSwitcher childList={childList} selectedId={filterChildId} onSelect={setFilterChildId} allowAll />

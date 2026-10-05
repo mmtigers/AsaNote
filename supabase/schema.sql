@@ -174,3 +174,59 @@ create policy "evening photos are deletable by owner"
   on storage.objects for delete
   to authenticated
   using (bucket_id = 'evening-photos' and (storage.foldername(name))[1] = auth.uid()::text);
+
+-- 夜のリマインドPush通知。あさノートの push_subscriptions / notification_settings とは
+-- **別の表**にする(共有モードでは同じDBに同居するため、混ぜるとあさノートの朝の通知が
+-- よるノートの購読へ届いたり、リマインド時刻が衝突したりする)。
+
+-- Push通知の購読情報。1ユーザーが複数端末を持ちうるため endpoint ごとに複数行を許容する。
+create table if not exists evening_push_subscriptions (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  endpoint text not null unique,
+  p256dh text not null,
+  auth_key text not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_evening_push_subscriptions_user_id on evening_push_subscriptions(user_id);
+
+alter table evening_push_subscriptions enable row level security;
+
+drop policy if exists "evening_push_subscriptions are readable by owner" on evening_push_subscriptions;
+drop policy if exists "evening_push_subscriptions are insertable by owner" on evening_push_subscriptions;
+drop policy if exists "evening_push_subscriptions are updatable by owner" on evening_push_subscriptions;
+drop policy if exists "evening_push_subscriptions are deletable by owner" on evening_push_subscriptions;
+
+create policy "evening_push_subscriptions are readable by owner"
+  on evening_push_subscriptions for select to authenticated using (auth.uid() = user_id);
+create policy "evening_push_subscriptions are insertable by owner"
+  on evening_push_subscriptions for insert to authenticated with check (auth.uid() = user_id);
+create policy "evening_push_subscriptions are updatable by owner"
+  on evening_push_subscriptions for update to authenticated using (auth.uid() = user_id);
+create policy "evening_push_subscriptions are deletable by owner"
+  on evening_push_subscriptions for delete to authenticated using (auth.uid() = user_id);
+
+-- 通知設定。ユーザー1人につき1行。reminder_time の既定は21:00(SPEC §4)。
+create table if not exists evening_notification_settings (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  reminder_time time not null default '21:00',
+  enabled boolean not null default true,
+  updated_at timestamptz not null default now()
+);
+
+alter table evening_notification_settings enable row level security;
+
+drop policy if exists "evening_notification_settings are readable by owner" on evening_notification_settings;
+drop policy if exists "evening_notification_settings are insertable by owner" on evening_notification_settings;
+drop policy if exists "evening_notification_settings are updatable by owner" on evening_notification_settings;
+drop policy if exists "evening_notification_settings are deletable by owner" on evening_notification_settings;
+
+create policy "evening_notification_settings are readable by owner"
+  on evening_notification_settings for select to authenticated using (auth.uid() = user_id);
+create policy "evening_notification_settings are insertable by owner"
+  on evening_notification_settings for insert to authenticated with check (auth.uid() = user_id);
+create policy "evening_notification_settings are updatable by owner"
+  on evening_notification_settings for update to authenticated using (auth.uid() = user_id);
+create policy "evening_notification_settings are deletable by owner"
+  on evening_notification_settings for delete to authenticated using (auth.uid() = user_id);
