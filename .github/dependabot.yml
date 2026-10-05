@@ -1,0 +1,37 @@
+# Issue #60: 依存更新の自動化。以前は dependabot が無く、typescript 5→7 / eslint 9→10 /
+# vitest 4→5 / eslint-config-next 16.3.0 と next 16.3.5 のズレなどが手作業で放置されていた。
+# 姉妹リポジトリ(Suwalist)と同じ方針: minor/patch は週次で1本のグループ PR、メジャーは個別 PR。
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Tokyo"
+    open-pull-requests-limit: 10
+    groups:
+      patch-and-minor:
+        update-types:
+          - "patch"
+          - "minor"
+    # メジャーは互換確認が必要なため個別PRのまま残す。以下は Issue #116 で試して保留したもの:
+    # - eslint 9→10: eslint-config-next 配下の eslint-plugin-react / import / jsx-a11y が未対応
+    #   (lint 実行時に `getFilename is not a function` で落ちる)
+    # - typescript 6→7: tsc は通るが typescript-eslint の peer が `<6.1.0` で、lint が起動しない
+    #   (追跡: typescript-eslint/typescript-eslint#10940。TS 6 までは Issue #116 で更新済み)
+    # vitest / @vitest/coverage-v8 5 と @types/node 22 は Issue #116 で更新済みのため ignore を外した。
+    ignore:
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Asia/Tokyo"
