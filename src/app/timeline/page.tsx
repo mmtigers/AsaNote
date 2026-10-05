@@ -52,6 +52,9 @@ export default function TimelinePage() {
   // 「常にすべてから始める」方針に揃える。
   const [filterOutcome, setFilterOutcome] = useState<Outcome | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  // 子どもが複数いるときだけ、カードに子ども名を出す(「すべて」表示でどの子の記録か分かるように)。
+  const childNameMap = new Map((children ?? []).map((c) => [c.id, c.name]));
+  const showChildName = (children?.length ?? 0) > 1;
   const [deleteError, setDeleteError] = useState(false);
 
   const visibleRecords = records?.filter(
@@ -151,6 +154,11 @@ export default function TimelinePage() {
                       className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-bold ${OUTCOME_BADGE_STYLES[outcome.color]}`}
                     >
                       {outcome.emoji} {outcome.label}
+                    </span>
+                  )}
+                  {showChildName && record.childId && childNameMap.has(record.childId) && (
+                    <span className="whitespace-nowrap rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-bold text-[var(--sub)]">
+                      {childNameMap.get(record.childId)}
                     </span>
                   )}
                   {!own && <PartnerAvatar email={emailMap.get(record.userId ?? "")} />}
