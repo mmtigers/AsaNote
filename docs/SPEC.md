@@ -377,3 +377,76 @@ Supabase Edge Function `send-reminders`（`supabase/functions/send-reminders/ind
 
 `send-reminders` には、`notify-partner` のような Authorization 検証が無い。**要確認 Q6**
 
+## 5. データモデル
+
+### 5.1 記録（`SchoolRecord` / `records`）
+
+クライアントは Dexie（IndexedDB）にサーバーと同じ形の記録をミラーする。TypeScript の型は `src/types/models.ts` の `SchoolRecord`、ローカルは `LocalRecord = SchoolRecord & { syncStatus }`（`src/lib/db/localDb.ts`）。サーバーの列との変換は `src/lib/db/sync.ts` の `toRecordRow` / `fromRecordRow`。
+
+| クライアント | `records` 列 | 型・制約 | 説明 |
+|---|---|---|---|
+| `id` | `id` | uuid, PK | クライアントでUUID生成。ローカルとクラウドで同一IDを使い、同期を冪等にする |
+| `recordDate` | `record_date` | date, not null | 記録対象日（`YYYY-MM-DD`） |
+| `outcome` | `outcome` | text, null可 | `smooth` / `reluctant` / `absent`。DBは制約なしのtextで、3値への制限はアプリ側。未入力・旧形式は null |
+| `wakeTime` | `wake_time` | time, null可 | 起床時刻。入力は3区分の代表値（§3.1.2）。サーバーは `HH:MM:SS` で返すため、pull時に先頭5文字へ正規化して `HH:MM` に揃える（`normalizeTimeValue`） |
+| `departTime` | `depart_time` | time, null可 | 出発時刻。同上 |
+| `reasonTags` | `reason_tags` | text[], not null | 現行フォームの理由タグ |
+| `memo` | `memo` | text, null可, **`CHECK` 2000文字以内** | 自由記述（`MEMO_MAX_LENGTH` と同値） |
+| `userId` | `user_id` | uuid, not null, FK `auth.users`（削除で連鎖） | 記録者。未同期のうちはクライアント側で未設定（＝自分の記録として扱う） |
+| `childId` | `child_id` | uuid, null可, FK `children`（`on delete set null`） | 対象の子ども。子どもが0〜1人の家庭では常に null |
+| `createdAt` / `updatedAt` | `created_at` / `updated_at` | timestamptz | **クライアントが設定する**（DBの既定値 `now()` は使われない）。`updatedAt` は同日複数件のときの選択と表示順に使う |
+| `conditionScale` | `condition_scale` | smallint, null可, `CHECK` 1〜5 | 体調（5段階）。型・保存・同期は残るが入力UIは無く、新しい記録では常に null（過去の入力値は保持）。**要確認 Q4** |
+| `wakeTags` / `triggerTags` / `responseTags` | `wake_tags` / `trigger_tags` / `response_tags` | text[], not null | 旧フォーム（〜v1）のタグ。入力不可、表示・エクスポートのためだけに保持 |
+| `companion` / `handoff` | `companion` / `handoff` | text, null可 | 旧フォームの同行者・引き渡し先。同上 |
+| `syncStatus` | （サーバーに無い） | `"pending"` \| `"synced"` | ローカル専用。§5.4 |
+| （対応なし） | `struggled` | boolean, null可 | 旧フォームの「登校を渋ったか」。**アプリは読み書きしない**（`schema.sql` と生成型にのみ現れる）。削除は #46 で扱う方針（時期は **要確認 Q20**） |
+
+索引: `idx_records_user_id`、`idx_records_record_date`。**`(user_id, record_date, child_id)` の一意制約は無い**（§7.5）。
+
+### 5.2 その他のテーブル
+
+| テーブル | 主な列・制約 | 用途 |
+|---|---|---|
+| `groups` | `id`, `name`(未使用), `created_by`, `created_at` | 記録を共有する単位 |
+| `group_members` | PK(`group_id`,`user_id`)、**`user_id` unique**（1ユーザー1グループ）、`joined_at`。索引 `group_id` | 所属。対応するTS型は無い（メンバー表示は `GroupMemberProfile`） |
+| `group_invites` | `code` unique、`expires_at`（既定=作成+24時間）、`used_at` / `used_by`（1回限り）。索引 `group_id` | 招待コード（§6.4） |
+| `children` | `id`, `created_by`(FK、削除で連鎖), `name` 1〜50文字(`CHECK`), `created_at`。索引 `created_by` | 子ども。グループ内で共有 |
+| `push_subscriptions` | `user_id`, `endpoint` **unique**, `p256dh`, `auth_key`。索引 `user_id` | Push購読。1ユーザーが複数端末を持てる |
+| `notification_settings` | `user_id` PK, `reminder_time`(time, 既定 21:00), `enabled`(既定 true), `notify_partner_record`(既定 false), `updated_at` | 通知設定。ユーザー1人につき1行 |
+| `analytics_events` | `user_id`, `record_id`, `event_name`, `properties`(jsonb), `client_ts`, `created_at`。索引 `user_id` / `record_id` | 記録フローの計測（§11）。書き込み専用 |
+
+`Group` / `GroupInvite` / `Child` / `GroupMemberProfile` の型は `src/types/models.ts`。
+
+### 5.3 クライアント側ストレージ
+
+| 保存先 | キー・名前 | 内容 | ログアウトで消えるか |
+|---|---|---|---|
+| IndexedDB（Dexie `asa-note-db`, v1） | `records`（索引: `id`, `recordDate`, `syncStatus`） | 記録（自分＋パートナー分のミラー） | **消える**（全テーブルを消去） |
+| 同上 | `pendingRecordDeletes`（`id`） | 未反映の削除のキュー | 消える |
+| `localStorage` | `asa-note:draft` | 記録フォームの下書き | 残る（**要確認 Q16**） |
+| 同上 | `asa-note:selectedChildId` | ホームで選択中の子ども | 残る |
+| 同上 | `asa-note:reminderDismissedDate` | アプリ内リマインドを閉じた日付 | 残る |
+| 同上 | `asa-note:lastSeenReleaseVersion` | 最後に確認した更新履歴の版 | 残る |
+| 同上 | `asa-note:lastOtpSentAt` | マジックリンク最終送信時刻（クールダウン） | 残る |
+
+子どもの一覧・グループ・通知設定はIndexedDBに持たず、オンライン時にSupabaseから直接取得する。`localStorage` が使えない環境では、これらの保存をあきらめて動作は続ける。
+
+### 5.4 `syncStatus` の状態遷移と削除
+
+```mermaid
+stateDiagram-v2
+  [*] --> pending: 保存（新規・編集）
+  pending --> pending: push失敗（次の機会に再試行）
+  pending --> synced: push成功
+  synced --> pending: 編集して保存
+  [*] --> synced: pull で取り込み（他端末・パートナー）
+  synced --> [*]: pull でクラウドから見えなくなった<br/>（脱退・相手/他端末での削除）
+  pending --> [*]: 削除
+  synced --> [*]: 削除
+```
+
+- **削除**: ローカルの行を即時に消し、`pendingRecordDeletes` へ**`syncStatus` に関わらず必ず**積む。同期済みの記録を編集すると `pending` に戻るため、`synced` のときだけ積むと「編集→削除」の記録がクラウドに残り、次の pull で復活していた（#56）。一度もクラウドに存在しなかったIDの削除はサーバーで0件ヒットの無害な操作になる。
+- **削除キューの消化**: push の中で `delete ... in (ids)` を実行し、成功したら キューから消す。失敗時はキューを残して次回再試行する。
+- **pull との関係**: 削除キューにあるIDは pull で復活させない。`pending` の行も上書きしない。
+- 削除できるのは自分の記録のみ（UIの出し分け＋RLS）。
+
