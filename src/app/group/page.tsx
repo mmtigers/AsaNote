@@ -5,10 +5,12 @@ import { useCallback, useEffect, useState } from "react";
 import { Skeleton } from "@/components/Skeleton";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { ChildrenSection } from "./ChildrenSection";
+import { NotificationSection } from "./NotificationSection";
 import { GroupMemberSections } from "./GroupMemberSections";
 import { GroupOnboardingSections } from "./GroupOnboardingSections";
 import { runAction } from "./runAction";
 import { useChildrenAdmin } from "./useChildrenAdmin";
+import { useNotificationSettings } from "./useNotificationSettings";
 import { useGroupAdmin } from "./useGroupAdmin";
 
 // この画面は「お子さま」と「グループ」という独立した2つの関心を並べたもの。
@@ -23,6 +25,7 @@ export default function GroupPage() {
   const reloadChildren = childrenAdmin.reload;
   const groupAdmin = useGroupAdmin({ onError: setErrorMessage, onJoined: reloadChildren });
   const refreshGroup = groupAdmin.refresh;
+  const notificationAdmin = useNotificationSettings(session?.user.id, setErrorMessage);
 
   const refresh = useCallback(async () => {
     await refreshGroup();
@@ -80,6 +83,8 @@ export default function GroupPage() {
       )}
 
       <ChildrenSection admin={childrenAdmin} />
+
+      <NotificationSection admin={notificationAdmin} />
 
       {groupAdmin.group ? (
         <GroupMemberSections admin={groupAdmin} currentUserId={session.user.id} />
