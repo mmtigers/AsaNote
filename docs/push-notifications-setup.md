@@ -95,8 +95,20 @@ npx supabase functions deploy notify-partner
 
 ## トラブルシューティング
 
-- 通知が届かない場合、まずEdge Functionのログ(`npx supabase functions logs send-reminders`)
-  を確認する。
+- 通知が届かない場合、まずEdge Functionのログを確認する。Supabaseダッシュボードの
+  Edge Functions > `send-reminders` > Logs で見られる(Supabase CLIに`functions logs`
+  コマンドは無い)。
+- pg_cronからの呼び出し結果は、SQL Editorで`select status_code, content, created from net._http_response order by created desc limit 5;`
+  を実行すると確認できる(200なら正常、401はservice_roleキーの誤り、404はPROJECT_REFの誤り)。
+- 500で、ログに`Vapid public key must be a URL safe Base 64 (without "=")`と出る場合は、
+  `VAPID_PUBLIC_KEY`の値が不正(末尾の`=`・引用符・空白の混入、秘密鍵との取り違え)。
+  `npx supabase secrets set VAPID_PUBLIC_KEY=...`で入れ直す。Vercelの
+  `NEXT_PUBLIC_VAPID_PUBLIC_KEY`と同じ値にすること。
+- `/group`で「通知機能が未設定です(NEXT_PUBLIC_VAPID_PUBLIC_KEY)」と出る場合は、Vercelの環境変数が
+  未設定、または設定後に再デプロイしていない(`NEXT_PUBLIC_`の値はビルド時に埋め込まれる)。
+  公開鍵は秘密情報ではないので、Vercelでは種別を「Config」にする。
+- Windows(PowerShell)では、手順4の`secrets set`は`\`で改行せず1行で書く。`<...>`は
+  「ここに値を入れる」という意味の印なので、実際の入力には含めない。
 - `push_subscriptions`の行が消えている場合、ブラウザ側の購読が失効した(410/404)ために
   Edge Function側で自動削除された可能性が高い。もう一度「通知」をONにし直す。
 - iOSでは、Push通知を受け取るにはホーム画面に追加したPWAとして開いている必要がある
