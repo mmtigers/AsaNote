@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { ServiceWorkerRegister } from "@/components/ServiceWorkerRegister";
 import { BottomNav } from "@/components/BottomNav";
+import { AuthProvider } from "@/lib/auth/AuthProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -36,8 +37,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="ja" className="h-full antialiased">
       <body className="min-h-full flex flex-col bg-[var(--bg)] text-[var(--ink)]">
         <ServiceWorkerRegister />
-        <div className="flex-1 pb-20">{children}</div>
-        <BottomNav />
+        <AuthProvider>
+          <div className="flex-1 pb-20">{children}</div>
+          <BottomNav />
+        </AuthProvider>
       </body>
     </html>
   );

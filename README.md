@@ -19,6 +19,13 @@ cp .env.local.example .env.local   # Supabaseの URL / anon key を設定
 npm run dev
 ```
 
+## Supabase(共有モード)
+
+共通表(`groups` / `group_members` / `group_invites` / `children` と、`create_group` / `redeem_group_invite` / `get_group_members`)は
+**あさノート側の `supabase/schema.sql` が正**です。同じプロジェクトを使う限り、よるノート側での作成は不要です。
+認証は[メールのマジックリンク](https://github.com/mmtigers/asanote#認証メールのマジックリンク)で、Site URL / Redirect URLs に
+よるノートのURLも追加してください。よるノート固有の表(`evening_*`)は記録機能のPRで追加します(SPEC §7)。
+
 ## コマンド
 
 | コマンド | 内容 |
@@ -31,5 +38,5 @@ npm run dev
 
 ## 現在の状況
 
-段階0(スキャフォールド)の途中。画面は仮ページのみで、認証・グループ・子ども管理・記録フォームはこれから。
-アイコンは仮のものです。
+段階0(スキャフォールド)。ログイン、グループ(作成/招待/参加/脱退)、子ども管理(追加/改名/削除)まで実装済み。
+記録フォーム、ローカルDB・同期、`evening_*` テーブルはこれから。アイコンは仮のものです。
