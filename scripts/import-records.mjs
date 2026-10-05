@@ -19,6 +19,9 @@
 //     "outcome": "reluctant",          // "smooth" | "reluctant" | "absent" | null
 //     "wakeTime": "07:15",             // "HH:MM" | null
 //     "departTime": "08:20",           // "HH:MM" | null
+//     "reasonTags": ["注意された"],     // 省略可、既定は[]。OUTCOME_OPTIONSに応じた理由タグ(src/constants/choices.ts参照)
+//     "companion": "親と一緒に",        // 省略可、既定はnull。COMPANION_OPTIONS参照
+//     "handoff": "担任の先生",          // 省略可、既定はnull。HANDOFF_OPTIONS参照
 //     "memo": "自由記述(最大2000字)"
 //   },
 //   ...
@@ -43,6 +46,9 @@ export function buildRecordRow(record, userId, childId, now) {
     outcome: record.outcome ?? null,
     wake_time: record.wakeTime ?? null,
     depart_time: record.departTime ?? null,
+    reason_tags: record.reasonTags ?? [],
+    companion: record.companion ?? null,
+    handoff: record.handoff ?? null,
     memo: record.memo ?? null,
     updated_at: now,
   };
