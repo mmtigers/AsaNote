@@ -868,3 +868,30 @@ npm run test:e2e       # Playwright（dev サーバーを自動起動）
 | RLS | Row Level Security。Postgresの行単位のアクセス制御（§6.2） |
 | 更新履歴 | `src/data/releases.ts` と `/updates` |
 
+## 付録A 要確認事項
+
+コードやドキュメントから意図・事実が確証できなかった点。判断が出たら本文へ反映し、ここから消す。
+
+| ID | 内容 | 本文 | 根拠 |
+|---|---|---|---|
+| Q1 | タイムラインの「06:59起床」表示とCSVの起床時刻が、区分名ではなく代表値のまま出る。出発時刻はCSV・日記文とも区分名。意図した差か | §3.2, §3.4 | `src/app/timeline/page.tsx`, `src/app/export/selectEntries.ts` |
+| Q2 | `buildExportFilename` が `.csv` 付きの名前を返し、印刷時の `document.title`（PDF保存名の候補）にも `.csv` が付く | §3.4 | `src/app/export/page.tsx`, `selectEntries.ts`, 同テスト |
+| Q3 | `analytics_step_funnel_daily` が旧ステップ名（`result` / `reason`）を数えるため、フロー1画面化後は到達数が常に0。ビューを更新するか | §11.3 | `supabase/schema.sql` |
+| Q4 | 体調（`conditionScale`）の入力UIが無く、`ConditionScalePicker` は未使用。復活させるか、列・型ごと整理するか | §5.1 | `src/app/_home/ConditionScalePicker.tsx` |
+| Q5 | ログアウトしてもPush購読（ブラウザ側とサーバー側 `push_subscriptions`）を解除しない。共有端末で前ユーザー宛の通知が届き続けうる。`unsubscribeCurrentDevice` は未使用 | §3.6, §6.6 | `src/lib/push.ts`, `src/components/AuthStatus.tsx` |
+| Q6 | `send-reminders` は Authorization を検証しない（`notify-partner` は検証する）。デプロイ時のJWT検証設定はリポジトリから確認できない | §4.6, §6.7 | `supabase/functions/*/index.ts`, `docs/push-notifications-setup.md` |
+| Q7 | `manifest` の `theme_color` / `background_color`（`#f6f3ec`）と、`layout.tsx` の `themeColor`・CSSの背景（`#fff5f6`）が不一致 | §13.2 | `public/manifest.webmanifest`, `src/app/layout.tsx`, `globals.css` |
+| Q8 | 子ども一覧の取得に失敗（オフライン起動など）すると「子どもなし」扱いになり、複数の子どもがいても `childId: null` で保存される。許容か | §3.1.7 | `src/lib/db/children.ts`, `src/lib/db/useAuthedList.ts` |
+| Q9 | パートナーの新規記録が反映されるのは、起動時・ログイン・グループ参加/脱退時のみ。復帰時の取得や定期取得は不要か | §7.3 | `src/lib/auth/AuthProvider.tsx`, `src/app/group/useGroupAdmin.ts` |
+| Q10 | 最後のメンバーが脱退したグループ・招待コードの後始末が無い。子どもの作成者が脱退すると相手から子どもが見えなくなる | §13.2 | `supabase/schema.sql`（`children` / `group_members` ポリシー） |
+| Q11 | 招待コード（8文字×32種）にアプリ側の試行回数制限が無い。Supabase側のレート制限に任せる想定か | §6.4 | `src/lib/db/groups.ts`, `schema.sql` |
+| Q12 | ホスティング先（Vercel は手順書の記述のみ）、本番URL、対応ブラウザ・OSの公式な範囲 | §8.1, §12 | `docs/push-notifications-setup.md` |
+| Q13 | 想定利用者の範囲（家族内の限定運用か一般公開か）、データの保持期間、退会（アカウント・データ削除）の方針。退会機能はコードに無い | §1.2, §6.5 | README、コード全般 |
+| Q14 | タイムラインのカードに子ども名が出ない／エクスポートが子どもで分かれない。意図か | §3.2, §3.4 | `src/app/timeline/page.tsx`, `src/app/export/page.tsx` |
+| Q15 | 初回訪問直後にオフラインで起動できるか（プリキャッシュは `/` とアイコンのみで、JS等は遅延キャッシュ）。未検証 | §7.7 | `public/sw.js` |
+| Q16 | ログアウトで消すのはIndexedDBのみ。`localStorage` の下書き（メモを含む）・選択中の子ども等は残る。共有端末での扱いはこれでよいか | §3.6, §5.3, §6.6 | `src/lib/db/localDb.ts`, `src/components/AuthStatus.tsx` |
+| Q17 | 計測の `entry_point: "push_reminder"` はアプリ内リマインド経由。名称を直すか、Push通知のタップを別に計測するか | §11.2 | `src/app/page.tsx` |
+| Q18 | Google Fonts を外部から取得（CSSの `@import`）。プライバシー・オフライン時の見た目の方針 | §6.5, §12 | `src/app/globals.css`, `public/sw.js` |
+| Q19 | ホームのカレンダーは未来日も選べて記録できる。意図か | §3.1.1 | `src/components/MonthCalendar.tsx`, `src/app/page.tsx` |
+| Q20 | `struggled` 列の削除時期。旧版のSPECに「2027年9月頃」とあったが、コード・他文書に根拠が無い | §5.1 | `supabase/schema.sql`, `.github/workflows/db-deploy.yml`（#46への言及のみ） |
+
