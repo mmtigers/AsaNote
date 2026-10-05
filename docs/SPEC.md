@@ -665,3 +665,61 @@ npm run dev
 
 Supabase未接続でも、ログインせずに端末内での記録・閲覧はできる。このNext.jsは一般的な知識と異なる破壊的変更を含むため、実装前に `node_modules/next/dist/docs/` の該当ガイドを読むこと（`AGENTS.md`）。
 
+## 9. 技術スタックとディレクトリ構成
+
+### 9.1 技術スタック
+
+| レイヤー | 技術 |
+|---|---|
+| フロントエンド | Next.js 16（App Router）/ React 19 / TypeScript 6 |
+| スタイル | Tailwind CSS v4。配色はCSS変数（`src/app/globals.css`）で、OSのダークモード設定に追従 |
+| クラウドDB・認証 | Supabase（Postgres / Auth / RLS / Edge Functions / `pg_cron`） |
+| ローカルキャッシュ | Dexie.js（IndexedDB）。`dexie-react-hooks` のライブクエリで画面に反映 |
+| オフライン・Push | 手書きService Worker（`public/sw.js`）。Web Push（Edge Function内で `web-push`） |
+| 祝日 | `@holiday-jp/holiday_jp`（同梱データ、通信不要） |
+| テスト | Vitest 5（jsdom・fake-indexeddb・Testing Library）、Playwright（chromiumのみ） |
+| Lint・CI | ESLint 9（`eslint-config-next`）、GitHub Actions、Dependabot |
+
+### 9.2 ディレクトリ構成
+
+```
+src/
+  app/
+    layout.tsx, loading.tsx, error.tsx, global-error.tsx, not-found.tsx, globals.css
+    page.tsx              ホーム（記録）。状態は home / form の2つ
+    _home/                ホーム専用: 記録フォーム・各ピッカー・下書き・状態管理フック
+    timeline/page.tsx     これまでの記録
+    stats/                傾向（page・集計の純関数 aggregate.ts / detail.ts・詳細シート）
+    export/               エクスポート（page・対象抽出/CSV/ファイル名 selectEntries.ts）
+    group/                共有: page は出し分けのみ。状態は use*Admin / useNotificationSettings、表示は *Section
+    login/page.tsx        マジックリンクログイン
+    updates/page.tsx      更新履歴
+  components/             カレンダー・下部ナビ・子ども切替・タグ選択・各種通知/ダイアログ
+  lib/
+    supabase/client.ts    Supabaseクライアント（遅延生成）
+    auth/AuthProvider.tsx 認証状態（起動時のpull/pushもここ）
+    db/                   localDb(Dexie)・records・sync・syncStatus・queries・ownership・
+                          children・groups・notificationSettings・useAuthedList・database.types(生成物)
+    localStorageStore.ts  localStorage 1値の読み書き・同一タブ通知の唯一の定型
+    draft.ts, recordFlowReset.ts, otpCooldown.ts, releaseSeen.ts, errors.ts
+    date.ts, holidays.ts, wakeTime.ts, departTime.ts, reasonOptions.ts, recordPreview.ts
+    push.ts               ブラウザPush APIの薄いラッパー
+    analytics.ts          計測イベントの送信
+  constants/              choices.ts（選択肢の唯一の情報源）、outcomeStyles.ts（結果ごとの色）
+  data/releases.ts        更新履歴（新しい順。先頭が最新版）
+  types/models.ts         SchoolRecord / Group / Child などの型
+supabase/
+  schema.sql              テーブル・RLS・SQL関数・計測ビュー（mainマージで自動適用）
+  functions/send-reminders, notify-partner, _shared/pushLogic.ts   Edge Function（Deno）
+  cron-reminders.sql, partner-notify-trigger.sql                  手動適用
+  ci/auth-stub.sql        CIの型ドリフト検査用スタブ
+public/                   sw.js, manifest.webmanifest, icons/, apple-touch-icon.png
+scripts/                  check-release-notes.mjs, gen-db-types.sh, import-records.mjs
+e2e/record-flow.spec.ts   Playwright E2E
+docs/                     SPEC.md（本書）, push-notifications-setup.md
+.github/                  workflows/ci.yml, workflows/db-deploy.yml, dependabot.yml
+```
+
+- `supabase/functions/` はDeno向けで、このNode/Next.jsプロジェクトの `tsc` と ESLint の対象外（`tsconfig.json` の `exclude` と `eslint.config.mjs` の `globalIgnores`）。純粋ロジック（`_shared/pushLogic.ts`）だけ切り出してあり、Vitestで検証する。
+- 選択肢（結果・理由タグ）を増減するときは `src/constants/choices.ts` だけを触る。旧フォーム由来の選択肢は、過去記録の表示のためだけに残している。
+
