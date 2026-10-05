@@ -7,11 +7,12 @@
 // 永久に失敗し続けていた)
 export const MEMO_MAX_LENGTH = 2000;
 
+// shortLabel は選択ボタン用(スマホで1行に収めるため短くする)。label は記録の表示・CSVなどで使う正式名称。
 // 登校の結果。3択(スムーズ/行き渋り/お休み)で、以降の「理由」の選択肢を出し分ける。
 export const OUTCOME_OPTIONS = [
-  { value: "smooth", label: "スムーズに行けた", emoji: "😊", color: "accent" },
-  { value: "reluctant", label: "行き渋った", emoji: "😣", color: "amber" },
-  { value: "absent", label: "行かなかった", emoji: "🏠", color: "calm" },
+  { value: "smooth", label: "スムーズに行けた", shortLabel: "スムーズ", emoji: "😊", color: "accent" },
+  { value: "reluctant", label: "行き渋った", shortLabel: "行き渋った", emoji: "😣", color: "amber" },
+  { value: "absent", label: "行かなかった", shortLabel: "行かなかった", emoji: "🏠", color: "calm" },
 ] as const;
 
 export type Outcome = (typeof OUTCOME_OPTIONS)[number]["value"];
