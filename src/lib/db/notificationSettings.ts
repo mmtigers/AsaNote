@@ -6,6 +6,8 @@ import type { PushSubscriptionKeys } from "@/lib/push";
 export interface NotificationSettings {
   reminderTime: string; // "HH:MM"
   enabled: boolean;
+  // パートナーがきろくを新規に記入したときにPush通知を受け取るか。
+  notifyPartnerRecord: boolean;
 }
 
 // 未入力日のリマインド通知(#3-2)の既定時刻。仕様どおり21:00。
@@ -20,12 +22,16 @@ export async function fetchNotificationSettings(userId: string): Promise<Notific
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from("notification_settings")
-    .select("reminder_time, enabled")
+    .select("reminder_time, enabled, notify_partner_record")
     .eq("user_id", userId)
     .maybeSingle();
   if (error) throw error;
-  if (!data) return { reminderTime: DEFAULT_REMINDER_TIME, enabled: false };
-  return { reminderTime: normalizeReminderTime(data.reminder_time), enabled: data.enabled };
+  if (!data) return { reminderTime: DEFAULT_REMINDER_TIME, enabled: false, notifyPartnerRecord: false };
+  return {
+    reminderTime: normalizeReminderTime(data.reminder_time),
+    enabled: data.enabled,
+    notifyPartnerRecord: data.notify_partner_record,
+  };
 }
 
 export async function saveNotificationSettings(userId: string, settings: NotificationSettings): Promise<void> {
@@ -34,6 +40,7 @@ export async function saveNotificationSettings(userId: string, settings: Notific
     user_id: userId,
     reminder_time: settings.reminderTime,
     enabled: settings.enabled,
+    notify_partner_record: settings.notifyPartnerRecord,
     updated_at: new Date().toISOString(),
   });
   if (error) throw error;

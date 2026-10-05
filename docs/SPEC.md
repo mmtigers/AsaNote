@@ -66,6 +66,8 @@ supabase/
   schema.sql              records / groups / children / push_subscriptions / notification_settings 等のテーブル・RLSポリシー
   functions/send-reminders/index.ts  未入力日リマインドPush通知の送信Edge Function（Deno。§4.7）
   cron-reminders.sql      Edge Functionをpg_cronで毎分呼び出す設定（手動適用。§4.7）
+  functions/notify-partner/index.ts  パートナーのきろく追加通知の送信Edge Function（Deno。§4.7）
+  partner-notify-trigger.sql  recordsのトリガーでnotify-partnerを呼ぶ設定（手動適用。§4.7）
   ci/auth-stub.sql        CI（`db-types-check`）で素のPostgresに `auth.uid()` 等を代替定義するスタブ
 scripts/gen-db-types.sh   `database.types.ts` の再生成スクリプト
 e2e/record-flow.spec.ts   Playwright のE2Eテスト
@@ -142,6 +144,7 @@ docs/push-notifications-setup.md  Push通知(§4.7)のデプロイ手順
 - `/group`の「通知」セクションでON/OFFと通知時刻（既定21:00）を設定する。ONにする際、この端末でまだPush購読が無ければブラウザに通知の許可を求め、Web Push購読を作成する（`src/lib/push.ts`）。
 - 購読情報は`push_subscriptions`テーブルへ、時刻・ON/OFFは`notification_settings`テーブルへ、それぞれ本人のみ読み書きできるRLSで保存する（`src/lib/db/notificationSettings.ts`）。
 - 送信はSupabase Edge Function（`supabase/functions/send-reminders`）が担う。pg_cronが毎分呼び出し、JST時刻が`reminder_time`と一致し`enabled=true`のユーザーのうち、その日（JST）まだ`outcome`入りの記録が無い人だけへ、そのユーザーの全購読へPush通知を送る。送信が410/404で失敗した（失効した）購読はその場で削除する。
+- **パートナーのきろく追加通知**: `/group`の「パートナーがきろくを追加したとき」（`notification_settings.notify_partner_record`、既定OFF。ONにする際の購読作成はリマインドと共通）をONにしたメンバーへ、同じグループの他メンバーが`outcome`入りの記録を**新規に**作ったとき「〇〇さんがきろくを追加しました」を送る。「〇〇」は記録者のメールアドレスの`@`より前（表示名を持たないため）。`records`のトリガー（`supabase/partner-notify-trigger.sql`。INSERT、またはUPDATEで`outcome`がnull→値になった時のみ。編集・同期再送では発火しない）がEdge Function `notify-partner`をservice roleで呼び、全購読へ送る。クライアントからは呼ばない。
 - Service Worker（`public/sw.js`）の`push`イベントで通知を表示し、`notificationclick`でアプリを開く/前面に出す。
 - `supabase/schema.sql`（`push_subscriptions` / `notification_settings`テーブル）は他のテーブルと同様`main`マージ時に自動デプロイされるが、Edge Functionのデプロイ・VAPID鍵の発行・pg_cronのスケジュール登録（`supabase/cron-reminders.sql`）は自動化の対象外。デプロイ手順は`docs/push-notifications-setup.md`を参照。
 
@@ -179,7 +182,7 @@ docs/push-notifications-setup.md  Push通知(§4.7)のデプロイ手順
 対応するTypeScriptの型は持たない（アプリがこの行をそのまま扱う箇所が無いため、`src/lib/db/notificationSettings.ts` がSupabaseへの読み書きを直接行う）。
 
 - `push_subscriptions`: `id`, `user_id`, `endpoint`（`unique`）, `p256dh`, `auth_key`, `created_at`。1ユーザーが複数端末を持ちうるため複数行を許容し、同じ`endpoint`での再購読は`upsert`で更新する。
-- `notification_settings`: `user_id`（主キー）, `reminder_time`（`time`、既定`21:00`）, `enabled`（`boolean`、既定`true`）, `updated_at`。ユーザー1人につき1行。
+- `notification_settings`: `user_id`（主キー）, `reminder_time`（`time`、既定`21:00`）, `enabled`（`boolean`、既定`true`）, `notify_partner_record`（`boolean`、既定`false`）, `updated_at`。ユーザー1人につき1行。
 
 ## 6. サーバー（Supabase）仕様
 

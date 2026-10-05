@@ -402,6 +402,11 @@ create table if not exists notification_settings (
   updated_at timestamptz not null default now()
 );
 
+-- パートナーがきろくを新規に記入したときのPush通知(#3-2の拡張)を受け取るか。
+-- リマインド(enabled)とは別のON/OFFで、既定はOFF(通知許可を求める操作を伴うため、
+-- 本人が明示的にONにするまで送らない)。
+alter table notification_settings add column if not exists notify_partner_record boolean not null default false;
+
 alter table notification_settings enable row level security;
 
 drop policy if exists "notification_settings are readable by owner" on notification_settings;

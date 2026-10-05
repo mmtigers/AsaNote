@@ -151,18 +151,21 @@ export type Database = {
       notification_settings: {
         Row: {
           enabled: boolean
+          notify_partner_record: boolean
           reminder_time: string
           updated_at: string
           user_id: string
         }
         Insert: {
           enabled?: boolean
+          notify_partner_record?: boolean
           reminder_time?: string
           updated_at?: string
           user_id: string
         }
         Update: {
           enabled?: boolean
+          notify_partner_record?: boolean
           reminder_time?: string
           updated_at?: string
           user_id?: string
