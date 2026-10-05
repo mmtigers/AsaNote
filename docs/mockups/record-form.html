@@ -49,8 +49,6 @@ h2{font-size:15px;margin:0 0 10px}
 .yn button.ok.on{background:var(--calm-soft);border-color:var(--calm);color:var(--calm)}
 .yn button.ng.on{background:var(--amber-soft);border-color:var(--amber);color:var(--amber)}
 .sub{font-size:12px;color:var(--sub);margin:10px 0 6px}
-.safety{border:1px solid var(--danger);background:var(--danger-soft);border-radius:14px;padding:10px;margin-top:10px}
-.safety .sub{color:var(--danger);margin-top:0}
 .copy{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--sub);margin:0 2px 12px}
 .copy button{border:1px solid var(--line);background:var(--surface);color:var(--accent);border-radius:999px;padding:5px 12px;font:inherit;font-size:12px;font-weight:700}
 input[type=text],textarea{width:100%;border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:12px;padding:9px 12px;font:inherit;font-size:14px}
@@ -62,6 +60,13 @@ textarea{min-height:84px;resize:vertical}
 .save{width:100%;border:0;border-radius:999px;background:var(--accent);color:var(--accent-ink);padding:14px;font:inherit;font-weight:700;font-size:15px}
 .save:disabled{opacity:.4}
 .hint{text-align:center;font-size:12px;color:var(--sub);margin-top:6px}
+.row select{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;padding:7px 8px;font:inherit;font-size:14px;min-width:112px}
+.row select.set{border-color:var(--accent);background:var(--accent-soft);color:var(--accent);font-weight:700}
+.photos{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+.photos .ph{position:relative;aspect-ratio:1;border-radius:12px;overflow:hidden;background:var(--surface-2)}
+.photos img{width:100%;height:100%;object-fit:cover;display:block}
+.photos button{position:absolute;top:4px;right:4px;width:24px;height:24px;border:0;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;font-size:14px;line-height:1}
+.addphoto{display:block;text-align:center;border:1px dashed var(--accent);color:var(--accent);border-radius:14px;padding:12px;font-weight:700;font-size:14px}
 .toast{position:fixed;left:50%;top:40%;transform:translateX(-50%);background:var(--accent);color:var(--accent-ink);padding:12px 20px;border-radius:999px;font-weight:700;display:none}
 </style>
 </head>
@@ -83,23 +88,12 @@ textarea{min-height:84px;resize:vertical}
     </div>
   </section>
 
-  <div class="copy"><span>前日の選択を引き継げます</span><button id="carry">昨日と同じにする</button></div>
+  <div class="copy"><span>前日の時刻・自由時間を引き継げます</span><button id="carry">昨日と同じにする</button></div>
 
   <!-- 2. 節目の時刻 -->
   <details open>
-    <summary><span class="t">⏰ 節目の時刻</span><span class="s" id="s-times">未入力</span></summary>
+    <summary><span class="t">⏰ 節目の時刻(だいたいでOK)</span><span class="s" id="s-times">未入力</span></summary>
     <div class="body" id="times"></div>
-  </details>
-
-  <!-- 3. 宿題・決め事 -->
-  <details open>
-    <summary><span class="t">📚 宿題・決め事</span><span class="s" id="s-hw">未入力</span></summary>
-    <div class="body">
-      <div class="sub" style="margin-top:0">宿題</div>
-      <div class="chips seg" id="hw"></div>
-      <div class="sub">決め事(間に合った?)</div>
-      <div id="rules"></div>
-    </div>
   </details>
 
   <!-- 4. 夕食 -->
@@ -134,10 +128,6 @@ textarea{min-height:84px;resize:vertical}
       <div class="chips" id="trigger"></div>
       <div class="sub">行動</div>
       <div class="chips" id="behavior"></div>
-      <div class="safety">
-        <div class="sub">⚠ 安全面で気になったこと(エクスポートでも目立つ形で出ます)</div>
-        <div class="chips danger" id="safety"></div>
-      </div>
       <div class="sub">親の対応</div>
       <div class="chips" id="response"></div>
       <div class="sub">効いた?</div>
@@ -164,6 +154,18 @@ textarea{min-height:84px;resize:vertical}
     </div>
   </details>
 
+  <!-- 写真 -->
+  <details>
+    <summary><span class="t">📷 写真</span><span class="s" id="s-photo">なし</span></summary>
+    <div class="body">
+      <div class="photos" id="photos"></div>
+      <label class="addphoto">＋ 写真を追加(カメラ / アルバム)
+        <input type="file" id="photoIn" accept="image/*" multiple hidden>
+      </label>
+      <div class="sub">1日5枚まで。保存時に自動で縮小します。圏外でも端末に保存され、通信できると同期します。</div>
+    </div>
+  </details>
+
   <!-- プレビュー -->
   <section>
     <h2>記録プレビュー</h2>
@@ -179,19 +181,17 @@ textarea{min-height:84px;resize:vertical}
 
 <script>
 const $=id=>document.getElementById(id);
-const state={kid:"智矢",outcome:null,times:{},hw:null,rules:{},dinner:null,dinnerWhy:new Set(),free:new Set(),friend:new Set(),trigger:new Set(),behavior:new Set(),safety:new Set(),response:new Set(),effect:null,body:new Set()};
+const state={kid:"智矢",outcome:null,times:{},photos:[],dinner:null,dinnerWhy:new Set(),free:new Set(),friend:new Set(),trigger:new Set(),behavior:new Set(),response:new Set(),effect:null,body:new Set()};
 const OPT={
  kids:["智矢","涼花"],
- times:[["arrive","帰宅"],["hwStart","宿題 開始"],["hwEnd","宿題 終了"],["dinner","夕食"],["bath","お風呂"],["prep","準備完了"],["bed","消灯"]],
- hw:[["all","全部"],["part","一部"],["none","なし"]],
- rules:[["dish","食洗機(18:45)"],["prepare","明日の準備"],["bath","お風呂"],["teeth","歯みがき"]],
+ // [key, label, 開始, 終了, 刻み(分)] — よく使う範囲だけを選択肢にする
+ times:[["arrive","帰宅","14:00","17:00",15],["hwStart","宿題 開始","15:00","20:00",30],["hwEnd","宿題 終了","15:30","21:00",30],["dinner","夕食","17:00","20:00",30],["bath","お風呂","18:00","21:00",30],["prep","明日の準備 完了","18:00","21:30",30],["bed","消灯","19:30","22:00",15]],
  dinner:[["ate","食べた"],["little","少し"],["no","食べず"]],
  dinnerWhy:["においが苦手","メニューが好みでない","テレビに集中","疲れ・眠い","食欲がない"],
  free:["TV","YouTube","ドラえもん","ゲーム","たまごっち","外遊び","友達と","お絵描き","運動遊び"],
  friend:["約束あり","約束なし","家に来た","時間を守れた","時間を過ぎた"],
  trigger:["時間切れ・間に合わない","ルールが不公平","好きなことを止められた","宿題","食事","眠い・疲れ"],
  behavior:["号泣","物を投げる","暴言","家出","物を壊そうとする"],
- safety:["「死にたい」等の発言","自分を傷つける言動","人に向けた危険な言動"],
  response:["時間を宣言","放置","一緒に遊ぶ","取り上げ","食事を下げる","気持ちを聞く"],
  effect:[["good","○ 効いた"],["mid","△ 少し"],["bad","× 効かず"]],
  body:["蕁麻疹","眠い・疲れ","腹痛","頭痛","食欲なし"]
@@ -237,33 +237,41 @@ function paint(){
 OPT.kids.forEach(k=>{const b=document.createElement("button");b.className="kid";b.textContent=k;b.onclick=()=>{state.kid=k;render();};$("kids").appendChild(b);});
 // outcome
 $("outcome").querySelectorAll("button").forEach(b=>b.onclick=()=>{state.outcome=b.dataset.v;render();});
-// times
-OPT.times.forEach(([k,l])=>{
+// times: 選択メニュー(タップで選ぶ)。「いま」は15分単位に丸めて入れる。
+const hm=m=>String(Math.floor(m/60)).padStart(2,"0")+":"+String(m%60).padStart(2,"0");
+const toMin=t=>{const [h,m]=t.split(":").map(Number);return h*60+m;};
+OPT.times.forEach(([k,l,from,to,step])=>{
   const r=document.createElement("div");r.className="row";
-  r.innerHTML=`<span class="l">${l}</span><input type="time" id="t-${k}"><button class="now" data-k="${k}">いま</button>`;
+  let opts='<option value="">--:--</option>';
+  for(let m=toMin(from);m<=toMin(to);m+=step)opts+=`<option value="${hm(m)}">${hm(m)}ごろ</option>`;
+  r.innerHTML=`<span class="l">${l}</span><select id="t-${k}">${opts}</select><button class="now" data-k="${k}">いま</button>`;
   $("times").appendChild(r);
-  r.querySelector("input").onchange=e=>{state.times[k]=e.target.value;render();};
-  r.querySelector(".now").onclick=()=>{const d=new Date();const v=String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");state.times[k]=v;$("t-"+k).value=v;render();};
+  r.querySelector("select").onchange=e=>{state.times[k]=e.target.value;render();};
+  r.querySelector(".now").onclick=()=>{
+    const d=new Date();let m=Math.round((d.getHours()*60+d.getMinutes())/step)*step;
+    m=Math.min(Math.max(m,toMin(from)),toMin(to));
+    state.times[k]=hm(m);$("t-"+k).value=hm(m);render();};
 });
-// rules
-OPT.rules.forEach(([k,l])=>{
-  const r=document.createElement("div");r.className="row";
-  r.innerHTML=`<span class="l">${l}</span><div class="yn"><button class="ok" data-k="${k}" data-v="ok">○</button><button class="ng" data-k="${k}" data-v="ng">×</button></div>`;
-  $("rules").appendChild(r);
-  r.querySelectorAll("button").forEach(b=>b.onclick=()=>{state.rules[k]=state.rules[k]===b.dataset.v?undefined:b.dataset.v;render();});
-});
-chips($("hw"),OPT.hw,"hw",{single:true});
 chips($("dinner"),OPT.dinner,"dinner",{single:true});
 chips($("dinnerWhyChips"),OPT.dinnerWhy,"dinnerWhy");
 chips($("free"),OPT.free,"free");
 chips($("friend"),OPT.friend,"friend");
 chips($("trigger"),OPT.trigger,"trigger");
 chips($("behavior"),OPT.behavior,"behavior");
-chips($("safety"),OPT.safety,"safety",{cls:""});
 chips($("response"),OPT.response,"response");
 chips($("effect"),OPT.effect,"effect",{single:true});
 chips($("bodyTags"),OPT.body,"body");
-$("carry").onclick=()=>{state.rules={dish:"ok",prepare:"ok",bath:"ok",teeth:"ok"};["TV","ドラえもん"].forEach(x=>state.free.add(x));render();};
+$("carry").onclick=()=>{
+  const y={arrive:"15:00",hwStart:"16:00",hwEnd:"16:30",dinner:"18:00",bath:"19:00",prep:"20:00",bed:"20:30"};
+  Object.assign(state.times,y);OPT.times.forEach(([k])=>{$("t-"+k).value=state.times[k];});
+  ["TV","ドラえもん"].forEach(x=>state.free.add(x));render();};
+// photos
+const PH_MAX=5;
+$("photoIn").onchange=e=>{
+  [...e.target.files].slice(0,PH_MAX-state.photos.length).forEach(f=>{
+    const r=new FileReader();r.onload=()=>{state.photos.push(r.result);render();};r.readAsDataURL(f);});
+  e.target.value="";
+};
 $("memo").oninput=()=>{$("count").textContent=$("memo").value.length+"/2000";render();};
 ["good","tomorrow","friendMemo"].forEach(id=>$(id).oninput=render);
 $("save").onclick=()=>{$("toast").style.display="block";setTimeout(()=>$("toast").style.display="none",1400);};
@@ -271,42 +279,41 @@ $("save").onclick=()=>{$("toast").style.display="block";setTimeout(()=>$("toast"
 const lab=(list,v)=>(list.find(x=>x[0]===v)||[])[1];
 function summary(){
   const nt=Object.values(state.times).filter(Boolean).length;
-  $("s-times").textContent=nt?`${nt}件入力`:"未入力";
-  const rk=Object.values(state.rules).filter(Boolean);
-  const hwL=state.hw?lab(OPT.hw,state.hw):"";
-  $("s-hw").textContent=[hwL&&"宿題:"+hwL,rk.length&&`決め事 ○${rk.filter(x=>x==="ok").length} ×${rk.filter(x=>x==="ng").length}`].filter(Boolean).join(" ")||"未入力";
+  $("s-times").textContent=nt?`${nt}/7 入力`:"未入力";
+  $("s-photo").textContent=state.photos.length?state.photos.length+"枚":"なし";
   $("s-dinner").textContent=state.dinner?lab(OPT.dinner,state.dinner):"未入力";
   const fr=[...state.free,...state.friend];$("s-free").textContent=fr.length?fr.slice(0,3).join("・")+(fr.length>3?"…":""):"未入力";
-  const rg=[...state.trigger,...state.behavior,...state.safety,...state.response];$("s-rough").textContent=rg.length?rg.length+"件":"未入力";
+  const rg=[...state.trigger,...state.behavior,...state.response];$("s-rough").textContent=rg.length?rg.length+"件":"未入力";
   $("s-body").textContent=state.body.size?[...state.body].join("・"):"未入力";
   const m=[$("good").value,$("tomorrow").value,$("memo").value].filter(Boolean).length;$("s-memo").textContent=m?m+"件":"未入力";
 }
 function preview(){
   if(!state.outcome){$("preview").innerHTML="<small>選んだ内容から自動で文章を作ります</small>今夜の様子を選ぶと表示されます。";return;}
   const p=[];
-  p.push(OUT[state.outcome]+"な夜。");
-  if(state.times.arrive)p.push(`${state.times.arrive}に帰宅。`);
-  if(state.hw)p.push("宿題は"+lab(OPT.hw,state.hw)+(state.times.hwStart?`(${state.times.hwStart}〜${state.times.hwEnd||""})`:"")+"。");
-  const ng=OPT.rules.filter(([k])=>state.rules[k]==="ng").map(x=>x[1]);
-  if(ng.length)p.push("間に合わなかった決め事: "+ng.join("・")+"。");
+  p.push({calm:"穏やかな夜。",rough:"少し荒れた夜。",storm:"大荒れの夜。"}[state.outcome]);
+  if(state.times.arrive)p.push(`${state.times.arrive}ごろに帰宅。`);
+  if(state.times.hwStart)p.push(`宿題は${state.times.hwStart}ごろから`+(state.times.hwEnd?`${state.times.hwEnd}ごろまで。`:"。"));
   if(state.dinner)p.push("夕食は"+lab(OPT.dinner,state.dinner)+(state.dinnerWhy.size?"("+[...state.dinnerWhy].join("・")+")":"")+"。");
   if(state.free.size)p.push("自由時間は「"+[...state.free].join("・")+"」。");
   if(state.outcome!=="calm"){
     if(state.trigger.size)p.push("きっかけは「"+[...state.trigger].join("・")+"」。");
     if(state.behavior.size)p.push([...state.behavior].join("・")+"があった。");
-    if(state.safety.size)p.push("【要注意】"+[...state.safety].join("・")+"。");
     if(state.response.size)p.push("対応は「"+[...state.response].join("・")+"」"+(state.effect?`(${lab(OPT.effect,state.effect).slice(2)})`:"")+"。");
   }
+  if(state.photos.length)p.push(`写真${state.photos.length}枚。`);
   if(state.body.size)p.push("からだ: "+[...state.body].join("・")+"。");
   if($("good").value)p.push("よかったこと: "+$("good").value+"。");
-  if(state.times.bed)p.push(`${state.times.bed}に消灯。`);
+  if(state.times.bed)p.push(`${state.times.bed}ごろに消灯。`);
   if($("memo").value)p.push($("memo").value);
   $("preview").innerHTML="<small>"+state.kid+"・自動生成(保存はしません)</small>"+p.join("");
 }
 function render(){
   document.querySelectorAll(".kid").forEach(b=>b.classList.toggle("on",b.textContent===state.kid));
   $("outcome").querySelectorAll("button").forEach(b=>b.classList.toggle("on",b.dataset.v===state.outcome));
-  document.querySelectorAll(".yn button").forEach(b=>b.classList.toggle("on",state.rules[b.dataset.k]===b.dataset.v));
+  OPT.times.forEach(([k])=>$("t-"+k).classList.toggle("set",!!state.times[k]));
+  $("photos").innerHTML=state.photos.map((src,i)=>`<div class="ph"><img src="${src}" alt="写真${i+1}"><button data-i="${i}" aria-label="削除">×</button></div>`).join("");
+  $("photos").querySelectorAll("button").forEach(b=>b.onclick=()=>{state.photos.splice(+b.dataset.i,1);render();});
+  document.querySelector(".addphoto").style.display=state.photos.length>=PH_MAX?"none":"block";
   $("roughBox").style.display=(state.outcome==="rough"||state.outcome==="storm")?"block":"none";
   $("dinnerWhy").style.display=(state.dinner==="little"||state.dinner==="no")?"block":"none";
   $("save").disabled=!state.outcome;$("hint").style.display=state.outcome?"none":"block";
