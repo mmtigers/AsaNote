@@ -450,3 +450,78 @@ stateDiagram-v2
 - **pull との関係**: 削除キューにあるIDは pull で復活させない。`pending` の行も上書きしない。
 - 削除できるのは自分の記録のみ（UIの出し分け＋RLS）。
 
+## 6. 権限・セキュリティ
+
+### 6.1 認証と鍵
+
+- 認証は Supabase Auth のメール・マジックリンク（§3.6）。
+- ブラウザには公開鍵（anon key。`NEXT_PUBLIC_SUPABASE_*`）のみが渡り、アクセス制御はすべて **Row Level Security（RLS）**に依存する。全テーブルでRLSを有効にしている。
+- **service role key**（RLSをバイパスする管理者キー）を使うのは、Edge Function（Supabaseが自動注入）、`supabase/cron-reminders.sql` と `supabase/partner-notify-trigger.sql`（実行時に手で値を埋め込む）、`scripts/import-records.mjs`（実行時の環境変数）のみ。リポジトリには実値を残さない運用（各ファイルの冒頭コメント）。
+
+### 6.2 RLSポリシー
+
+| テーブル | SELECT | INSERT | UPDATE | DELETE |
+|---|---|---|---|---|
+| `records` | 本人＋同じグループのメンバー | 本人のみ | 本人のみ | 本人のみ |
+| `groups` | 作成者本人＋所属メンバー | 作成者本人のみ | なし | なし |
+| `group_members` | 本人＋同じグループのメンバー（`is_fellow_group_member()` 経由） | 「自分が作成したグループに自分自身を追加」の場合のみ（招待経由の参加は下記関数） | なし | 本人のみ（脱退） |
+| `group_invites` | 同じグループのメンバー | 同じグループのメンバー本人かつ有効期限が24時間+5分以内 | なし | なし |
+| `children` | 作成者本人＋同じグループのメンバー | 作成者本人のみ | 作成者本人のみ | 作成者本人のみ |
+| `push_subscriptions` | 本人のみ | 本人のみ | 本人のみ | 本人のみ |
+| `notification_settings` | 本人のみ | 本人のみ | 本人のみ | 本人のみ |
+| `analytics_events` | **なし**（読み取り不可） | 本人のみ | なし | なし |
+
+- 「同じグループのメンバー」は、`group_members` を自己結合して「自分と記録者が同じグループにいる」ことで判定する。
+- `groups` の SELECT に「作成者本人」を含めるのは、作成直後（まだ `group_members` に自分を入れる前）の `insert ... returning` で行を読み返せるようにするため（RLSは `returning` にもSELECTポリシーを適用する）。
+- 通知まわりの送信を担うEdge Functionは service role で動くためRLSを経由する必要が無く、他人の購読・設定へはクライアントから一切触れない。
+
+### 6.3 SECURITY DEFINER関数
+
+すべて `set search_path = public`、`authenticated` ロールにのみ実行を許可する。
+
+| 関数 | 用途 |
+|---|---|
+| `create_group()` | グループ作成と作成者の `group_members` 追加をアトミックに実行（片方だけ成功する孤立状態を防ぐ）。既に所属していれば `already_in_group` |
+| `redeem_group_invite(p_code)` | 招待コードの照合・消費（`group_members` 追加＋`used_at` 更新）をアトミックに実行（コード行を `for update` で行ロック）。無効・期限切れ・使用済みは `invite_invalid`、既に所属は `already_in_group` |
+| `get_group_members()` | 自分の所属グループのメンバー（`user_id`, `email`, `joined_at`）を返す。`auth.users` はクライアントから直接参照できないため、この関数経由でのみメールアドレスを取得できる |
+| `is_fellow_group_member(p_group_id)` | 「自分が指定グループのメンバーか」の判定。`group_members` のポリシーが自分自身を参照して無限再帰になるのを避けるための内部ヘルパー |
+| `notify_partner_on_new_record()` | `records` のトリガー関数（§4.4）。`security definer`。通知の失敗を握りつぶし、記録の保存を巻き戻さない |
+
+### 6.4 招待コード
+
+| 項目 | 仕様 |
+|---|---|
+| 形式 | 8文字。`0/O`・`1/I/L` を除いた32種の英数字（手入力・音声共有を想定）。`crypto.getRandomValues` で生成 |
+| 有効期限 | 発行から24時間（`expires_at` 既定値。INSERTポリシーも24時間+5分以内を要求） |
+| 使用回数 | 1回限り（`used_at` / `used_by` を記録し、使用済みは再利用不可） |
+| 発行できる人 | グループのメンバーなら誰でも。発行しても既存の期限内コードは無効化されない |
+| 入力 | 前後空白除去・大文字化して照合。DBでは `code` が unique |
+| 照合 | クライアントは `group_invites` を直接読めない（非メンバーはSELECT不可）。`redeem_group_invite` が照合と消費を行う |
+
+アプリ側に試行回数の制限は無く、総当たりへの耐性はコードから確認できない（コードの空間は 32^8、有効なコードは24時間のみ存在）。**要確認 Q11**
+
+### 6.5 個人情報の扱い
+
+| 情報 | 扱い |
+|---|---|
+| 記録（結果・時刻・理由・メモ） | 本人＋同じグループのメンバーのみ閲覧可（RLS）。メモには子どもの様子など機微な内容が入りうる |
+| メールアドレス | `auth.users` にのみ保存。同じグループのメンバー同士は、メンバー一覧（`get_group_members`）とタイムライン/詳細シートのアバター（頭文字、`title` にメールアドレス）、Push通知文（`@` より前）で互いに見える |
+| エクスポート | メールアドレスを**出力しない**。パートナーの記録は「(パートナーの記録)」「パートナー」とのみ表示。サーバーへの送信もしない |
+| 計測 | `analytics_events` にはユーザーIDと記録IDに加え、件数・真偽値・区分名のみを送る。メモ・タグ文言・日付そのものは送らない（§11） |
+| Push購読 | `endpoint` と鍵を本人のみ読み書きできる形で保存 |
+| 外部への通信 | Supabase、Push配信（ブラウザベンダのPushサービス）、Google Fonts（`globals.css` の `@import`。**要確認 Q18**） |
+
+退会（アカウント・データの削除）の機能はコードに無い。データの保持期間の方針も確認できない。**要確認 Q13**
+
+### 6.6 端末内データの扱い
+
+- **ログアウトでIndexedDBを全消去**する（共有端末で前ユーザーの記録が次のユーザーのアカウントへ誤同期されるのを防ぐため）。消去前に最終同期を試み、クラウドへ未反映の変更が残る場合は件数を示して確認を取る（§3.6）。
+- 同期されていない端末内の記録を失わないことを、消去より優先する（確認ダイアログで明示的に選ばない限り消さない）。
+- `localStorage`（下書き等）とPush購読は、ログアウトでは消えない。**要確認 Q16 / Q5**
+
+### 6.7 その他の防御
+
+- セキュリティヘッダ（`next.config.ts`）: `X-Content-Type-Options: nosniff`、`X-Frame-Options: DENY`、`Referrer-Policy: strict-origin-when-cross-origin`、`Permissions-Policy`（camera / microphone / geolocation を無効）。CSP は付けていない（Next.jsのインラインscript等との調整が必要なため）。
+- Edge Function: `notify-partner` は service role の Bearer 一致を要求する。`send-reminders` は検証が無い（**要確認 Q6**）。
+- CI: GitHub Actions はコミットSHAで固定（テストで固定。`src/lib/ci-workflow.test.ts`）、ワークフローは最小権限（`contents: read`）、`npm audit --omit=dev` で本番依存の脆弱性を検査（§10）。
+
