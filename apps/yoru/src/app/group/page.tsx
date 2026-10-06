@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { Skeleton } from "@/components/Skeleton";
+import { Skeleton } from "@note/core/components/Skeleton";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { ChildrenSection } from "./ChildrenSection";
 import { NotificationSection } from "./NotificationSection";

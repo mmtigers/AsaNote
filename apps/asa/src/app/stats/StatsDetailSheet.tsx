@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { PartnerAvatar } from "@/components/PartnerAvatar";
+import { PartnerAvatar } from "@note/core/components/PartnerAvatar";
 import { canEditRecord, isOwnRecord } from "@note/core/ownership";
 import type { LocalRecord } from "@/lib/db/localDb";
 import { OUTCOME_OPTIONS } from "@/constants/choices";

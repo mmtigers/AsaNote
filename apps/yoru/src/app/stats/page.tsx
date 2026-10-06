@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChildSwitcher } from "@/components/ChildSwitcher";
+import { ChildSwitcher } from "@note/core/components/ChildSwitcher";
 import { MonthCalendar } from "@/components/MonthCalendar";
-import { SkeletonList } from "@/components/Skeleton";
+import { SkeletonList } from "@note/core/components/Skeleton";
 import { EFFECT_OPTIONS, OUTCOME_OPTIONS } from "@/constants/choices";
 import { OUTCOME_COLOR_STYLES } from "@/constants/outcomeStyles";
 import { useAuth } from "@/lib/auth/AuthProvider";

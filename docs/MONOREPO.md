@@ -72,4 +72,10 @@
   - アプリごとの値に依存する部分(例: `useEffectiveChildId` は選択中の子ども)は、アプリ側のラッパー(`src/lib/db/children.ts`)に残す。
     各アプリの `src/lib/appStorageKeys.test.ts` が、キー名とイベント名が変わっていないことを固定している(変えると端末の保存済みの値が消える)。
 - 端末内データのキー名は変えない(変えるとユーザーの保存済みの状態が消える)。
+- **UI 部品は「表示は core、値はアプリ」に分ける**(例: `SyncFailureNotice` は `failing` と `onDismiss` を props で受け取り、
+  アプリ側のラッパーが自分の `syncStatus` を渡す)。リリース一覧や同期のように、アプリの値・関数に依存するものは core に直接 import しない。
+- **Tailwind のクラスは、core の部品でも CSS に入れる必要がある。** Tailwind はアプリのディレクトリの外(`packages/core`)を自動では走査しないため、
+  各アプリの `src/app/globals.css` に `@source "../../../../packages/core/src";` を置いてある(無いと、core へ移した部品のスタイルが本番だけ静かに欠ける。
+  ビルドも型検査も通ってしまう)。各アプリの `src/app/globalsCss.test.ts` が、この指定が外れていないことを固定している。
+  core へ部品を移したら、ビルドした CSS(`.next/static/chunks/*.css`)のルールが移す前と変わらないことを確かめること。
 - テストは共通コードの隣に置く(`packages/core/src/**/*.test.ts`)。移したファイルのテストをアプリ側に残さない。

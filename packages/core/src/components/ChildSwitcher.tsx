@@ -1,6 +1,6 @@
 "use client";
 
-import type { Child } from "@/types/models";
+import type { Child } from "../types/group";
 
 interface ChildSwitcherProps {
   childList: Child[];
