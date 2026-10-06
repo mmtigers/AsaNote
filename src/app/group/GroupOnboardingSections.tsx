@@ -24,6 +24,7 @@ export function GroupOnboardingSections({ admin }: { admin: GroupAdmin }) {
       <section className="flex flex-col gap-3 rounded-2xl bg-[var(--surface-2)] p-4">
         <h2 className="text-sm font-semibold text-[var(--sub)]">招待コードを持っている</h2>
         <input
+          aria-label="招待コード"
           value={admin.joinCodeInput}
           onChange={(event) => admin.setJoinCodeInput(event.target.value)}
           placeholder="招待コードを入力"

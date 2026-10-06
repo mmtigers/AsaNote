@@ -51,6 +51,7 @@ export function TagChips({ options, selected, onToggle, onAdd, segmented }: TagC
         (adding ? (
           <span className="flex items-center gap-1">
             <input
+              aria-label="タグ名"
               autoFocus
               value={draft}
               maxLength={30}

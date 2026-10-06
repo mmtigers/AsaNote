@@ -239,6 +239,7 @@ export function RecordFormView({
 
       <Section title="📝 メモ" hint="よかったこと・明日の予定なども、ここにまとめて">
         <textarea
+          aria-label="メモ"
           value={form.memo}
           maxLength={MEMO_MAX_LENGTH}
           onChange={(e) => onChange({ memo: e.target.value })}

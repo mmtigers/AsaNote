@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect } from "react";
+
 interface ConfirmDialogProps {
   open: boolean;
   message: string;
@@ -19,6 +21,16 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  // Escapeで閉じる。キーボード・外付けキーボードの利用者が、ダイアログから抜けられなくならないように。
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onCancel();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open, onCancel]);
+
   if (!open) return null;
 
   return (
@@ -37,6 +49,7 @@ export function ConfirmDialog({
         <div className="mt-4 flex gap-3">
           <button
             type="button"
+            autoFocus
             onClick={onCancel}
             className="flex-1 rounded-full bg-[var(--surface-2)] py-3 text-sm font-semibold text-[var(--ink)] focus:ring-2 focus:ring-[var(--accent)]"
           >

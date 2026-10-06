@@ -99,6 +99,7 @@ export default function LoginPage() {
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
           <input
             type="email"
+            aria-label="メールアドレス"
             required
             value={email}
             onChange={(event) => setEmail(event.target.value)}

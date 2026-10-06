@@ -1,5 +1,5 @@
 // キャッシュ名を上げると旧キャッシュを一掃する。
-const CACHE_NAME = "yoru-note-shell-v1";
+const CACHE_NAME = "yoru-note-shell-v2";
 const APP_SHELL = [
   "/",
   "/manifest.webmanifest",
@@ -51,19 +51,36 @@ self.addEventListener("fetch", (event) => {
   // 増えるため。取得に失敗したときはNext.jsがページ全体の遷移(上のnavigate分岐)に切り替える。
   if (url.searchParams.has("_rsc") || request.headers.has("RSC")) return;
 
-  event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) return cached;
-      return fetch(request)
-        .then((response) => {
+  // /_next/static/ はファイル名にハッシュが入っていて中身が変わらないので、キャッシュ優先で速く返す。
+  // それ以外(アイコン・manifest など、URLが同じまま中身が変わりうるもの)は、キャッシュ優先だと
+  // 更新後も古いまま残る(アイコンを差し替えても反映されない)ため、ネットワーク優先にして
+  // 通信できないときだけキャッシュを返す。
+  if (url.pathname.startsWith("/_next/static/")) {
+    event.respondWith(
+      caches.match(request).then((cached) => {
+        if (cached) return cached;
+        return fetch(request).then((response) => {
           if (response.ok) {
             const clone = response.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
           }
           return response;
-        })
-        .catch(() => cached);
-    })
+        });
+      })
+    );
+    return;
+  }
+
+  event.respondWith(
+    fetch(request)
+      .then((response) => {
+        if (response.ok) {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+        }
+        return response;
+      })
+      .catch(() => caches.match(request))
   );
 });
 

@@ -70,6 +70,7 @@ export function ChildrenSection({ admin }: { admin: ChildrenAdmin }) {
         )}
         <div className="flex gap-2">
           <input
+            aria-label="追加するお子さまの名前"
             value={admin.nameInput}
             onChange={(event) => admin.setNameInput(event.target.value)}
             placeholder="お子さまの名前"

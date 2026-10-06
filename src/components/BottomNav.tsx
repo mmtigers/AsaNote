@@ -17,7 +17,7 @@ const items = [
 function DraftBadge({ show }: { show: boolean }) {
   if (!show) return null;
   return (
-    <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-[var(--surface)] bg-[var(--accent)]" />
+    <span aria-hidden="true" className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-[var(--surface)] bg-[var(--accent)]" />
   );
 }
 
@@ -27,7 +27,7 @@ export function BottomNav() {
   const hasDraft = useHasDraft();
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--line)] bg-[var(--surface)]/95 backdrop-blur-sm [padding-bottom:env(safe-area-inset-bottom)] print:hidden">
+    <nav aria-label="メインメニュー" className="fixed inset-x-0 bottom-0 z-40 border-t border-[var(--line)] bg-[var(--surface)]/95 backdrop-blur-sm [padding-bottom:env(safe-area-inset-bottom)] print:hidden">
       <ul className="mx-auto flex max-w-md gap-1 px-2 py-1.5">
         {items.map((item) => {
           const active = pathname === item.href;
@@ -40,15 +40,17 @@ export function BottomNav() {
               <Link
                 href={item.href}
                 onClick={resetRecordFlow}
+                aria-current={active ? "page" : undefined}
                 className={`flex flex-col items-center gap-0.5 rounded-2xl py-2 text-[11px] focus:ring-2 focus:ring-[var(--accent)] ${
                   active ? "bg-[var(--accent-soft)] font-semibold text-[var(--accent)]" : "text-[var(--sub)]"
                 }`}
               >
-                <span className="relative text-lg leading-none">
+                <span aria-hidden="true" className="relative text-lg leading-none">
                   {item.icon}
                   <DraftBadge show={showDraftBadge} />
                 </span>
                 {item.label}
+                {showDraftBadge && <span className="sr-only">(入力途中の記録があります)</span>}
               </Link>
             </li>
           );
