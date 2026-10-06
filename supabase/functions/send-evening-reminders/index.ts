@@ -18,19 +18,15 @@
 // (共有モードでは同じ DB に同居するため、混ざるとあさノートの通知が届いてしまう)。
 import { createClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
-import {
-  isAuthorizedCall,
-  jstDateNow,
-  jstTimeNow,
-  reminderPayload,
-  selectReminderTargets,
-  sendToSubscriptions,
-  type GroupMembership,
-  type PushSubscriptionRow,
-} from "../_shared/pushLogic.ts";
+import { isAuthorizedCall } from "../_shared/pushLogic.ts";
+import { runReminders, type ReminderDb } from "../_shared/reminderHandler.ts";
 
-const json = (body: unknown) =>
-  new Response(JSON.stringify(body), { headers: { "content-type": "application/json" } });
+// 処理の本体は _shared/reminderHandler.ts(テストあり)。ここは環境変数と本物のクライアントの組み立てだけ。
+const json = (body: unknown, status = 200) =>
+  new Response(typeof body === "string" ? body : JSON.stringify(body), {
+    status,
+    headers: typeof body === "string" ? undefined : { "content-type": "application/json" },
+  });
 
 Deno.serve(async (request) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -51,81 +47,12 @@ Deno.serve(async (request) => {
   }
 
   webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
-  const supabase = createClient(supabaseUrl, serviceRoleKey);
+  const db = createClient(supabaseUrl, serviceRoleKey) as unknown as ReminderDb;
 
-  const now = new Date();
-  const currentTime = jstTimeNow(now);
-  const today = jstDateNow(now);
-
-  const { data: dueSettings, error: settingsError } = await supabase
-    .from("evening_notification_settings")
-    .select("user_id")
-    .eq("enabled", true)
-    .eq("reminder_time", `${currentTime}:00`);
-  if (settingsError) {
-    console.error("evening_notification_settingsの取得に失敗しました:", settingsError);
-    return new Response("failed to load evening_notification_settings", { status: 500 });
-  }
-
-  const dueUserIds = (dueSettings ?? []).map((row) => row.user_id as string);
-  if (dueUserIds.length === 0) return json({ checked: 0, sent: 0 });
-
-  // 同じグループの人が記録済みかも見るため、due ユーザーの所属グループとその全メンバーを集める。
-  const { data: ownMemberships, error: ownMembershipsError } = await supabase
-    .from("group_members")
-    .select("user_id, group_id")
-    .in("user_id", dueUserIds);
-  if (ownMembershipsError) {
-    console.error("group_membersの取得に失敗しました:", ownMembershipsError);
-    return new Response("failed to load group_members", { status: 500 });
-  }
-  const groupIds = [...new Set((ownMemberships ?? []).map((m) => m.group_id as string))];
-  const { data: groupMemberships, error: groupMembershipsError } = groupIds.length
-    ? await supabase.from("group_members").select("user_id, group_id").in("group_id", groupIds)
-    : { data: [] as GroupMembership[], error: null };
-  if (groupMembershipsError) {
-    console.error("group_membersの取得に失敗しました:", groupMembershipsError);
-    return new Response("failed to load group_members", { status: 500 });
-  }
-  const memberships = (groupMemberships ?? []) as GroupMembership[];
-  const involvedUserIds = [...new Set([...dueUserIds, ...memberships.map((m) => m.user_id)])];
-
-  const { data: todaysRecords, error: recordsError } = await supabase
-    .from("evening_records")
-    .select("user_id")
-    .eq("record_date", today)
-    .not("outcome", "is", null)
-    .in("user_id", involvedUserIds);
-  if (recordsError) {
-    console.error("evening_recordsの取得に失敗しました:", recordsError);
-    return new Response("failed to load evening_records", { status: 500 });
-  }
-
-  const targetUserIds = selectReminderTargets(
-    dueUserIds,
-    (todaysRecords ?? []).map((row) => row.user_id as string),
-    memberships
-  );
-  if (targetUserIds.length === 0) return json({ checked: dueUserIds.length, sent: 0 });
-
-  const { data: subscriptions, error: subscriptionsError } = await supabase
-    .from("evening_push_subscriptions")
-    .select("id, user_id, endpoint, p256dh, auth_key")
-    .in("user_id", targetUserIds);
-  if (subscriptionsError) {
-    console.error("evening_push_subscriptionsの取得に失敗しました:", subscriptionsError);
-    return new Response("failed to load evening_push_subscriptions", { status: 500 });
-  }
-
-  const { sent, staleSubscriptionIds } = await sendToSubscriptions(
+  const result = await runReminders(
+    db,
     (subscription, payload) => webpush.sendNotification(subscription, payload),
-    (subscriptions ?? []) as PushSubscriptionRow[],
-    reminderPayload()
+    new Date()
   );
-
-  if (staleSubscriptionIds.length > 0) {
-    await supabase.from("evening_push_subscriptions").delete().in("id", staleSubscriptionIds);
-  }
-
-  return json({ checked: dueUserIds.length, targeted: targetUserIds.length, sent });
+  return json(result.body, result.status);
 });
