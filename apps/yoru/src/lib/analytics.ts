@@ -1,4 +1,4 @@
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { getSupabaseClient } from "@note/core/supabase/client";
 
 // 記録フローの計測イベント。あさノートと同じ analytics_events 表(共通表。定義の正はあさノート側の
 // supabase/schema.sql)へ書く。同じ表に同居するので、event_name は必ず `evening_` で始め、

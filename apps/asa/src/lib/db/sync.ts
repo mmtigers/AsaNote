@@ -1,4 +1,4 @@
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { getSupabaseClient } from "@note/core/supabase/client";
 import type { Outcome } from "@/constants/choices";
 import type { SchoolRecord } from "@/types/models";
 import type { Database } from "./database.types";

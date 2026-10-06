@@ -3,7 +3,7 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import type { Outcome } from "@/constants/choices";
 import { localDb } from "./localDb";
-import { isOwnRecord } from "./ownership";
+import { isOwnRecord } from "@note/core/ownership";
 
 // タイムライン用: 日付の新しい順に並べた全記録(自分+グループメンバー)。
 export function useRecordsTimeline() {

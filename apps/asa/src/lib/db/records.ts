@@ -1,6 +1,6 @@
 import type { Outcome } from "@/constants/choices";
 import { localDb, type LocalRecord } from "./localDb";
-import { isOwnRecord } from "./ownership";
+import { isOwnRecord } from "@note/core/ownership";
 import { syncPendingChanges } from "./sync";
 
 export interface RecordFormInput {

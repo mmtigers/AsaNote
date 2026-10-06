@@ -3,7 +3,7 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { PHOTO_MAX_PER_RECORD } from "@/constants/choices";
 import { compressImage } from "@/lib/image";
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { getSupabaseClient } from "@note/core/supabase/client";
 import { localDb, type LocalPhoto } from "./localDb";
 import { syncPendingChanges } from "./sync";
 

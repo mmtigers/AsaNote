@@ -4,7 +4,7 @@ const insertMock = vi.fn();
 const fromMock = vi.fn(() => ({ insert: insertMock }));
 const getSupabaseClientMock = vi.fn(() => ({ from: fromMock }));
 
-vi.mock("@/lib/supabase/client", () => ({
+vi.mock("@note/core/supabase/client", () => ({
   getSupabaseClient: () => getSupabaseClientMock(),
 }));
 

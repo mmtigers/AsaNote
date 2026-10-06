@@ -13,7 +13,8 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@holiday-jp/holiday_jp": "^2.5.2"
+    "@holiday-jp/holiday_jp": "^2.5.2",
+    "@supabase/supabase-js": "^2.117.2"
   },
   "peerDependencies": {
     "react": "19.3.0"

@@ -12,7 +12,7 @@ const { signOutMock, syncPendingChangesMock, countUnsyncedChangesMock, clearLoca
 vi.mock("@/lib/auth/AuthProvider", () => ({
   useAuth: () => ({ session: { user: { email: "a@example.com" } }, loading: false }),
 }));
-vi.mock("@/lib/supabase/client", () => ({
+vi.mock("@note/core/supabase/client", () => ({
   getSupabaseClient: () => ({ auth: { signOut: signOutMock } }),
 }));
 vi.mock("@/lib/db/sync", () => ({ syncPendingChanges: syncPendingChangesMock }));

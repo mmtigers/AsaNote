@@ -3,7 +3,7 @@
 import type { Session } from "@supabase/supabase-js";
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { pullFromCloud, syncPendingChanges } from "@/lib/db/sync";
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { getSupabaseClient } from "@note/core/supabase/client";
 
 interface AuthState {
   session: Session | null;

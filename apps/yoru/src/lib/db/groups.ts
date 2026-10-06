@@ -1,4 +1,4 @@
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { getSupabaseClient } from "@note/core/supabase/client";
 import { useAuthedList } from "./useAuthedList";
 import type { Group, GroupInvite, GroupMemberProfile } from "@/types/models";
 

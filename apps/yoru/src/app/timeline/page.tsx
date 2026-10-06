@@ -11,7 +11,7 @@ import { useAuth } from "@/lib/auth/AuthProvider";
 import { formatDateShort } from "@note/core/date";
 import { useChildren } from "@/lib/db/children";
 import type { LocalRecord } from "@/lib/db/localDb";
-import { canEditRecord } from "@/lib/db/ownership";
+import { canEditRecord } from "@note/core/ownership";
 import { useRecordPhotos } from "@/lib/db/photos";
 import { useRecordsTimeline } from "@/lib/db/queries";
 import { deleteRecord } from "@/lib/db/records";
