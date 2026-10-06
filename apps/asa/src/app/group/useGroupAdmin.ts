@@ -9,7 +9,7 @@ import {
   getMyGroup,
   joinGroupByCode,
   leaveGroup,
-} from "@/lib/db/groups";
+} from "@note/core/db/groups";
 import { pullFromCloud } from "@/lib/db/sync";
 import type { Group, GroupInvite, GroupMemberProfile } from "@/types/models";
 import { runAction, runSilently } from "@note/core/group/runAction";

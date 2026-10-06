@@ -1,6 +1,6 @@
-import { getSupabaseClient } from "@note/core/supabase/client";
+import { getSupabaseClient } from "../supabase/client";
 import { useAuthedList } from "./useAuthedList";
-import type { Group, GroupInvite, GroupMemberProfile } from "@/types/models";
+import type { Group, GroupInvite, GroupMemberProfile } from "../types/group";
 
 // 紛らわしい文字(0/O, 1/I/L)を除いた招待コード用アルファベット。手入力・音声共有を想定。
 const INVITE_CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";

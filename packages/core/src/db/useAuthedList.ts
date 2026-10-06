@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useAuth } from "@/lib/auth/AuthProvider";
+import { useAuth } from "../auth";
 
 /**
  * 未ログインが確定したときに何を返すか。

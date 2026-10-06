@@ -6,6 +6,8 @@
 - 共通コードは `packages/core`(`@note/core`)に置く。ビルド不要で、TS のソースをそのまま公開し、Next.js 側が取り込んで変換する
   (Next の Turbopack / webpack は、workspaces のパッケージを自動で変換するので `transpilePackages` は不要)。
   アプリからは `import { ... } from "@note/core/date"` のように、`src/` 配下のパスで取り込む。
+  `package.json` の `exports` で公開するのは、`.ts`(`./*`)、`auth.tsx`、UI 部品(`./components/*` は `.tsx`)。
+  `.tsx` を足すときは、`exports` に対応するパターンを足すこと。
 - `supabase/` は**あさノートのものをルート直下のまま**残している(共有DBの共通表の定義の正。
   `db-deploy.yml` が本番DBへ自動適用するため、パスを変えない)。
   よるノートの `schema.sql` などは `apps/yoru/supabase/`。統合は別フェーズで検討する。
@@ -65,6 +67,9 @@
   - 例: `@note/core/selectedChild` などは `createXxx(appId)` のファクトリで、各アプリの `src/lib/appConfig.ts`(`APP_ID`)を渡して
     アプリ用のインスタンスを作る。アプリ側には薄いラッパー(`src/lib/db/selectedChild.ts` など)を残し、import 元は変えない。
   - キー・イベント名は `${APP_ID}:...` で組み立てる。値は既存と同じ(`asa-note:` / `yoru-note:`)。
+  - 例: 認証(`@note/core/auth`)は、クラウド同期の呼び出し(`pullFromCloud` など)をコールバックで受け取る。
+    アプリ側の `src/lib/auth/AuthProvider.tsx` が、自分の `sync.ts` の関数(モジュールレベルの安定した関数)を渡す。
+  - アプリごとの値に依存する部分(例: `useEffectiveChildId` は選択中の子ども)は、アプリ側のラッパー(`src/lib/db/children.ts`)に残す。
     各アプリの `src/lib/appStorageKeys.test.ts` が、キー名とイベント名が変わっていないことを固定している(変えると端末の保存済みの値が消える)。
 - 端末内データのキー名は変えない(変えるとユーザーの保存済みの状態が消える)。
 - テストは共通コードの隣に置く(`packages/core/src/**/*.test.ts`)。移したファイルのテストをアプリ側に残さない。

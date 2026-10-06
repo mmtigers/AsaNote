@@ -1,7 +1,7 @@
 "use client";
 
 import { useAuth } from "@/lib/auth/AuthProvider";
-import { useGroupMembers } from "@/lib/db/groups";
+import { useGroupMembers } from "@note/core/db/groups";
 import { useHasTodayPartnerRecord } from "@/lib/db/queries";
 import { toDateInputValue } from "@note/core/date";
 

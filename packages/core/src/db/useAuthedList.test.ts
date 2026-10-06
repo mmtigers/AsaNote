@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 // useAuth は AuthContext を読むだけなので、Provider で包むより差し替える方が簡単。
 // vi.mock はファイル先頭へ巻き上げられるため、モック関数は vi.hoisted() で用意する。
 const { useAuthMock } = vi.hoisted(() => ({ useAuthMock: vi.fn() }));
-vi.mock("@/lib/auth/AuthProvider", () => ({ useAuth: useAuthMock }));
+vi.mock("../auth", () => ({ useAuth: useAuthMock }));
 
 import { useAuthedList } from "./useAuthedList";
 

@@ -8,7 +8,7 @@ import { PartnerAvatar } from "@/components/PartnerAvatar";
 import { SkeletonList } from "@/components/Skeleton";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useChildren } from "@/lib/db/children";
-import { buildMemberEmailMap, useGroupMembers } from "@/lib/db/groups";
+import { buildMemberEmailMap, useGroupMembers } from "@note/core/db/groups";
 import { canEditRecord, isOwnRecord } from "@note/core/ownership";
 import { deleteRecord } from "@/lib/db/records";
 import { useRecordsTimeline } from "@/lib/db/queries";

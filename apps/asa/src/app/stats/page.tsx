@@ -6,7 +6,7 @@ import { MonthCalendar } from "@/components/MonthCalendar";
 import { SkeletonList } from "@/components/Skeleton";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useChildren } from "@/lib/db/children";
-import { buildMemberEmailMap, useGroupMembers } from "@/lib/db/groups";
+import { buildMemberEmailMap, useGroupMembers } from "@note/core/db/groups";
 import { useRecordsTimeline } from "@/lib/db/queries";
 import type { LocalRecord } from "@/lib/db/localDb";
 import { OUTCOME_OPTIONS, type Outcome } from "@/constants/choices";

@@ -4,6 +4,8 @@
   "private": true,
   "description": "あさノート・よるノートの共通コード。ビルドなしで TS のソースをそのまま公開し、各アプリ側(Next.js)が取り込んで変換する。",
   "exports": {
+    "./auth": "./src/auth.tsx",
+    "./components/*": "./src/components/*.tsx",
     "./*": "./src/*.ts"
   },
   "scripts": {

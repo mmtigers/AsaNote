@@ -7,7 +7,7 @@ import { OUTCOME_OPTIONS } from "@/constants/choices";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { addDays, formatDateLabel, toDateInputValue } from "@note/core/date";
 import { useChildren } from "@/lib/db/children";
-import { useGroupMembers } from "@/lib/db/groups";
+import { useGroupMembers } from "@note/core/db/groups";
 import type { LocalRecord } from "@/lib/db/localDb";
 import { isOwnRecord } from "@note/core/ownership";
 import { getPhotoUrl, useRecordPhotos } from "@/lib/db/photos";

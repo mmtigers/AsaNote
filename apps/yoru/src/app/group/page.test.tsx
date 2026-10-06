@@ -19,8 +19,8 @@ const mocks = vi.hoisted(() => ({
   pullFromCloud: vi.fn(),
 }));
 
-vi.mock("@/lib/auth/AuthProvider", () => ({ useAuth: mocks.useAuth }));
-vi.mock("@/lib/db/groups", () => ({
+vi.mock("@note/core/auth", () => ({ useAuth: mocks.useAuth }));
+vi.mock("@note/core/db/groups", () => ({
   getMyGroup: mocks.getMyGroup,
   getGroupMembers: mocks.getGroupMembers,
   getActiveInvite: mocks.getActiveInvite,
