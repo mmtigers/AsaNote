@@ -42,3 +42,16 @@ test("サービスワーカーが登録され、manifest が読める", async ({
     expect((await request.get(icon.src)).ok(), `${icon.src} が取得できる`).toBe(true);
   }
 });
+
+test("更新履歴と、存在しないURLの専用画面が開く", async ({ page }) => {
+  const assertNoErrors = failOnAppErrors(page);
+  await page.goto("/");
+  await page.getByRole("link", { name: /更新/ }).first().click();
+  await expect(page.getByRole("heading", { name: "更新履歴" })).toBeVisible();
+  await expect(page.getByText("よるノートを公開しました")).toBeVisible();
+
+  const response = await page.goto("/no-such-page");
+  expect(response?.status()).toBe(404);
+  await expect(page.getByRole("heading", { name: "ページが見つかりません" })).toBeVisible();
+  assertNoErrors();
+});

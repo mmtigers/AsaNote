@@ -58,9 +58,26 @@ SQL Editor で `supabase/cron-evening-reminders.sql` の `<PROJECT_REF>` と `<S
 3. 通知時刻を数分後にして、今夜の記録(様子を選んだもの)を作らずに待つ。通知が届けば成功。
 4. 通知をタップしてアプリが開くことを確認する。
 
+## 8. パートナーが記録したときの通知(任意)
+
+家族(同じグループ)のどなたかが今夜の記録を追加したとき、通知をONにした人へ「〇〇さんが今夜の記録を追加しました」と届ける。
+「共有」タブの「通知」にある「パートナーが記録したときの通知」を各自がONにする(既定はOFF)。
+あさノートの `notify-partner` / `partner-notify-trigger.sql` とは別の関数・別のトリガー(対象は `evening_records`)。
+
+1. `supabase/schema.sql` を実行して `evening_notification_settings.notify_partner_record` 列を作る(`add column if not exists` なので再実行しても安全)。
+2. Edge Functionをデプロイする。
+
+   ```bash
+   npx supabase functions deploy notify-evening-partner
+   ```
+
+3. SQL Editor で `supabase/evening-partner-notify-trigger.sql` の `<PROJECT_REF>` と `<SERVICE_ROLE_KEY>` を置き換えて実行する(置き換えた実値はコミットしない)。
+4. 確認: 2つの端末(別アカウント・同じグループ)で、片方が通知をON、もう片方が様子を選んで保存する。ONにした側へ通知が届けば成功。
+   既に様子が入っている記録の編集や、同期の再送では通知されない。
+
 ## トラブルシューティング
 
-- 通知が届かない場合は、Supabase ダッシュボードの Edge Functions > `send-evening-reminders` > Logs を確認する。
+- 通知が届かない場合は、Supabase ダッシュボードの Edge Functions > `send-evening-reminders`(パートナー通知なら `notify-evening-partner`)> Logs を確認する。
 - cronの呼び出し結果: `select status_code, content, created from net._http_response order by created desc limit 5;`
   (200なら正常、401は service_role キーの誤り、404は PROJECT_REF の誤り)。
   関数は、Authorization が service_role キーと一致しない呼び出し(公開されている anon キーを含む)を 401 で断る。cron に別のキーを入れていないか確認する。

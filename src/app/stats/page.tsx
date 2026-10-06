@@ -6,7 +6,10 @@ import { MonthCalendar } from "@/components/MonthCalendar";
 import { SkeletonList } from "@/components/Skeleton";
 import { EFFECT_OPTIONS, OUTCOME_OPTIONS } from "@/constants/choices";
 import { OUTCOME_COLOR_STYLES } from "@/constants/outcomeStyles";
+import { useAuth } from "@/lib/auth/AuthProvider";
 import { useChildren } from "@/lib/db/children";
+import { buildMemberEmailMap, useGroupMembers } from "@/lib/db/groups";
+import type { LocalRecord } from "@/lib/db/localDb";
 import { useMorningRecords, type MorningOutcome } from "@/lib/db/morning";
 import { useRecordsTimeline } from "@/lib/db/queries";
 import { formatDateShort, toDateInputValue, toMonthOf } from "@/lib/date";
@@ -19,11 +22,17 @@ import {
   outcomeByDate,
   outcomeByFriendPromise,
   outcomeByHomeworkStart,
+  recordsForFriendPromise,
+  recordsForHomeworkStart,
+  recordsForOutcome,
+  recordsForResponseTag,
+  recordsForTag,
   responseEffectStats,
   type OutcomeBucket,
   type OutcomeCounts,
   type TagCount,
 } from "./aggregate";
+import { StatsDetailSheet } from "./StatsDetailSheet";
 import { morningByBedtime, morningByNightOutcome, pairNightWithNextMorning, type MorningBucket } from "./morning";
 
 const CARD = "rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm";
@@ -46,7 +55,17 @@ function OutcomeBar({ counts, total }: { counts: OutcomeCounts; total: number })
 }
 
 // 件数も併記するのは、1〜2件しかない行の割合を傾向として読み違えないようにするため。
-function OutcomeBucketList({ title, hint, data }: { title: string; hint: string; data: OutcomeBucket[] }) {
+function OutcomeBucketList({
+  title,
+  hint,
+  data,
+  onSelect,
+}: {
+  title: string;
+  hint: string;
+  data: OutcomeBucket[];
+  onSelect: (bucket: OutcomeBucket) => void;
+}) {
   if (data.length === 0) return null;
   return (
     <section className={CARD}>
@@ -54,12 +73,18 @@ function OutcomeBucketList({ title, hint, data }: { title: string; hint: string;
       <p className="mb-3 mt-1 text-[11px] text-[var(--sub)]">{hint}</p>
       <div className="flex flex-col gap-2.5">
         {data.map((b) => (
-          <div key={b.key} className="flex items-center gap-2.5">
+          <button
+            key={b.key}
+            type="button"
+            onClick={() => onSelect(b)}
+            aria-label={`${b.label}の記録を見る`}
+            className="flex items-center gap-2.5 text-left focus:ring-2 focus:ring-[var(--accent)]"
+          >
             <span className="w-20 flex-none truncate text-[13px]">{b.label}</span>
             <OutcomeBar counts={b.counts} total={b.total} />
             <span className="w-9 flex-none text-right text-[12px] font-bold tabular-nums">{b.roughRate}%</span>
             <span className="w-8 flex-none text-right text-[11px] tabular-nums text-[var(--sub)]">{b.total}件</span>
-          </div>
+          </button>
         ))}
       </div>
     </section>
@@ -108,7 +133,15 @@ function MorningBucketList({ title, hint, data }: { title: string; hint: string;
   );
 }
 
-function TagBarList({ title, data }: { title: string; data: TagCount[] }) {
+function TagBarList({
+  title,
+  data,
+  onSelect,
+}: {
+  title: string;
+  data: TagCount[];
+  onSelect: (item: TagCount) => void;
+}) {
   if (data.length === 0) return null;
   const max = Math.max(1, ...data.map((d) => d.count));
   return (
@@ -116,7 +149,13 @@ function TagBarList({ title, data }: { title: string; data: TagCount[] }) {
       <h2 className="mb-3 text-sm font-bold">{title}</h2>
       <div className="flex flex-col gap-2.5">
         {data.slice(0, 6).map((item) => (
-          <div key={item.tag} className="flex items-center gap-2.5">
+          <button
+            key={item.tag}
+            type="button"
+            onClick={() => onSelect(item)}
+            aria-label={`${item.tag}の記録を見る`}
+            className="flex items-center gap-2.5 text-left focus:ring-2 focus:ring-[var(--accent)]"
+          >
             <span className="w-28 flex-none truncate text-[13px]">{item.tag}</span>
             <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-[var(--surface-2)]">
               <div
@@ -125,7 +164,7 @@ function TagBarList({ title, data }: { title: string; data: TagCount[] }) {
               />
             </div>
             <span className="w-6 flex-none text-right text-[12px] tabular-nums text-[var(--sub)]">{item.count}</span>
-          </div>
+          </button>
         ))}
       </div>
     </section>
@@ -133,6 +172,10 @@ function TagBarList({ title, data }: { title: string; data: TagCount[] }) {
 }
 
 export default function StatsPage() {
+  const { session, loading: authLoading } = useAuth();
+  const members = useGroupMembers();
+  const emailMap = useMemo(() => buildMemberEmailMap(members), [members]);
+  const [detail, setDetail] = useState<{ title: string; records: LocalRecord[] } | null>(null);
   const records = useRecordsTimeline();
   const children = useChildren();
   const morningRecords = useMorningRecords();
@@ -204,11 +247,19 @@ export default function StatsPage() {
                 </div>
                 <div className="mt-3 grid grid-cols-3 gap-2">
                   {OUTCOME_OPTIONS.map((o) => (
-                    <div key={o.value} className="py-1 text-center">
+                    <button
+                      key={o.value}
+                      type="button"
+                      onClick={() =>
+                        setDetail({ title: `${o.emoji} ${o.label}`, records: recordsForOutcome(filtered ?? [], o.value) })
+                      }
+                      aria-label={`${o.label}の記録を見る`}
+                      className="rounded-2xl py-1 text-center focus:ring-2 focus:ring-[var(--accent)]"
+                    >
                       <p className="text-lg leading-none">{o.emoji}</p>
                       <p className="mt-1 text-lg font-bold tabular-nums">{summary.outcomes.counts[o.value]}</p>
                       <p className="text-[11px] text-[var(--sub)]">{o.label}</p>
-                    </div>
+                    </button>
                   ))}
                 </div>
               </>
@@ -239,11 +290,17 @@ export default function StatsPage() {
             title="📚 宿題開始時刻と様子"
             hint="バーは様子の割合、右の%は荒れた(少し荒れた+大荒れ)割合。開始時刻と様子を入力した記録だけ。"
             data={summary.hwStart}
+            onSelect={(b) =>
+              setDetail({ title: `宿題開始 ${b.label}`, records: recordsForHomeworkStart(filtered ?? [], b.key) })
+            }
           />
           <OutcomeBucketList
             title="👫 友達との約束と様子"
             hint="「約束あり」「約束なし」を選んだ記録だけ。"
             data={summary.friend}
+            onSelect={(b) =>
+              setDetail({ title: `友達と${b.label}`, records: recordsForFriendPromise(filtered ?? [], b.key) })
+            }
           />
 
           {summary.bedByOutcome.length > 0 && (
@@ -306,7 +363,20 @@ export default function StatsPage() {
             </>
           )}
 
-          <TagBarList title="⚡ 荒れた日のきっかけ" data={summary.triggers} />
+          <TagBarList
+            title="⚡ 荒れた日のきっかけ"
+            data={summary.triggers}
+            onSelect={(item) =>
+              setDetail({
+                title: `きっかけ: ${item.tag}`,
+                records: recordsForTag(
+                  (filtered ?? []).filter((r) => r.outcome === "rough" || r.outcome === "storm"),
+                  (r) => r.trigger,
+                  item.tag
+                ),
+              })
+            }
+          />
 
           {summary.responses.length > 0 && (
             <section className={CARD}>
@@ -316,7 +386,15 @@ export default function StatsPage() {
               </p>
               <div className="flex flex-col gap-3">
                 {summary.responses.slice(0, 6).map((s) => (
-                  <div key={s.tag}>
+                  <button
+                    key={s.tag}
+                    type="button"
+                    onClick={() =>
+                      setDetail({ title: `対応: ${s.tag}`, records: recordsForResponseTag(filtered ?? [], s.tag) })
+                    }
+                    aria-label={`${s.tag}の記録を見る`}
+                    className="text-left focus:ring-2 focus:ring-[var(--accent)]"
+                  >
                     <div className="flex items-baseline justify-between">
                       <span className="text-[13px]">{s.tag}</span>
                       <span className="text-[11px] tabular-nums text-[var(--sub)]">{s.total}件</span>
@@ -328,12 +406,23 @@ export default function StatsPage() {
                         </span>
                       ))}
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
             </section>
           )}
         </>
+      )}
+
+      {detail && (
+        <StatsDetailSheet
+          title={detail.title}
+          records={detail.records}
+          currentUserId={session?.user.id ?? null}
+          authLoading={authLoading}
+          emailMap={emailMap}
+          onClose={() => setDetail(null)}
+        />
       )}
     </main>
   );

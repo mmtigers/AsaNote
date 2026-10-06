@@ -49,6 +49,48 @@ export function roughRate(counts: OutcomeCounts): number {
   return total === 0 ? 0 : Math.round(((counts.rough + counts.storm) / total) * 100);
 }
 
+// 傾向タブの項目をタップしたときの詳細表示(#3-3)で、その項目に数えられた記録を取り出す。
+// 数え方は下の集計関数と同じ条件にそろえてある(件数と一覧がずれると静かに嘘をつくため)。
+// 返す順は新しい日付から。
+function newestFirst<T extends AggregatableRecord>(records: T[]): T[] {
+  return [...records].sort((a, b) => b.recordDate.localeCompare(a.recordDate) || b.updatedAt.localeCompare(a.updatedAt));
+}
+
+export function recordsForOutcome<T extends AggregatableRecord>(records: T[], outcome: Outcome): T[] {
+  return newestFirst(records.filter((r) => r.outcome === outcome));
+}
+
+export function recordsForHomeworkStart<T extends AggregatableRecord>(records: T[], bucketKey: string): T[] {
+  const bucket = HW_START_BUCKETS.find((b) => b.key === bucketKey);
+  if (!bucket) return [];
+  return newestFirst(
+    records.filter((r) => {
+      if (!r.outcome || !r.times.hwStart) return false;
+      const minutes = parseTimeToMinutes(r.times.hwStart);
+      return minutes !== null && minutes >= bucket.from && minutes < bucket.to;
+    })
+  );
+}
+
+export function recordsForFriendPromise<T extends AggregatableRecord>(records: T[], bucketKey: "with" | "without" | string): T[] {
+  return newestFirst(
+    records.filter((r) => {
+      if (!r.outcome) return false;
+      if (r.friend.includes("約束あり")) return bucketKey === "with";
+      if (r.friend.includes("約束なし")) return bucketKey === "without";
+      return false;
+    })
+  );
+}
+
+export function recordsForTag<T extends AggregatableRecord>(records: T[], pick: (r: T) => string[], tag: string): T[] {
+  return newestFirst(records.filter((r) => pick(r).includes(tag)));
+}
+
+export function recordsForResponseTag<T extends AggregatableRecord>(records: T[], tag: string): T[] {
+  return newestFirst(records.filter((r) => !!r.responseEffect && r.response.includes(tag)));
+}
+
 export interface OutcomeBucket {
   key: string;
   label: string;

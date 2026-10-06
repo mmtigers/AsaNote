@@ -16,6 +16,10 @@ function fakeDb(tables: Tables, failTables: string[] = []) {
           filters.push((row) => row[column] === value);
           return query;
         },
+        neq(column, value) {
+          filters.push((row) => row[column] !== value);
+          return query;
+        },
         in(column, values) {
           filters.push((row) => values.includes(row[column] as string));
           return query;

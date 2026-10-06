@@ -48,6 +48,23 @@ export function useOwnRecordForDate(recordDate: string, userId: string | null, c
   }, [recordDate, userId, childId]);
 }
 
+// 今日の自分の記録が(outcomeまで)入力済みか。アプリ内リマインドの表示判定に使う。
+export function useHasTodayOwnRecord(recordDate: string, userId: string | null) {
+  return useLiveQuery(async () => {
+    const rows = await localDb.records.where("recordDate").equals(recordDate).toArray();
+    return rows.some((r) => isOwnRecord(r, userId) && !!r.outcome);
+  }, [recordDate, userId]);
+}
+
+// 指定した日付・子どものパートナー(自分以外)の記録が(outcomeまで)入力済みか。
+// クラウド未同期(userId未設定)の行は「自分の記録」として除外される。
+export function useHasTodayPartnerRecord(recordDate: string, userId: string | null, childId: string | null = null) {
+  return useLiveQuery(async () => {
+    const rows = await localDb.records.where("recordDate").equals(recordDate).toArray();
+    return rows.some((r) => !isOwnRecord(r, userId) && (r.childId ?? null) === childId && !!r.outcome);
+  }, [recordDate, userId, childId]);
+}
+
 // 記録ごとの写真枚数(エクスポートのCSV用)。
 export function usePhotoCounts() {
   return useLiveQuery(async () => {

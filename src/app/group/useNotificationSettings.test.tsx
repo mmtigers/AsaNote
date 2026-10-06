@@ -27,7 +27,7 @@ const KEYS = { endpoint: "https://push.example/1", p256dh: "p", auth: "a" };
 beforeEach(() => {
   vi.spyOn(console, "error").mockImplementation(() => {});
   vi.stubEnv("NEXT_PUBLIC_VAPID_PUBLIC_KEY", "vapid-key");
-  mocks.fetchNotificationSettings.mockResolvedValue({ reminderTime: "21:00", enabled: false });
+  mocks.fetchNotificationSettings.mockResolvedValue({ reminderTime: "21:00", enabled: false, notifyPartnerRecord: false });
   mocks.saveNotificationSettings.mockResolvedValue(undefined);
   mocks.savePushSubscription.mockResolvedValue(undefined);
   mocks.requestPushSubscription.mockResolvedValue(KEYS);
@@ -47,17 +47,18 @@ async function setup() {
 
 describe("useNotificationSettings", () => {
   it("保存済みの設定を読み込む", async () => {
-    mocks.fetchNotificationSettings.mockResolvedValue({ reminderTime: "20:30", enabled: true });
+    mocks.fetchNotificationSettings.mockResolvedValue({ reminderTime: "20:30", enabled: true, notifyPartnerRecord: true });
     const { hook } = await setup();
     expect(hook.result.current.reminderTime).toBe("20:30");
     expect(hook.result.current.enabled).toBe(true);
+    expect(hook.result.current.notifyPartnerRecord).toBe(true);
   });
 
   it("ONにすると購読を作って保存し、設定を保存する", async () => {
     const { hook } = await setup();
     await act(() => hook.result.current.setEnabled(true));
     expect(mocks.savePushSubscription).toHaveBeenCalledWith("u1", KEYS);
-    expect(mocks.saveNotificationSettings).toHaveBeenCalledWith("u1", { reminderTime: "21:00", enabled: true });
+    expect(mocks.saveNotificationSettings).toHaveBeenCalledWith("u1", { reminderTime: "21:00", enabled: true, notifyPartnerRecord: false });
     expect(hook.result.current.enabled).toBe(true);
   });
 
@@ -80,19 +81,44 @@ describe("useNotificationSettings", () => {
   });
 
   it("OFFにしても購読は触らず、フラグだけ保存する", async () => {
-    mocks.fetchNotificationSettings.mockResolvedValue({ reminderTime: "21:00", enabled: true });
+    mocks.fetchNotificationSettings.mockResolvedValue({ reminderTime: "21:00", enabled: true, notifyPartnerRecord: false });
     const { hook } = await setup();
     await act(() => hook.result.current.setEnabled(false));
     expect(mocks.requestPushSubscription).not.toHaveBeenCalled();
-    expect(mocks.saveNotificationSettings).toHaveBeenCalledWith("u1", { reminderTime: "21:00", enabled: false });
+    expect(mocks.saveNotificationSettings).toHaveBeenCalledWith("u1", { reminderTime: "21:00", enabled: false, notifyPartnerRecord: false });
   });
 
   it("時刻を変えると即保存し、空にされたら保存しない", async () => {
     const { hook } = await setup();
     await act(() => hook.result.current.setReminderTime("20:45"));
-    expect(mocks.saveNotificationSettings).toHaveBeenCalledWith("u1", { reminderTime: "20:45", enabled: false });
+    expect(mocks.saveNotificationSettings).toHaveBeenCalledWith("u1", {
+      reminderTime: "20:45",
+      enabled: false,
+      notifyPartnerRecord: false,
+    });
     mocks.saveNotificationSettings.mockClear();
     await act(() => hook.result.current.setReminderTime(""));
     expect(mocks.saveNotificationSettings).not.toHaveBeenCalled();
+  });
+
+  it("パートナーの記録通知をONにすると購読を用意し、リマインド側の設定を保ったまま保存する", async () => {
+    mocks.fetchNotificationSettings.mockResolvedValue({ reminderTime: "20:30", enabled: true, notifyPartnerRecord: false });
+    const { hook } = await setup();
+    await act(() => hook.result.current.setNotifyPartnerRecord(true));
+    expect(mocks.savePushSubscription).toHaveBeenCalledWith("u1", KEYS);
+    expect(mocks.saveNotificationSettings).toHaveBeenCalledWith("u1", {
+      reminderTime: "20:30",
+      enabled: true,
+      notifyPartnerRecord: true,
+    });
+    expect(hook.result.current.notifyPartnerRecord).toBe(true);
+  });
+
+  it("通知が許可されなければパートナーの記録通知はONにならない", async () => {
+    mocks.requestPushSubscription.mockResolvedValue(null);
+    const { hook } = await setup();
+    await act(() => hook.result.current.setNotifyPartnerRecord(true));
+    expect(mocks.saveNotificationSettings).not.toHaveBeenCalled();
+    expect(hook.result.current.notifyPartnerRecord).toBe(false);
   });
 });

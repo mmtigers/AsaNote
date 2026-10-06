@@ -16,17 +16,20 @@ import { useRecordPhotos } from "@/lib/db/photos";
 import { useRecordsTimeline } from "@/lib/db/queries";
 import { deleteRecord } from "@/lib/db/records";
 import { useGroupMembers, buildMemberEmailMap } from "@/lib/db/groups";
+import { PartnerAvatar } from "@/components/PartnerAvatar";
 import { buildRecordPreview } from "@/lib/recordPreview";
 
 interface RecordCardProps {
   record: LocalRecord;
   childName: string | null;
   ownerLabel: string | null;
+  // パートナーの記録のときだけ渡す(undefined なら自分の記録)。メール未取得は null。
+  partnerEmail?: string | null;
   editable: boolean;
   onDelete: () => void;
 }
 
-function RecordCard({ record, childName, ownerLabel, editable, onDelete }: RecordCardProps) {
+function RecordCard({ record, childName, ownerLabel, partnerEmail, editable, onDelete }: RecordCardProps) {
   const photos = useRecordPhotos(record.id);
   const outcome = OUTCOME_OPTIONS.find((o) => o.value === record.outcome);
   const preview = buildRecordPreview({ ...record, photoCount: photos?.length ?? 0 });
@@ -38,7 +41,10 @@ function RecordCard({ record, childName, ownerLabel, editable, onDelete }: Recor
         <p className="text-sm font-bold">
           {formatDateShort(record.recordDate)} {outcome?.emoji} {outcome?.label}
         </p>
-        <p className="text-[11px] text-[var(--sub)]">{[childName, ownerLabel].filter(Boolean).join(" ・ ")}</p>
+        <p className="flex items-center gap-1.5 text-[11px] text-[var(--sub)]">
+          {[childName, ownerLabel].filter(Boolean).join(" ・ ")}
+          {partnerEmail !== undefined && <PartnerAvatar email={partnerEmail} />}
+        </p>
       </div>
       {preview && <p className="mt-1.5 text-[13px] leading-relaxed">{preview}</p>}
       {editable && (
@@ -101,7 +107,8 @@ export default function TimelinePage() {
                 key={r.id}
                 record={r}
                 childName={r.childId ? (childNames.get(r.childId) ?? null) : null}
-                ownerLabel={own ? null : `パートナー ${r.userId ? (memberEmails.get(r.userId) ?? "") : ""}`.trim()}
+                ownerLabel={own ? null : "パートナー"}
+                partnerEmail={own ? undefined : r.userId ? memberEmails.get(r.userId) : null}
                 editable={canEditRecord(r, userId, authLoading)}
                 onDelete={() => setPendingDelete(r)}
               />

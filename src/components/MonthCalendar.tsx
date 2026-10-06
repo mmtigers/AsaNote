@@ -135,6 +135,8 @@ export function MonthCalendar({
             />
           );
           const holidayLabel = holidayName ? `${day}日 ${holidayName}` : undefined;
+          // まだ来ていない日に記録を入れてしまわないよう、今日より後は選べなくする。
+          const isFuture = value > todayValue;
 
           // 読み取り専用(傾向タブ)ではタップしても何も起きないため、ボタンにはしない。
           if (!onSelectDate) {
@@ -156,11 +158,12 @@ export function MonthCalendar({
               key={value}
               type="button"
               onClick={() => onSelectDate(value)}
+              disabled={isFuture}
               aria-pressed={isSelected}
               aria-current={isToday ? "date" : undefined}
               aria-label={holidayLabel}
               title={holidayLabel}
-              className={cellClassName}
+              className={`${cellClassName} ${isFuture ? "opacity-40" : ""}`}
             >
               <span>{day}</span>
               {dot}

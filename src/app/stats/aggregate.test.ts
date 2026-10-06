@@ -8,6 +8,11 @@ import {
   outcomeByDate,
   outcomeByFriendPromise,
   outcomeByHomeworkStart,
+  recordsForFriendPromise,
+  recordsForHomeworkStart,
+  recordsForOutcome,
+  recordsForResponseTag,
+  recordsForTag,
   responseEffectStats,
   roughRate,
   type AggregatableRecord,
@@ -143,5 +148,43 @@ describe("countTags / responseEffectStats", () => {
       { tag: "時間を宣言", total: 2, effects: { good: 1, mid: 0, bad: 1 } },
       { tag: "放置", total: 1, effects: { good: 1, mid: 0, bad: 0 } },
     ]);
+  });
+});
+
+describe("詳細表示用の recordsFor*(集計の件数と一覧がずれない)", () => {
+  const data = [
+    rec({ recordDate: "2026-10-01", outcome: "calm", times: { hwStart: "15:30" }, friend: ["約束あり"] }),
+    rec({ recordDate: "2026-10-03", outcome: "storm", times: { hwStart: "16:30" }, friend: ["約束なし"], trigger: ["宿題"], response: ["見守る"], responseEffect: "good" }),
+    rec({ recordDate: "2026-10-02", outcome: "rough", times: { hwStart: "16:10" }, friend: ["約束あり", "約束なし"], trigger: ["宿題", "空腹"], response: ["見守る"], responseEffect: null }),
+    rec({ recordDate: "2026-10-04", outcome: null, times: { hwStart: "16:10" }, friend: ["約束あり"] }),
+  ];
+
+  it("様子で絞り、新しい日付から返す", () => {
+    expect(recordsForOutcome(data, "storm").map((r) => r.recordDate)).toEqual(["2026-10-03"]);
+    expect(recordsForOutcome(data, "calm")).toHaveLength(countOutcomes(data).counts.calm);
+  });
+
+  it("宿題開始の区分は集計と同じ件数になる(様子が未入力の記録は含めない)", () => {
+    for (const b of outcomeByHomeworkStart(data)) {
+      expect(recordsForHomeworkStart(data, b.key)).toHaveLength(b.total);
+    }
+    expect(recordsForHomeworkStart(data, "mid").map((r) => r.recordDate)).toEqual(["2026-10-03", "2026-10-02"]);
+    expect(recordsForHomeworkStart(data, "unknown")).toEqual([]);
+  });
+
+  it("友達との約束は集計と同じ件数になり、両方付いていれば「約束あり」側", () => {
+    for (const b of outcomeByFriendPromise(data)) {
+      expect(recordsForFriendPromise(data, b.key)).toHaveLength(b.total);
+    }
+    expect(recordsForFriendPromise(data, "with").map((r) => r.recordDate)).toEqual(["2026-10-02", "2026-10-01"]);
+  });
+
+  it("タグで絞る", () => {
+    expect(recordsForTag(data, (r) => r.trigger, "宿題").map((r) => r.recordDate)).toEqual(["2026-10-03", "2026-10-02"]);
+  });
+
+  it("対応タグは効き具合が入力された記録だけ(responseEffectStatsと同じ)", () => {
+    const stat = responseEffectStats(data).find((s) => s.tag === "見守る");
+    expect(recordsForResponseTag(data, "見守る")).toHaveLength(stat?.total ?? -1);
   });
 });

@@ -5,6 +5,8 @@ import { useState } from "react";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { clearLocalData } from "@/lib/db/localDb";
+import { setSelectedChildId } from "@/lib/db/selectedChild";
+import { clearDraft } from "@/app/_home/draftStorage";
 import { usePendingSyncCount } from "@/lib/db/queries";
 import { countUnsyncedChanges } from "@/lib/db/records";
 import { syncPendingChanges } from "@/lib/db/sync";
@@ -30,6 +32,10 @@ export function AuthStatus() {
       } catch (error) {
         console.error(error);
       }
+      // localStorage 側の入力途中の下書き(メモを含む)と選択中の子どもも消す。
+      // 共有端末で、前の人の内容が次の人の画面に出ないようにする。
+      clearDraft();
+      setSelectedChildId(null);
     }
   }
 

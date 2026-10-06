@@ -21,6 +21,7 @@ interface QueryResult {
 // supabase-js のうち、この関数が使う呼び出しだけを写した最小の型。
 export interface ReminderQuery extends PromiseLike<QueryResult> {
   eq(column: string, value: unknown): ReminderQuery;
+  neq(column: string, value: unknown): ReminderQuery;
   in(column: string, values: string[]): ReminderQuery;
   not(column: string, operator: string, value: unknown): ReminderQuery;
 }
