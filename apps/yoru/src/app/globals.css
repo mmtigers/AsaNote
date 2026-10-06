@@ -5,6 +5,8 @@
    core の部品が使うクラスが CSS に入るよう、明示的に走査の対象にする。
    無いと、core へ移した部品のスタイルが、本番だけ静かに欠ける(ビルドも型検査も通ってしまう)。 */
 @source "../../../../packages/core/src";
+/* テストファイルの文字(例: container.firstChild)を、Tailwind がクラス名と誤解して余計なスタイルを作るのを防ぐ。 */
+@source not "../../../../packages/core/src/**/*.test.{ts,tsx}";
 
 /* 夜らしい藍色基調。意味の色(accent=穏やか / amber=少し荒れた / calm=大荒れではなく静けさ)の
    割り当ては記録フォーム実装時に確定する。 */

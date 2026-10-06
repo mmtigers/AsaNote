@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { ChildSwitcher } from "@note/core/components/ChildSwitcher";
-import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { ConfirmDialog } from "@note/core/components/ConfirmDialog";
 import { PartnerAvatar } from "@note/core/components/PartnerAvatar";
 import { SkeletonList } from "@note/core/components/Skeleton";
 import { useAuth } from "@/lib/auth/AuthProvider";

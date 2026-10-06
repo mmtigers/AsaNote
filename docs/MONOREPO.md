@@ -77,5 +77,6 @@
 - **Tailwind のクラスは、core の部品でも CSS に入れる必要がある。** Tailwind はアプリのディレクトリの外(`packages/core`)を自動では走査しないため、
   各アプリの `src/app/globals.css` に `@source "../../../../packages/core/src";` を置いてある(無いと、core へ移した部品のスタイルが本番だけ静かに欠ける。
   ビルドも型検査も通ってしまう)。各アプリの `src/app/globalsCss.test.ts` が、この指定が外れていないことを固定している。
+  あわせて `@source not` で core のテストファイルは走査から外している(テスト内の文字、例えば `container.firstChild` が、クラス名と誤解されて余計なスタイルが作られるため)。
   core へ部品を移したら、ビルドした CSS(`.next/static/chunks/*.css`)のルールが移す前と変わらないことを確かめること。
 - テストは共通コードの隣に置く(`packages/core/src/**/*.test.ts`)。移したファイルのテストをアプリ側に残さない。

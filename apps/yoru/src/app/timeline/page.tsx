@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { ChildSwitcher } from "@note/core/components/ChildSwitcher";
-import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { ConfirmDialog } from "@note/core/components/ConfirmDialog";
 import { Skeleton } from "@note/core/components/Skeleton";
 import { OUTCOME_OPTIONS } from "@/constants/choices";
 import { OUTCOME_SOFT_STYLES } from "@/constants/outcomeStyles";
