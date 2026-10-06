@@ -1,0 +1,82 @@
+name: Deploy DB schema (yorunote)
+
+# モノレポ化(apps/yoru)に伴い、ルートの .github/workflows に置いたもの。あさノートの db-deploy.yml とは別物。
+# **自分自身のパスは paths に含めない**: このワークフローを追加・更新するだけで、本番DBへの適用が
+# 走らないようにするため(適用したい時は schema.sql を変更するか、手動実行する)。
+
+# supabase/schema.sql の変更を本番Supabaseへ反映する仕組みが無く、「コードには反映済み・
+# 実DBには未反映」のギャップが同期エラーの原因になりうるため、main へのマージ時に適用する
+# (あさノートの db-deploy.yml と同じ方針)。
+#
+# **共有モード(あさノートと同じSupabaseプロジェクト)の注意**
+# schema.sql は evening_* の表・関数・トリガーだけに触れる決まり(docs/SPEC.md §7)で、
+# 適用前に scripts/check-schema-safety.mjs でそれを検査する。共通表(groups / group_members /
+# children など)の定義の正はあさノート側で、ここからは変更しない。
+#
+# schema.sql は冪等(create table if not exists / add column if not exists /
+# drop policy if exists → create policy / create or replace function)で drop table を
+# 含まないため、毎回まるごと流して問題ない。ただし列の削除・リネームはこの仕組みでは届かない。
+# その時はSQL Editorから手動で実施すること。
+#
+# service role キーを埋め込む cron-evening-reminders.sql と evening-partner-notify-trigger.sql は
+# 対象外(手動で1回実行する。docs/push-notifications-setup.md)。
+#
+# CI の db-types-check ジョブとは役割が別。あちらは一時Postgresコンテナへ適用して
+# 型のドリフトを検査するだけで、本番DBには一切触れない。
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/yoru/supabase/schema.sql"
+  # 反映漏れに気づいたときに手動で流せるようにしておく。
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# 本番DBへの適用が同時に走らないようにする。CI と違い、途中で打ち切らない。
+concurrency:
+  group: db-deploy-yorunote
+  cancel-in-progress: false
+
+jobs:
+  apply-schema:
+    name: Apply schema.sql to production
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      # 共通表に触れる変更を、本番へ流す前に必ず止める。
+      - name: Check schema.sql only touches evening_* objects
+        run: node apps/yoru/scripts/check-schema-safety.mjs apps/yoru/supabase/schema.sql
+
+      # 未設定のまま「成功した」ように見えるのが一番危ないので、先に落とす。
+      - name: Check secret is configured
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "::error::SUPABASE_DB_URL が未設定です。リポジトリの Settings > Secrets and variables > Actions に、SupabaseのSession poolerの接続文字列(パスワード込み)を登録してください。"
+            exit 1
+          fi
+
+      # SUPABASE_DB_URL は Supabase の「Connect」→ Session pooler の接続文字列。
+      # direct connection ではない点が重要: GitHub Actions のランナーはIPv4のみで、
+      # Supabase の direct connection は IPv6 のため接続できない。
+      #
+      # ON_ERROR_STOP: 途中で失敗したら後続を流し続けない。
+      # single-transaction: 失敗時は何も適用しない(中途半端なスキーマを残さない)。
+      - name: Apply schema.sql
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          psql "$SUPABASE_DB_URL" \
+            --set ON_ERROR_STOP=1 \
+            --single-transaction \
+            --file apps/yoru/supabase/schema.sql

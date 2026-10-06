@@ -1,12 +1,8 @@
-# dependencies
+# モノレポのルート。各アプリ固有の無視設定(.next / coverage / next-env.d.ts など)は
+# apps/*/.gitignore に置く。ここには、ルートで生成されるものだけを書く。
+
+# dependencies(npm workspaces のため、依存はルートの node_modules に集約される)
 /node_modules
-
-# next.js
-/.next/
-/out/
-
-# production
-/build
 
 # misc
 .DS_Store
@@ -14,8 +10,6 @@
 
 # debug
 npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
 
 # env files
 .env*.local
@@ -26,16 +20,4 @@ yarn-error.log*
 
 # supabase CLIのローカル作業用ディレクトリ(functions serve/linkの度に生成される)
 supabase/.temp
-
-# typescript
-*.tsbuildinfo
-next-env.d.ts
-
-# test coverage
-/coverage
-
-# playwright
-/test-results
-/playwright-report
-/blob-report
-/playwright/.cache
+apps/*/supabase/.temp

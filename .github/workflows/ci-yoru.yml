@@ -1,0 +1,194 @@
+name: CI (yorunote)
+
+# モノレポ化(apps/yoru)に伴い、よるノート用のCIとしてルートの .github/workflows に置いたもの。
+# あさノート用の ci.yml とは別ワークフロー(判定内容がアプリごとに違うため。共通化は後続フェーズ)。
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Issue #60: 明示しないとリポジトリ設定次第で write 権限のトークンが供給される。全ジョブ読み取り専用。
+permissions:
+  contents: read
+
+jobs:
+  lint-build-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/yoru
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        # モノレポ: package-lock.json はルートにあるので、ルートで全ワークスペースを入れる。
+        working-directory: .
+        run: npm ci
+
+      # 本番に入る依存(dependencies)だけを検査する。devDependencies(eslint-config-next 経由の
+      # braces, GHSA-vfj7-8cjw-p6xm)には npm 上に修正版が無く、本番コードには入らないため対象外。
+      # braces に修正版が出たら --omit=dev を外して全依存の検査へ戻す。
+      - name: Security audit
+        working-directory: .
+        run: npm audit --audit-level=high --omit=dev --workspace apps/yoru
+
+      - name: Lint
+        run: npm run lint
+
+      # 共有モードではあさノートと同じDBへ適用するため、schema.sql が evening_* 以外に触れていないかを
+      # 静的に検査する(DROP / ALTER を共通表へ向けない。docs/SPEC.md §7)。
+      - name: Check schema.sql only touches evening_* objects
+        run: npm run check:schema
+
+      - name: Generate Next.js route types
+        run: npx next typegen
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+      - name: Unit tests (with coverage)
+        # Issue #60: 以前は npm run test のみでカバレッジを CI で計測・保存していなかった。
+        # 閾値は設けず(vitest.config.mts のコメント参照)、成果物として残して推移を見る。
+        run: npm run test:coverage
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: coverage-report
+          path: apps/yoru/coverage/
+          retention-days: 14
+
+      - name: Build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+        run: npm run build
+
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/yoru
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        # モノレポ: package-lock.json はルートにあるので、ルートで全ワークスペースを入れる。
+        working-directory: .
+        run: npm ci
+
+      # ログイン無し(端末内の IndexedDB だけ)の動きを確かめる。実DB・同期は対象外(Issue #12 の実機確認)。
+      # Supabase の URL は CSP の接続先の許可に使われるため、placeholder を渡す(通信は発生しない)。
+      - name: Build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+        run: npm run build
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E tests
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-report
+          path: |
+            apps/yoru/playwright-report/
+            apps/yoru/test-results/
+          retention-days: 7
+
+  db-types-check:
+    name: Supabase type drift check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # 素のPostgresへ、共通表・auth・storage のスタブ → schema.sql の順に適用する。
+      # ON_ERROR_STOP で、schema.sql が文法エラーや存在しない参照を持っていればここで落ちる。
+      # あわせて、再適用してもエラーにならない(べき等)ことも確かめる。
+      - name: Apply schema to scratch database
+        env:
+          PGPASSWORD: postgres
+        run: |
+          for f in apps/yoru/supabase/ci/auth-stub.sql apps/yoru/supabase/ci/shared-tables-stub.sql apps/yoru/supabase/schema.sql apps/yoru/supabase/schema.sql; do
+            psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 -f "$f"
+          done
+
+      # version: latest は CLI の破壊的変更で CI が突然落ちうるため固定する(あさノートの CI と同じ版)。
+      # `supabase/setup-cli@v1` のような `v1`/`v3` はタグではなくブランチで可変のため、SHA で固定している。
+      - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
+        with:
+          version: 2.117.0
+
+      - name: Generate types
+        run: supabase gen types typescript --db-url postgresql://postgres:postgres@localhost:5432/postgres > /tmp/database.types.ts
+
+      - name: Check for type drift
+        run: |
+          if ! diff -u apps/yoru/src/lib/db/database.types.ts /tmp/database.types.ts; then
+            echo "::error::apps/yoru/supabase/schema.sql の変更が apps/yoru/src/lib/db/database.types.ts へ反映されていません。'npm run db:types'(要Docker。apps/yoru で実行)で再生成し、差分をコミットしてください。"
+            exit 1
+          fi
+
+  release-notes-check:
+    name: Release notes check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: apps/yoru
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      # ユーザー向けの変更なのに src/data/releases.ts が更新されない、またはversionが
+      # releases.ts / package.json / package-lock.json でずれる場合は失敗させる。
+      # 更新履歴に載せない変更(依存更新・内部リファクタ・docsのみ等)は、PRに `no-release-note`
+      # ラベルを付けるか、PR本文・コミットメッセージに `[skip release-note]` と書くと例外にできる。
+      # 判定の中身は scripts/check-release-notes.mjs(テストは src/lib/releaseNotesCheck.test.ts)。
+      # PRのタイトル・本文・ラベルは外部入力なので、シェルへ直接埋め込まず環境変数で渡す。
+      - name: Check release notes were updated
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: node scripts/check-release-notes.mjs

@@ -1,0 +1,84 @@
+@import url("https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&family=Noto+Sans+JP:wght@400;500;700&display=swap");
+@import "tailwindcss";
+
+/* 夜らしい藍色基調。意味の色(accent=穏やか / amber=少し荒れた / calm=大荒れではなく静けさ)の
+   割り当ては記録フォーム実装時に確定する。 */
+:root {
+  --bg: #f4f3fb;
+  --surface: #ffffff;
+  --surface-2: #ebe9f8;
+  --ink: #2f2f4a;
+  --sub: #7d7b9c;
+  --line: #dcd9f0;
+  --accent: #4b4fb0;
+  --accent-ink: #ffffff;
+  --accent-soft: #e0e0f6;
+  --amber: #e08a4f;
+  --amber-soft: #fbe6d5;
+  --calm: #5a9a8f;
+  --calm-soft: #dcefeb;
+  --holiday: #d6455a;
+  --saturday: #3f7bd1;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #14152a;
+    --surface: #1d1f3a;
+    --surface-2: #272a4d;
+    --ink: #eceaff;
+    --sub: #a9a7cf;
+    --line: #34376a;
+    --accent: #9a9df0;
+    --accent-ink: #14152a;
+    --accent-soft: #2c2f5c;
+    --amber: #f0aa77;
+    --amber-soft: #4a3325;
+    --calm: #7fc4b8;
+    --calm-soft: #1f3b38;
+    --holiday: #f0899a;
+    --saturday: #82aef0;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #14152a;
+  --surface: #1d1f3a;
+  --surface-2: #272a4d;
+  --ink: #eceaff;
+  --sub: #a9a7cf;
+  --line: #34376a;
+  --accent: #9a9df0;
+  --accent-ink: #14152a;
+  --accent-soft: #2c2f5c;
+  --amber: #f0aa77;
+  --amber-soft: #4a3325;
+  --calm: #7fc4b8;
+  --calm-soft: #1f3b38;
+  --holiday: #f0899a;
+  --saturday: #82aef0;
+  color-scheme: dark;
+}
+
+body {
+  background:
+    radial-gradient(circle at 15% 0%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 55%),
+    var(--bg);
+  color: var(--ink);
+  font-family: "Zen Maru Gothic", "Noto Sans JP", system-ui, sans-serif;
+}
+
+h1,
+h2,
+h3 {
+  font-family: "Zen Maru Gothic", "Noto Sans JP", sans-serif;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.001ms !important;
+    animation-duration: 0.001ms !important;
+  }
+}
