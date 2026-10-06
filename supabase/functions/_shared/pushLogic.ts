@@ -51,6 +51,23 @@ export function selectReminderTargets(
   });
 }
 
+// 呼び出し元が pg_cron(= service role key を持つ側)かを確かめる。
+// Supabase の JWT 検証(既定で有効)は、公開されている anon キーでも通してしまう。anon キーは
+// アプリに埋め込まれていて誰でも知りうるため、そのままだと誰でもこの関数を呼べて、リマインドを
+// 好きなタイミングで繰り返し発火させられる。cron が送る service role key と一致するときだけ通す。
+export function isAuthorizedCall(authorizationHeader: string | null, serviceRoleKey: string): boolean {
+  if (!authorizationHeader || !serviceRoleKey) return false;
+  const match = /^Bearer (.+)$/.exec(authorizationHeader);
+  if (!match) return false;
+  const given = match[1] ?? "";
+  // 長さが違うときも含め、比較時間が一致位置に左右されないようにする。
+  let diff = given.length ^ serviceRoleKey.length;
+  for (let i = 0; i < serviceRoleKey.length; i++) {
+    diff |= (given.charCodeAt(i) || 0) ^ serviceRoleKey.charCodeAt(i);
+  }
+  return diff === 0;
+}
+
 // 410 Gone / 404 Not Found はブラウザ側で購読が失効したことを示す。
 // それ以外(一時的な通信エラー等)は次回の実行に任せ、購読は残す。
 export function isStaleSubscriptionError(error: unknown): boolean {

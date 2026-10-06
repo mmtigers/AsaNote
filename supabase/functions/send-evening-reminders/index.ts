@@ -19,6 +19,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
 import {
+  isAuthorizedCall,
   jstDateNow,
   jstTimeNow,
   reminderPayload,
@@ -31,7 +32,7 @@ import {
 const json = (body: unknown) =>
   new Response(JSON.stringify(body), { headers: { "content-type": "application/json" } });
 
-Deno.serve(async () => {
+Deno.serve(async (request) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const vapidPublicKey = Deno.env.get("VAPID_PUBLIC_KEY");
@@ -42,6 +43,11 @@ Deno.serve(async () => {
     return new Response("必要な環境変数(VAPID_*)が未設定です。docs/push-notifications-setup.mdを参照してください。", {
       status: 500,
     });
+  }
+
+  // cron 以外(anon キーを知っているだけの第三者)からの呼び出しは受け付けない。
+  if (!isAuthorizedCall(request.headers.get("Authorization"), serviceRoleKey)) {
+    return new Response("unauthorized", { status: 401 });
   }
 
   webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  isAuthorizedCall,
   isStaleSubscriptionError,
   jstDateNow,
   jstTimeNow,
@@ -64,5 +65,27 @@ describe("sendToSubscriptions", () => {
     const result = await sendToSubscriptions(send, subs, "payload");
     expect(result).toEqual({ sent: 1, staleSubscriptionIds: ["2"] });
     expect(send).toHaveBeenCalledWith({ endpoint: "e1", keys: { p256dh: "p1", auth: "a1" } }, "payload");
+  });
+});
+
+describe("isAuthorizedCall", () => {
+  const key = "service-role-key-value";
+
+  it("service role key と一致する Bearer だけを通す", () => {
+    expect(isAuthorizedCall(`Bearer ${key}`, key)).toBe(true);
+  });
+
+  it("anon キーなど別の値・前後の差・ヘッダ無し・形式違いは通さない", () => {
+    expect(isAuthorizedCall("Bearer anon-key", key)).toBe(false);
+    expect(isAuthorizedCall(`Bearer ${key}x`, key)).toBe(false);
+    expect(isAuthorizedCall(`Bearer ${key.slice(0, -1)}`, key)).toBe(false);
+    expect(isAuthorizedCall(key, key)).toBe(false);
+    expect(isAuthorizedCall(null, key)).toBe(false);
+    expect(isAuthorizedCall("", key)).toBe(false);
+  });
+
+  it("サーバー側のキーが空のときは、空の Bearer でも通さない", () => {
+    expect(isAuthorizedCall("Bearer ", "")).toBe(false);
+    expect(isAuthorizedCall("Bearer x", "")).toBe(false);
   });
 });

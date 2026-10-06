@@ -63,6 +63,7 @@ SQL Editor で `supabase/cron-evening-reminders.sql` の `<PROJECT_REF>` と `<S
 - 通知が届かない場合は、Supabase ダッシュボードの Edge Functions > `send-evening-reminders` > Logs を確認する。
 - cronの呼び出し結果: `select status_code, content, created from net._http_response order by created desc limit 5;`
   (200なら正常、401は service_role キーの誤り、404は PROJECT_REF の誤り)。
+  関数は、Authorization が service_role キーと一致しない呼び出し(公開されている anon キーを含む)を 401 で断る。cron に別のキーを入れていないか確認する。
 - 500 で `Vapid public key must be a URL safe Base 64` と出る場合は `VAPID_PUBLIC_KEY` の値が不正(末尾の `=`・引用符・空白の混入、秘密鍵との取り違え)。
 - 「通知機能が未設定です」と出る場合は、Vercel の `NEXT_PUBLIC_VAPID_PUBLIC_KEY` が未設定、または設定後に再デプロイしていない。
 - 購読の行が消えている場合は、ブラウザ側で購読が失効(410/404)して自動削除された可能性が高い。もう一度ONにし直す。

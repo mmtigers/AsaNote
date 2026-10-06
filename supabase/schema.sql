@@ -255,6 +255,30 @@ create table if not exists evening_concerns (
 alter table evening_rules enable row level security;
 alter table evening_concerns enable row level security;
 
+-- 更新ポリシーは同じグループのメンバーにも開いているため、user_id を書き換えて他の人の
+-- 持ち物にしたり自分の持ち物にしたりできてしまう。作成者(user_id)は変更不可にする。
+create or replace function evening_prevent_owner_change()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.user_id is distinct from old.user_id then
+    raise exception 'owner_change_not_allowed';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists evening_rules_keep_owner on evening_rules;
+create trigger evening_rules_keep_owner
+  before update on evening_rules
+  for each row execute function evening_prevent_owner_change();
+
+drop trigger if exists evening_concerns_keep_owner on evening_concerns;
+create trigger evening_concerns_keep_owner
+  before update on evening_concerns
+  for each row execute function evening_prevent_owner_change();
+
 drop policy if exists "evening_rules are readable by owner or group members" on evening_rules;
 drop policy if exists "evening_rules are insertable by owner" on evening_rules;
 drop policy if exists "evening_rules are updatable by owner or group members" on evening_rules;
