@@ -1,15 +1,7 @@
 "use client";
 
-import { createLocalStorageStore } from "@note/core/localStorageStore";
+import { createReleaseSeenStore } from "@note/core/releaseSeen";
+import { APP_ID } from "@/lib/appConfig";
 
-// 最後に確認したアプデのバージョンを覚えておき、それより新しいリリースがあれば
-// トップ画面のアプデ通知バナーに「新着」として出す(reminderDismissal.ts と同じ定型)。
-const store = createLocalStorageStore("yoru-note:lastSeenReleaseVersion", "yoru-note:release-seen-changed");
-
-export function markVersionSeen(version: string) {
-  store.set(version);
-}
-
-export function useLastSeenVersion(): string | null {
-  return store.use();
-}
+// 実装は @note/core/releaseSeen。このアプリ用のインスタンスを作って公開する。
+export const { markVersionSeen, useLastSeenVersion } = createReleaseSeenStore(APP_ID);
