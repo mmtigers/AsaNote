@@ -19,7 +19,7 @@ import { describe, expect, it } from "vitest";
  * エコシステムが SHA ごと追随する(`with.version` は対象外なので手動)。
  */
 
-const WORKFLOW = fileURLToPath(new URL("../../.github/workflows/ci.yml", import.meta.url));
+const WORKFLOW = fileURLToPath(new URL("../../../../.github/workflows/ci.yml", import.meta.url));
 
 /** `uses:` の参照をすべて拾う(`actions/checkout@<ref>` の `<ref>` 部分)。 */
 function usesRefs(): { action: string; ref: string }[] {

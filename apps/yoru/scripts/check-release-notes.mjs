@@ -99,6 +99,15 @@ function git(...args) {
   return execFileSync("git", args, { encoding: "utf8" });
 }
 
+// モノレポでは package-lock.json がリポジトリルートに1つだけあり、このアプリの version は
+// `packages["apps/<app>"]` に入る。ルート直下の version(= ルートの package.json)ではない。
+function readLockVersion() {
+  const topLevel = git("rev-parse", "--show-toplevel").trim();
+  const prefix = git("rev-parse", "--show-prefix").trim().replace(/\/$/, "");
+  const lock = JSON.parse(readFileSync(`${topLevel}/package-lock.json`, "utf8"));
+  return lock.packages?.[prefix]?.version ?? lock.version;
+}
+
 function main() {
   const base = process.env.BASE ?? "";
   if (!base || /^0+$/.test(base)) {
@@ -110,19 +119,21 @@ function main() {
   const skipText = [process.env.PR_TITLE, process.env.PR_BODY, git("log", "--format=%B", `${base}..HEAD`)].join("\n");
   let baseReleasesSource = null;
   try {
-    baseReleasesSource = git("show", `${base}:${RELEASES_PATH}`);
+    // `./` は現在のディレクトリ(アプリのルート)からの相対パスを意味する。
+    baseReleasesSource = git("show", `${base}:./${RELEASES_PATH}`);
   } catch {
     // BASEにreleases.tsが無い場合は、versionの増加チェックだけ行わない。
   }
 
   const result = checkReleaseNotes({
-    changedFiles: git("diff", "--name-only", base, "HEAD").split("\n").filter(Boolean),
+    // --relative: アプリのルートからの相対パスで返す(他のアプリの変更は含めない)。
+    changedFiles: git("diff", "--name-only", "--relative", base, "HEAD").split("\n").filter(Boolean),
     labels,
     skipText,
     releasesSource: readFileSync(RELEASES_PATH, "utf8"),
     baseReleasesSource,
     packageVersion: JSON.parse(readFileSync("package.json", "utf8")).version,
-    lockVersion: JSON.parse(readFileSync("package-lock.json", "utf8")).version,
+    lockVersion: readLockVersion(),
   });
 
   for (const n of result.notes) console.log(n);

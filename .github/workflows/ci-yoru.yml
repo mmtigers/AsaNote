@@ -1,4 +1,7 @@
-name: CI
+name: CI (yorunote)
+
+# モノレポ化(apps/yoru)に伴い、よるノート用のCIとしてルートの .github/workflows に置いたもの。
+# あさノート用の ci.yml とは別ワークフロー(判定内容がアプリごとに違うため。共通化は後続フェーズ)。
 
 on:
   push:
@@ -18,6 +21,9 @@ jobs:
   lint-build-test:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/yoru
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -27,13 +33,16 @@ jobs:
           cache: npm
 
       - name: Install dependencies
+        # モノレポ: package-lock.json はルートにあるので、ルートで全ワークスペースを入れる。
+        working-directory: .
         run: npm ci
 
       # 本番に入る依存(dependencies)だけを検査する。devDependencies(eslint-config-next 経由の
       # braces, GHSA-vfj7-8cjw-p6xm)には npm 上に修正版が無く、本番コードには入らないため対象外。
       # braces に修正版が出たら --omit=dev を外して全依存の検査へ戻す。
       - name: Security audit
-        run: npm audit --audit-level=high --omit=dev
+        working-directory: .
+        run: npm audit --audit-level=high --omit=dev --workspace apps/yoru
 
       - name: Lint
         run: npm run lint
@@ -59,7 +68,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: coverage-report
-          path: coverage/
+          path: apps/yoru/coverage/
           retention-days: 14
 
       - name: Build
@@ -72,6 +81,9 @@ jobs:
     name: E2E (Playwright)
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/yoru
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -81,6 +93,8 @@ jobs:
           cache: npm
 
       - name: Install dependencies
+        # モノレポ: package-lock.json はルートにあるので、ルートで全ワークスペースを入れる。
+        working-directory: .
         run: npm ci
 
       # ログイン無し(端末内の IndexedDB だけ)の動きを確かめる。実DB・同期は対象外(Issue #12 の実機確認)。
@@ -103,8 +117,8 @@ jobs:
         with:
           name: playwright-report
           path: |
-            playwright-report/
-            test-results/
+            apps/yoru/playwright-report/
+            apps/yoru/test-results/
           retention-days: 7
 
   db-types-check:
@@ -133,7 +147,7 @@ jobs:
         env:
           PGPASSWORD: postgres
         run: |
-          for f in supabase/ci/auth-stub.sql supabase/ci/shared-tables-stub.sql supabase/schema.sql supabase/schema.sql; do
+          for f in apps/yoru/supabase/ci/auth-stub.sql apps/yoru/supabase/ci/shared-tables-stub.sql apps/yoru/supabase/schema.sql apps/yoru/supabase/schema.sql; do
             psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 -f "$f"
           done
 
@@ -148,8 +162,8 @@ jobs:
 
       - name: Check for type drift
         run: |
-          if ! diff -u src/lib/db/database.types.ts /tmp/database.types.ts; then
-            echo "::error::supabase/schema.sql の変更が src/lib/db/database.types.ts へ反映されていません。'npm run db:types'(要Docker)で再生成し、差分をコミットしてください。"
+          if ! diff -u apps/yoru/src/lib/db/database.types.ts /tmp/database.types.ts; then
+            echo "::error::apps/yoru/supabase/schema.sql の変更が apps/yoru/src/lib/db/database.types.ts へ反映されていません。'npm run db:types'(要Docker。apps/yoru で実行)で再生成し、差分をコミットしてください。"
             exit 1
           fi
 
@@ -157,6 +171,9 @@ jobs:
     name: Release notes check
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: apps/yoru
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

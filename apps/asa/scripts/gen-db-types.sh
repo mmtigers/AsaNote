@@ -7,6 +7,8 @@
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
+# supabase/(schema.sql・CI用スタブ)はモノレポのルート直下にある(あさノートの正)。
+SUPABASE_DIR="../../supabase"
 
 CONTAINER_NAME="gotoschool-db-types-gen"
 PORT=54329
@@ -27,8 +29,8 @@ until docker exec "$CONTAINER_NAME" pg_isready -U postgres >/dev/null 2>&1; do
   sleep 1
 done
 
-psql "$DB_URL" -f supabase/ci/auth-stub.sql
-psql "$DB_URL" -f supabase/schema.sql
+psql "$DB_URL" -f "$SUPABASE_DIR/ci/auth-stub.sql"
+psql "$DB_URL" -f "$SUPABASE_DIR/schema.sql"
 
 npx supabase gen types typescript --db-url "$DB_URL" > src/lib/db/database.types.ts
 

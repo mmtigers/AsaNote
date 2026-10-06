@@ -1,4 +1,8 @@
-name: Deploy DB schema
+name: Deploy DB schema (yorunote)
+
+# モノレポ化(apps/yoru)に伴い、ルートの .github/workflows に置いたもの。あさノートの db-deploy.yml とは別物。
+# **自分自身のパスは paths に含めない**: このワークフローを追加・更新するだけで、本番DBへの適用が
+# 走らないようにするため(適用したい時は schema.sql を変更するか、手動実行する)。
 
 # supabase/schema.sql の変更を本番Supabaseへ反映する仕組みが無く、「コードには反映済み・
 # 実DBには未反映」のギャップが同期エラーの原因になりうるため、main へのマージ時に適用する
@@ -24,8 +28,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "supabase/schema.sql"
-      - ".github/workflows/db-deploy.yml"
+      - "apps/yoru/supabase/schema.sql"
   # 反映漏れに気づいたときに手動で流せるようにしておく。
   workflow_dispatch:
 
@@ -51,7 +54,7 @@ jobs:
 
       # 共通表に触れる変更を、本番へ流す前に必ず止める。
       - name: Check schema.sql only touches evening_* objects
-        run: node scripts/check-schema-safety.mjs
+        run: node apps/yoru/scripts/check-schema-safety.mjs apps/yoru/supabase/schema.sql
 
       # 未設定のまま「成功した」ように見えるのが一番危ないので、先に落とす。
       - name: Check secret is configured
@@ -76,4 +79,4 @@ jobs:
           psql "$SUPABASE_DB_URL" \
             --set ON_ERROR_STOP=1 \
             --single-transaction \
-            --file supabase/schema.sql
+            --file apps/yoru/supabase/schema.sql
