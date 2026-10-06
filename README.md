@@ -36,6 +36,7 @@ npm run dev
 | `npm run check:schema` | `supabase/schema.sql` が `evening_*` 以外(あさノートと共有する表)に触れていないかを検査 |
 | `npm run db:types` | `schema.sql` から `src/lib/db/database.types.ts` を再生成(要 Docker) |
 | `npm test` | 単体テスト |
+| `npm run test:e2e` | ブラウザでの画面テスト(Playwright。先に `npm run build` が必要。初回は `npx playwright install chromium`) |
 | `npm run build` | 本番ビルド |
 
 ## 現在の状況
