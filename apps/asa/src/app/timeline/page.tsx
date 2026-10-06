@@ -9,7 +9,7 @@ import { SkeletonList } from "@/components/Skeleton";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useChildren } from "@/lib/db/children";
 import { buildMemberEmailMap, useGroupMembers } from "@/lib/db/groups";
-import { canEditRecord, isOwnRecord } from "@/lib/db/ownership";
+import { canEditRecord, isOwnRecord } from "@note/core/ownership";
 import { deleteRecord } from "@/lib/db/records";
 import { useRecordsTimeline } from "@/lib/db/queries";
 import type { LocalRecord } from "@/lib/db/localDb";

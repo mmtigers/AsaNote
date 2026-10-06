@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const signOut = vi.fn().mockResolvedValue({});
-vi.mock("@/lib/supabase/client", () => ({ getSupabaseClient: () => ({ auth: { signOut } }) }));
+vi.mock("@note/core/supabase/client", () => ({ getSupabaseClient: () => ({ auth: { signOut } }) }));
 vi.mock("@/lib/auth/AuthProvider", () => ({
   useAuth: () => ({ session: { user: { id: "u1", email: "a@example.com" } }, loading: false }),
 }));

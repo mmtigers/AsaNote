@@ -1,4 +1,4 @@
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { getSupabaseClient } from "@note/core/supabase/client";
 import type { DinnerState, MilestoneKey, Outcome, ResponseEffect } from "@/constants/choices";
 import type { EveningRecord } from "@/types/models";
 import { localDb, type LocalPhoto, type LocalRecord } from "./localDb";

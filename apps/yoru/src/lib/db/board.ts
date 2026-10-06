@@ -1,6 +1,6 @@
 "use client";
 
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { getSupabaseClient } from "@note/core/supabase/client";
 
 // 試したこと・検討事項ボード(SPEC §4.4)。children と同じく、家族の設定情報として
 // オンライン時にSupabaseへ直接読み書きする(Dexieへのミラーリングはしない)。

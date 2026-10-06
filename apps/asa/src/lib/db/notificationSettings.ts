@@ -1,6 +1,6 @@
 "use client";
 
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { getSupabaseClient } from "@note/core/supabase/client";
 import type { PushSubscriptionKeys } from "@/lib/push";
 
 export interface NotificationSettings {

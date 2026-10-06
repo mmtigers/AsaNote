@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { PartnerAvatar } from "@/components/PartnerAvatar";
-import { canEditRecord, isOwnRecord } from "@/lib/db/ownership";
+import { canEditRecord, isOwnRecord } from "@note/core/ownership";
 import type { LocalRecord } from "@/lib/db/localDb";
 import { OUTCOME_OPTIONS } from "@/constants/choices";
 import { formatDateShort } from "@note/core/date";

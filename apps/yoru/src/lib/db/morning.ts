@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth/AuthProvider";
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { getSupabaseClient } from "@note/core/supabase/client";
 import { PULL_PAGE_SIZE } from "./sync";
 
 // あさノートの records(朝の記録)を読む。共有モード(同じSupabaseプロジェクト)でだけ存在し、

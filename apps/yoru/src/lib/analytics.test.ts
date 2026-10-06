@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const insert = vi.fn();
 const from = vi.fn(() => ({ insert }));
 let clientError: Error | null = null;
-vi.mock("@/lib/supabase/client", () => ({
+vi.mock("@note/core/supabase/client", () => ({
   getSupabaseClient: () => {
     if (clientError) throw clientError;
     return { from };

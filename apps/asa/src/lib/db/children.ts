@@ -1,6 +1,6 @@
 "use client";
 
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { getSupabaseClient } from "@note/core/supabase/client";
 import { useAuthedList } from "./useAuthedList";
 import type { Child } from "@/types/models";
 import { useSelectedChildId } from "./selectedChild";

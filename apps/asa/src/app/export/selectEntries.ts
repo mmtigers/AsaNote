@@ -1,4 +1,4 @@
-import { isOwnRecord } from "@/lib/db/ownership";
+import { isOwnRecord } from "@note/core/ownership";
 import { OUTCOME_OPTIONS, type Outcome } from "@/constants/choices";
 import { departTimeLabel } from "@/lib/departTime";
 import { wakeTimeLabel } from "@/lib/wakeTime";

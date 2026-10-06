@@ -5,7 +5,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { isNetworkError, NETWORK_ERROR_MESSAGE_JA } from "@note/core/errors";
 import { COOLDOWN_SECONDS, getRemainingCooldown, rememberSentAt } from "@/lib/otpCooldown";
-import { getSupabaseClient } from "@/lib/supabase/client";
+import { getSupabaseClient } from "@note/core/supabase/client";
 
 export default function LoginPage() {
   const { session, loading } = useAuth();

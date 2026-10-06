@@ -1,5 +1,5 @@
 import { localDb, type LocalRecord } from "./localDb";
-import { isOwnRecord } from "./ownership";
+import { isOwnRecord } from "@note/core/ownership";
 import { syncPendingChanges } from "./sync";
 import type { EveningRecord } from "@/types/models";
 

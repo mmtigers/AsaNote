@@ -6,7 +6,7 @@ const authGetUser = vi.fn();
 const fromMock = vi.fn();
 const reportSyncOutcome = vi.fn();
 
-vi.mock("@/lib/supabase/client", () => ({
+vi.mock("@note/core/supabase/client", () => ({
   getSupabaseClient: () => ({
     auth: { getUser: authGetUser },
     from: fromMock,

@@ -5,7 +5,7 @@ import { useMemo, useState, type ChangeEvent } from "react";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { addDays, formatDateLabel, toDateInputValue } from "@note/core/date";
 import { useGroupMembers } from "@/lib/db/groups";
-import { isOwnRecord } from "@/lib/db/ownership";
+import { isOwnRecord } from "@note/core/ownership";
 import { useRecordsTimeline } from "@/lib/db/queries";
 import { buildDiaryText } from "@/lib/recordPreview";
 import { buildCsvContent, buildCsvFilename, buildExportFilename, downloadCsv, selectExportEntries } from "./selectEntries";
