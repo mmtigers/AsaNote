@@ -9,10 +9,9 @@ import {
   getMyGroup,
   joinGroupByCode,
   leaveGroup,
-} from "@note/core/db/groups";
-import { pullFromCloud } from "@/lib/db/sync";
-import type { Group, GroupInvite, GroupMemberProfile } from "@/types/models";
-import { runAction, runSilently } from "@note/core/group/runAction";
+} from "../db/groups";
+import type { Group, GroupInvite, GroupMemberProfile } from "../types/group";
+import { runAction, runSilently } from "./runAction";
 
 const SHARE_COPIED_VISIBLE_MS = 2000;
 
@@ -42,9 +41,18 @@ export interface GroupAdmin {
 }
 
 export function useGroupAdmin({
+  appName,
+  pullFromCloud,
   onError,
   onJoined,
 }: {
+  /** 招待の文面に入るアプリ名(例: 「あさノート」)。 */
+  appName: string;
+  /**
+   * クラウドから記録を取り直す(このアプリの同期)。参加・脱退のあと、共有の範囲が変わった記録を反映するため。
+   * モジュールレベルの安定した関数を渡すこと。
+   */
+  pullFromCloud: () => Promise<unknown> | void;
   onError: (message: string | null) => void;
   /** 参加直後に呼ばれる。共有されたデータ(お子さま等)を取り直すため。 */
   onJoined: () => Promise<void>;
@@ -145,11 +153,11 @@ export function useGroupAdmin({
   async function shareInvite() {
     if (!invite) return;
     onError(null);
-    const text = `あさノートのグループに招待します。招待コード: ${invite.code}\n(24時間以内に入力してください)`;
+    const text = `${appName}のグループに招待します。招待コード: ${invite.code}\n(24時間以内に入力してください)`;
 
     if (navigator.share) {
       try {
-        await navigator.share({ title: "あさノート グループ招待", text });
+        await navigator.share({ title: `${appName} グループ招待`, text });
       } catch (error) {
         if ((error as DOMException).name !== "AbortError") console.error(error);
       }

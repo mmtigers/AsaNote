@@ -4,13 +4,15 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Skeleton } from "@note/core/components/Skeleton";
 import { useAuth } from "@/lib/auth/AuthProvider";
-import { ChildrenSection } from "./ChildrenSection";
-import { GroupMemberSections } from "./GroupMemberSections";
-import { GroupOnboardingSections } from "./GroupOnboardingSections";
+import { APP_NAME } from "@/lib/appConfig";
+import { pullFromCloud } from "@/lib/db/sync";
+import { ChildrenSection } from "@note/core/components/group/ChildrenSection";
+import { GroupMemberSections } from "@note/core/components/group/GroupMemberSections";
+import { GroupOnboardingSections } from "@note/core/components/group/GroupOnboardingSections";
 import { NotificationSection } from "./NotificationSection";
 import { runAction } from "@note/core/group/runAction";
-import { useChildrenAdmin } from "./useChildrenAdmin";
-import { useGroupAdmin } from "./useGroupAdmin";
+import { useChildrenAdmin } from "@note/core/group/useChildrenAdmin";
+import { useGroupAdmin } from "@note/core/group/useGroupAdmin";
 import { useNotificationSettings } from "./useNotificationSettings";
 
 // この画面は「お子さま」と「グループ」という独立した2つの関心を並べたもの。
@@ -23,7 +25,12 @@ export default function GroupPage() {
 
   const childrenAdmin = useChildrenAdmin(setErrorMessage);
   const reloadChildren = childrenAdmin.reload;
-  const groupAdmin = useGroupAdmin({ onError: setErrorMessage, onJoined: reloadChildren });
+  const groupAdmin = useGroupAdmin({
+    appName: APP_NAME,
+    pullFromCloud,
+    onError: setErrorMessage,
+    onJoined: reloadChildren,
+  });
   const refreshGroup = groupAdmin.refresh;
   const notificationAdmin = useNotificationSettings(session?.user.id, setErrorMessage);
 

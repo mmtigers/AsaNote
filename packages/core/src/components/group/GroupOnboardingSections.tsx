@@ -1,6 +1,6 @@
 "use client";
 
-import type { GroupAdmin } from "./useGroupAdmin";
+import type { GroupAdmin } from "../../group/useGroupAdmin";
 
 // まだグループに属していないときの2択(作る / 招待コードで参加する)(#62)。
 export function GroupOnboardingSections({ admin }: { admin: GroupAdmin }) {
