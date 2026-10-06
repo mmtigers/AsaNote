@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  displayNameFromEmail,
   isAuthorizedCall,
   isStaleSubscriptionError,
   jstDateNow,
   jstTimeNow,
+  partnerRecordPayload,
   selectReminderTargets,
   sendToSubscriptions,
   type PushSubscriptionRow,
@@ -87,5 +89,23 @@ describe("isAuthorizedCall", () => {
   it("サーバー側のキーが空のときは、空の Bearer でも通さない", () => {
     expect(isAuthorizedCall("Bearer ", "")).toBe(false);
     expect(isAuthorizedCall("Bearer x", "")).toBe(false);
+  });
+});
+
+describe("displayNameFromEmail / partnerRecordPayload", () => {
+  it("メールの@より前を表示名にし、無ければ null", () => {
+    expect(displayNameFromEmail("mom@example.com")).toBe("mom");
+    expect(displayNameFromEmail(" @example.com")).toBeNull();
+    expect(displayNameFromEmail(null)).toBeNull();
+    expect(displayNameFromEmail(undefined)).toBeNull();
+  });
+
+  it("通知文言は名前の有無で変わり、タイムラインへ誘導する", () => {
+    expect(JSON.parse(partnerRecordPayload("mom"))).toEqual({
+      title: "よるノート",
+      body: "momさんが今夜の記録を追加しました",
+      url: "/timeline",
+    });
+    expect(JSON.parse(partnerRecordPayload(null)).body).toBe("パートナーが今夜の記録を追加しました");
   });
 });

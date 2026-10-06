@@ -45,6 +45,7 @@ PR ごとに GitHub Actions で次が走ります。
 
 - `lint-build-test`: 依存の脆弱性検査(本番依存のみ)、lint、`check:schema`、型検査、単体テスト(カバレッジ)、ビルド
 - `Supabase type drift check`: 素のPostgresへ `schema.sql` を2回適用(べき等の確認)し、生成した型が `src/lib/db/database.types.ts` と一致するか確認
+- `Release notes check`: ユーザーに見える変更があるのに `src/data/releases.ts` が更新されていない、またはversionが `releases.ts` / `package.json` / `package-lock.json` でずれていると失敗(例外は PR ラベル `no-release-note` か `[skip release-note]`)
 - `E2E (Playwright)`: ビルドしたアプリをスマホ幅のブラウザで操作(ログイン無し・端末内のデータだけ)。実DB・同期は対象外
 
 ## 現在の状況
@@ -57,19 +58,22 @@ PR ごとに GitHub Actions で次が走ります。
 - オフラインでも保存でき、通信が回復すると自動で同期(写真は縮小して Storage へ)
 - 傾向(様子の内訳・カレンダー・宿題開始時刻/友達との約束/消灯時刻と様子・きっかけ・効いた対応)
 - エクスポート(期間・子ども指定の印刷/PDF、CSV。写真は印刷/PDFに任意で含める)
-- 夜のリマインドPush(「共有」タブで時刻を設定。デプロイ手順は [docs/push-notifications-setup.md](./docs/push-notifications-setup.md))
+- 夜のリマインドPush(「共有」タブで時刻を設定)と、パートナーが記録したときのPush(任意)。20時以降の未記録はアプリ内でもお知らせ。デプロイ手順は [docs/push-notifications-setup.md](./docs/push-notifications-setup.md)
+- パートナーが今夜の記録を済ませているかをホームに表示
+- 傾向の各項目をタップして、期間別の推移と該当する記録を見る
+- 更新履歴(`/updates`。ホームに最新版のお知らせ)
 - クイック記録(ホームのワンタップで荒れを時刻つきで記録)
 - 試したこと・検討事項ボード(`/rules`。ルールの前後14日の荒れ率・消灯時刻を比較)
 - 他の子へ共通項目をコピー(記録フォーム)
 - あさノート連携の傾向(消灯時刻・夜の様子と翌朝。共有モードで翌朝の記録が読めるときだけ傾向タブに出る)
 - ログイン無しでも、この端末だけで記録できる
 
-まだこれからのもの: 第3段階(専門家向けレポートの整形など。必要になったら)、更新履歴の画面。
+まだこれからのもの: 第3段階(専門家向けレポートの整形など。必要になったら)。
 
 ### 運用で手作業が要るもの
 
-- **`supabase/schema.sql` の変更**(新しい表・トリガーなど)は、マージされても本番DBへは自動で適用されません。変更のたびに SQL Editor で実行してください(何度実行しても同じ結果になる書き方です)。
-- **Edge Function**(`supabase/functions/`)も同様に、変更したら `supabase functions deploy send-evening-reminders` で再デプロイが要ります。
+- **`supabase/schema.sql` の変更**は、main へのマージ時に `Deploy DB schema`(`.github/workflows/db-deploy.yml`)が本番へ自動適用します。リポジトリのシークレット `SUPABASE_DB_URL`(Session pooler の接続文字列)の登録が要ります。未登録の間は失敗するので、SQL Editor で手動実行してください(何度実行しても同じ結果になる書き方です)。適用前に `check:schema` で `evening_*` 以外に触れていないことを検査します。service role キーを含む `cron-evening-reminders.sql` と `evening-partner-notify-trigger.sql` は自動適用されません。
+- **Edge Function**(`supabase/functions/`)も同様に、変更したら `supabase functions deploy <関数名>`(`send-evening-reminders` / `notify-evening-partner`)で再デプロイが要ります。
 - 実機での同期・共有の確認手順は [docs/device-verification.md](./docs/device-verification.md)。
 
 ### 初回のSupabase準備

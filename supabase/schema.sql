@@ -215,6 +215,11 @@ create table if not exists evening_notification_settings (
   updated_at timestamptz not null default now()
 );
 
+-- パートナーが今夜の記録を追加したときのPush通知を受け取るか。既定はOFF(行が無い人にも送らない)。
+-- 既存の環境にも反映されるよう、create table とは別に add column if not exists で足す。
+alter table evening_notification_settings
+  add column if not exists notify_partner_record boolean not null default false;
+
 alter table evening_notification_settings enable row level security;
 
 drop policy if exists "evening_notification_settings are readable by owner" on evening_notification_settings;

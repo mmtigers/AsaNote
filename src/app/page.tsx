@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Skeleton } from "@/components/Skeleton";
 import { useAuth } from "@/lib/auth/AuthProvider";
-import { addDays, toDateInputValue, toMonthOf } from "@/lib/date";
+import { addDays, diffInDays, toDateInputValue, toMonthOf } from "@/lib/date";
 import { resolveEffectiveChildId, useChildren } from "@/lib/db/children";
 import { localDb } from "@/lib/db/localDb";
 import { discardUnsavedPhotos } from "@/lib/db/photos";
@@ -11,6 +11,7 @@ import { useOwnRecordForDate, useOwnRecordsForHistory, useRecordStatusForMonth }
 import { formatClock, saveQuickRecord, type QuickOutcome } from "@/lib/db/quickRecord";
 import { findLatestOwnRecordForDate, saveRecord } from "@/lib/db/records";
 import { setSelectedChildId, useSelectedChildId } from "@/lib/db/selectedChild";
+import { track } from "@/lib/analytics";
 import { describeErrorForUser } from "@/lib/errors";
 import { RECORD_FLOW_RESET_EVENT } from "@/lib/recordFlowReset";
 import { DEFAULT_COPY_FIELDS, copyFormToChildren, type CopyField } from "./_home/copyToChildren";
@@ -40,10 +41,14 @@ export default function RecordPage() {
   const initialPhotoIdsRef = useRef<string[]>([]);
   const savedRef = useRef(false);
   const initializedRef = useRef(false);
+  const userIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     formRef.current = form;
   }, [form]);
+  useEffect(() => {
+    userIdRef.current = userId;
+  }, [userId]);
 
   const children = useChildren();
   const selectedChildId = useSelectedChildId();
@@ -56,7 +61,7 @@ export default function RecordPage() {
   const history = useOwnRecordsForHistory(userId, form ? form.childId : childId);
   const yesterday = useOwnRecordForDate(form ? addDays(form.recordDate, -1) : "", userId, form ? form.childId : childId);
 
-  async function openForm(date: string, forChildId: string | null) {
+  async function openForm(date: string, forChildId: string | null, entryPoint: "home" | "link" = "home") {
     const existing = await findLatestOwnRecordForDate(date, userId, forChildId);
     const next = existing ? formFromRecord(existing) : emptyForm(date, forChildId);
     const photos = existing ? await localDb.photos.where("recordId").equals(existing.id).toArray() : [];
@@ -67,6 +72,11 @@ export default function RecordPage() {
     setForm(next);
     window.history.pushState({ appStep: "form" }, "");
     setStep("form");
+    track(
+      "evening_record_flow_started",
+      { entry_point: entryPoint, is_edit: !!existing, date_offset_days: diffInDays(date, toDateInputValue(new Date())) },
+      { userId, recordId: next.id }
+    );
   }
 
   // 初回: 今日の日付を確定し、下書きがあればフォームを復元する。編集リンク(?date=&childId=)も同様。
@@ -91,7 +101,7 @@ export default function RecordPage() {
       window.history.replaceState({ appStep: "home" }, "", "/");
       setSelectedDate(date);
       setViewMonth(toMonthOf(date));
-      void openForm(date, linkChild ?? null);
+      void openForm(date, linkChild ?? null, "link");
       return;
     }
 
@@ -103,6 +113,7 @@ export default function RecordPage() {
       setForm(draft.form);
       window.history.pushState({ appStep: "form" }, "");
       setStep("form");
+      track("evening_record_flow_resumed", {}, { userId, recordId: draft.form.id });
       return;
     }
 
@@ -126,6 +137,7 @@ export default function RecordPage() {
       if (next === "form") return;
       const current = formRef.current;
       if (current && !savedRef.current) {
+        track("evening_record_flow_paused", { reason: "back" }, { userId: userIdRef.current, recordId: current.id });
         void discardUnsavedPhotos(current.id, new Set(initialPhotoIdsRef.current));
       }
       clearDraft();
@@ -154,6 +166,11 @@ export default function RecordPage() {
       await saveRecord(formToInput(form, userId));
       await copyFormToChildren(form, copy.childIds, copy.fields, userId);
       savedRef.current = true;
+      track(
+        "evening_record_saved",
+        { outcome: form.outcome, child_count_copied: copy.childIds.length },
+        { userId, recordId: form.id }
+      );
       window.history.back(); // popstate ハンドラがホームへ戻し、下書きを消す
     } catch (e) {
       console.error(e);

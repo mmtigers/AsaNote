@@ -79,6 +79,20 @@ export function reminderPayload(): string {
   return JSON.stringify({ title: "よるノート", body: "今夜の記録がまだのようです", url: "/" });
 }
 
+// 通知文言の「〇〇さん」は、記録した人のメールアドレスの@より前(表示名を持たないための割り切り)。
+export function displayNameFromEmail(email: string | undefined | null): string | null {
+  const name = email?.split("@")[0]?.trim();
+  return name ? name : null;
+}
+
+export function partnerRecordPayload(name: string | null): string {
+  return JSON.stringify({
+    title: "よるノート",
+    body: name ? `${name}さんが今夜の記録を追加しました` : "パートナーが今夜の記録を追加しました",
+    url: "/timeline",
+  });
+}
+
 export interface PushSubscriptionRow {
   id: string;
   endpoint: string;

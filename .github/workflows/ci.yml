@@ -152,3 +152,26 @@ jobs:
             echo "::error::supabase/schema.sql の変更が src/lib/db/database.types.ts へ反映されていません。'npm run db:types'(要Docker)で再生成し、差分をコミットしてください。"
             exit 1
           fi
+
+  release-notes-check:
+    name: Release notes check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      # ユーザー向けの変更なのに src/data/releases.ts が更新されない、またはversionが
+      # releases.ts / package.json / package-lock.json でずれる場合は失敗させる。
+      # 更新履歴に載せない変更(依存更新・内部リファクタ・docsのみ等)は、PRに `no-release-note`
+      # ラベルを付けるか、PR本文・コミットメッセージに `[skip release-note]` と書くと例外にできる。
+      # 判定の中身は scripts/check-release-notes.mjs(テストは src/lib/releaseNotesCheck.test.ts)。
+      # PRのタイトル・本文・ラベルは外部入力なので、シェルへ直接埋め込まず環境変数で渡す。
+      - name: Check release notes were updated
+        env:
+          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
+          PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: node scripts/check-release-notes.mjs

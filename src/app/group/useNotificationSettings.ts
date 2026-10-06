@@ -18,8 +18,10 @@ export interface NotificationSettingsAdmin {
   saving: boolean;
   reminderTime: string;
   enabled: boolean;
+  notifyPartnerRecord: boolean;
   setReminderTime: (value: string) => Promise<void>;
   setEnabled: (value: boolean) => Promise<void>;
+  setNotifyPartnerRecord: (value: boolean) => Promise<void>;
 }
 
 export function useNotificationSettings(
@@ -31,6 +33,7 @@ export function useNotificationSettings(
   const [saving, setSaving] = useState(false);
   const [reminderTime, setReminderTimeState] = useState(DEFAULT_REMINDER_TIME);
   const [enabled, setEnabledState] = useState(false);
+  const [notifyPartnerRecord, setNotifyPartnerRecordState] = useState(false);
 
   useEffect(() => {
     if (!userId) {
@@ -45,6 +48,7 @@ export function useNotificationSettings(
         if (result.ok) {
           setReminderTimeState(result.value.reminderTime);
           setEnabledState(result.value.enabled);
+          setNotifyPartnerRecordState(result.value.notifyPartnerRecord);
         }
       })
       .finally(() => {
@@ -63,7 +67,7 @@ export function useNotificationSettings(
     onError(null);
     setSaving(true);
     await runAction(
-      () => saveNotificationSettings(userId, { reminderTime: value, enabled }),
+      () => saveNotificationSettings(userId, { reminderTime: value, enabled, notifyPartnerRecord }),
       "通知時刻の保存に失敗しました",
       onError
     );
@@ -104,7 +108,7 @@ export function useNotificationSettings(
       return;
     }
     const saved = await runAction(
-      () => saveNotificationSettings(userId, { reminderTime, enabled: value }),
+      () => saveNotificationSettings(userId, { reminderTime, enabled: value, notifyPartnerRecord }),
       "通知設定の保存に失敗しました",
       onError
     );
@@ -112,5 +116,33 @@ export function useNotificationSettings(
     setSaving(false);
   }
 
-  return { supported, loading, saving, reminderTime, enabled, setReminderTime, setEnabled };
+  // パートナーの記録通知。ONにする際は、リマインドと同じくこの端末のPush購読を用意する。
+  async function setNotifyPartnerRecord(value: boolean) {
+    if (!userId) return;
+    onError(null);
+    setSaving(true);
+    if (value && !(await ensurePushSubscription())) {
+      setSaving(false);
+      return;
+    }
+    const saved = await runAction(
+      () => saveNotificationSettings(userId, { reminderTime, enabled, notifyPartnerRecord: value }),
+      "通知設定の保存に失敗しました",
+      onError
+    );
+    if (saved.ok) setNotifyPartnerRecordState(value);
+    setSaving(false);
+  }
+
+  return {
+    supported,
+    loading,
+    saving,
+    reminderTime,
+    enabled,
+    notifyPartnerRecord,
+    setReminderTime,
+    setEnabled,
+    setNotifyPartnerRecord,
+  };
 }

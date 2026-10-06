@@ -2,6 +2,9 @@
 
 import { AuthStatus } from "@/components/AuthStatus";
 import { ChildSwitcher } from "@/components/ChildSwitcher";
+import { ReleaseNotice } from "@/components/ReleaseNotice";
+import { PartnerRecordStatus } from "@/components/PartnerRecordStatus";
+import { RecordReminderNotice } from "@/components/RecordReminderNotice";
 import { MonthCalendar } from "@/components/MonthCalendar";
 import { OUTCOME_OPTIONS, type Outcome } from "@/constants/choices";
 import { formatDateLabel, toMonthOf } from "@/lib/date";
@@ -71,6 +74,11 @@ export function HomeStepView({
         <h1 className="text-lg font-bold">🌙 {formatDateLabel(selectedDate)}のきろく</h1>
         <AuthStatus />
       </header>
+
+      <ReleaseNotice />
+
+      {isToday && <PartnerRecordStatus childId={childId} />}
+      {isToday && <RecordReminderNotice onStartRecording={onStart} />}
 
       {childList.length >= 2 && <ChildSwitcher childList={childList} selectedId={childId} onSelect={onSelectChild} />}
 
