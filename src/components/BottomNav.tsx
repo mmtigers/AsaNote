@@ -9,6 +9,7 @@ const items = [
   { href: "/", label: "記録する", icon: "🌙" },
   { href: "/timeline", label: "これまで", icon: "📅" },
   { href: "/stats", label: "傾向", icon: "📊" },
+  { href: "/rules", label: "試したこと", icon: "💡" },
   { href: "/group", label: "共有", icon: "👨‍👩‍👧" },
 ] as const;
 

@@ -33,6 +33,8 @@ npm run dev
 | `npm run dev` | 開発サーバー |
 | `npm run lint` | ESLint |
 | `npx tsc --noEmit` | 型チェック(事前に `npx next typegen`) |
+| `npm run check:schema` | `supabase/schema.sql` が `evening_*` 以外(あさノートと共有する表)に触れていないかを検査 |
+| `npm run db:types` | `schema.sql` から `src/lib/db/database.types.ts` を再生成(要 Docker) |
 | `npm test` | 単体テスト |
 | `npm run build` | 本番ビルド |
 
@@ -48,10 +50,27 @@ npm run dev
 - エクスポート(期間・子ども指定の印刷/PDF、CSV。写真は印刷/PDFに任意で含める)
 - 夜のリマインドPush(「共有」タブで時刻を設定。デプロイ手順は [docs/push-notifications-setup.md](./docs/push-notifications-setup.md))
 
-まだこれからのもの: 試したこと/検討事項ボード、あさノート連携。
+まだこれからのもの: なし(あさノート連携の傾向は共有モードのときだけ傾向タブに出ます)。
+
+試したこと/検討事項ボード(`/rules`)を使うには `supabase/schema.sql` の末尾(`evening_rules` `evening_concerns`)を SQL Editor で実行してください。
 
 ### 初回のSupabase準備
 
 [supabase/schema.sql](./supabase/schema.sql) を SQL Editor で実行する(共通表がある前提。先頭のコメント参照)。
 写真用の非公開バケット `evening-photos` とそのポリシーも同じファイルで作られる。
 アイコンは仮のものです。
+
+## 過去メモの取り込み(ローカル専用)
+
+過去のメモをテストデータとして取り込むスクリプト(`scripts/import-records.mjs`)があります。データ本体は個人情報を含むので、`scripts/data/` か `*.local.json` に置いてください(どちらも `.gitignore` 済みで、コミットされません)。形式は `scripts/import-records.example.json`(架空のデータ)を参照。
+
+```bash
+# まず検証だけ(DB には書き込まない)
+node scripts/import-records.mjs scripts/data/records.json you@example.com --dry-run
+
+# 取り込み(service role key は環境変数で渡し、絶対にコミットしない)
+SUPABASE_URL=https://xxxx.supabase.co SUPABASE_SERVICE_ROLE_KEY=xxxx \
+  node scripts/import-records.mjs scripts/data/records.json you@example.com [子どもID]
+```
+
+同じユーザー・日付・子どもの記録があれば上書きするので、何度実行しても結果は同じです。

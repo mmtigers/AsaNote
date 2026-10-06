@@ -8,9 +8,9 @@ vi.mock("next/navigation", () => ({ usePathname: () => pathname.value }));
 describe("BottomNav", () => {
   afterEach(cleanup);
 
-  it("4つのタブを表示する", () => {
+  it("5つのタブを表示する", () => {
     render(<BottomNav />);
-    for (const label of ["記録する", "これまで", "傾向", "共有"]) {
+    for (const label of ["記録する", "これまで", "傾向", "試したこと", "共有"]) {
       expect(screen.getByRole("link", { name: new RegExp(label) })).toBeTruthy();
     }
   });

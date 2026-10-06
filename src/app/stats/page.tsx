@@ -7,6 +7,7 @@ import { SkeletonList } from "@/components/Skeleton";
 import { EFFECT_OPTIONS, OUTCOME_OPTIONS } from "@/constants/choices";
 import { OUTCOME_COLOR_STYLES } from "@/constants/outcomeStyles";
 import { useChildren } from "@/lib/db/children";
+import { useMorningRecords, type MorningOutcome } from "@/lib/db/morning";
 import { useRecordsTimeline } from "@/lib/db/queries";
 import { formatDateShort, toDateInputValue, toMonthOf } from "@/lib/date";
 import {
@@ -23,6 +24,7 @@ import {
   type OutcomeCounts,
   type TagCount,
 } from "./aggregate";
+import { morningByBedtime, morningByNightOutcome, pairNightWithNextMorning, type MorningBucket } from "./morning";
 
 const CARD = "rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm";
 
@@ -64,6 +66,48 @@ function OutcomeBucketList({ title, hint, data }: { title: string; hint: string;
   );
 }
 
+const MORNING_STYLES: Record<MorningOutcome, string> = {
+  smooth: "bg-[var(--accent)]",
+  reluctant: "bg-[var(--amber)]",
+  absent: "bg-[var(--calm)]",
+};
+const MORNING_LABELS: Record<MorningOutcome, string> = { smooth: "スムーズ", reluctant: "行き渋り", absent: "お休み" };
+
+// あさノートの翌朝の結果。右の%は「行き渋り+お休み」の割合。
+function MorningBucketList({ title, hint, data }: { title: string; hint: string; data: MorningBucket[] }) {
+  if (data.length === 0) return null;
+  return (
+    <section className={CARD}>
+      <h2 className="text-sm font-bold">{title}</h2>
+      <p className="mb-3 mt-1 text-[11px] text-[var(--sub)]">{hint}</p>
+      <div className="flex flex-col gap-3">
+        {data.map((b) => (
+          <div key={b.key}>
+            <div className="flex items-center gap-2.5">
+              <span className="w-20 flex-none truncate text-[13px]">{b.label}</span>
+              <div className="flex h-2.5 flex-1 overflow-hidden rounded-full bg-[var(--surface-2)]">
+                {(Object.keys(MORNING_STYLES) as MorningOutcome[]).map((k) =>
+                  b.counts[k] > 0 ? (
+                    <div key={k} className={MORNING_STYLES[k]} style={{ width: `${(b.counts[k] / b.total) * 100}%` }} />
+                  ) : null
+                )}
+              </div>
+              <span className="w-9 flex-none text-right text-[12px] font-bold tabular-nums">
+                {b.total > 0 ? `${b.strugglingRate}%` : "―"}
+              </span>
+              <span className="w-8 flex-none text-right text-[11px] tabular-nums text-[var(--sub)]">{b.total}件</span>
+            </div>
+            <p className="ml-[calc(5rem+0.625rem)] mt-0.5 text-[11px] text-[var(--sub)]">
+              {(Object.keys(MORNING_LABELS) as MorningOutcome[]).map((k) => `${MORNING_LABELS[k]}${b.counts[k]}`).join(" ・ ")}
+              {b.averageWakeMinutes !== null && ` ・ 平均起床 ${formatMinutes(b.averageWakeMinutes)}`}
+            </p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 function TagBarList({ title, data }: { title: string; data: TagCount[] }) {
   if (data.length === 0) return null;
   const max = Math.max(1, ...data.map((d) => d.count));
@@ -91,6 +135,7 @@ function TagBarList({ title, data }: { title: string; data: TagCount[] }) {
 export default function StatsPage() {
   const records = useRecordsTimeline();
   const children = useChildren();
+  const morningRecords = useMorningRecords();
   const [filterChildId, setFilterChildId] = useState<string | null>(null);
   const todayValue = useMemo(() => toDateInputValue(new Date()), []);
   const [displayMonth, setDisplayMonth] = useState(() => toMonthOf(todayValue));
@@ -114,6 +159,17 @@ export default function StatsPage() {
       responses: responseEffectStats(filtered),
     };
   }, [filtered]);
+
+  // あさノートの記録が読めるとき(共有モード)だけ、夜 → 翌朝の傾向を出す。
+  const morning = useMemo(() => {
+    if (!filtered || !morningRecords) return null;
+    const pairs = pairNightWithNextMorning(filtered, morningRecords);
+    return {
+      pairs: pairs.length,
+      byBedtime: morningByBedtime(pairs),
+      byNight: morningByNightOutcome(pairs, OUTCOME_OPTIONS),
+    };
+  }, [filtered, morningRecords]);
 
   const childList = children ?? [];
 
@@ -233,6 +289,21 @@ export default function StatsPage() {
                 ))}
               </div>
             </section>
+          )}
+
+          {morning && morning.pairs > 0 && (
+            <>
+              <MorningBucketList
+                title="☀️ 消灯時刻と翌朝(あさノート)"
+                hint={`夜の消灯時刻と、翌朝のあさノートの結果。右の%は行き渋り+お休みの割合。翌朝の記録がある${morning.pairs}夜が対象。`}
+                data={morning.byBedtime}
+              />
+              <MorningBucketList
+                title="☀️ 夜の様子と翌朝(あさノート)"
+                hint="夜が荒れた翌朝は行き渋りやすいか。件数が少ないうちは目安として見てください。"
+                data={morning.byNight}
+              />
+            </>
           )}
 
           <TagBarList title="⚡ 荒れた日のきっかけ" data={summary.triggers} />

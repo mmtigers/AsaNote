@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- よるノートのアプリアイコン。全面塗りの正方形(maskable/apple-touch もこのまま使える)。
+       中身は中心から半径約205(maskable の安全領域=直径の80%)に収めてある。
+       PNG は scripts/generate-icons.mjs で書き出す。 -->
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5a5ec9"/>
+      <stop offset="1" stop-color="#2d2f7c"/>
+    </linearGradient>
+    <linearGradient id="moon" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#fff4c2"/>
+      <stop offset="1" stop-color="#f5d98a"/>
+    </linearGradient>
+    <mask id="crescent">
+      <rect width="512" height="512" fill="#000"/>
+      <circle cx="232" cy="270" r="138" fill="#fff"/>
+      <circle cx="296" cy="226" r="118" fill="#000"/>
+    </mask>
+    <path id="star" d="M0-1 L0.22-0.22 L1 0 L0.22 0.22 L0 1 L-0.22 0.22 L-1 0 L-0.22-0.22Z"/>
+  </defs>
+  <rect width="512" height="512" fill="url(#sky)"/>
+  <rect width="512" height="512" fill="url(#moon)" mask="url(#crescent)"/>
+  <g fill="#fff8dc">
+    <use href="#star" transform="translate(352 172) scale(26)"/>
+    <use href="#star" transform="translate(400 262) scale(15)"/>
+    <use href="#star" transform="translate(318 318) scale(12)"/>
+    <use href="#star" transform="translate(292 118) scale(10)"/>
+  </g>
+</svg>

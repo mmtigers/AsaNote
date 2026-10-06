@@ -8,10 +8,12 @@ import { resolveEffectiveChildId, useChildren } from "@/lib/db/children";
 import { localDb } from "@/lib/db/localDb";
 import { discardUnsavedPhotos } from "@/lib/db/photos";
 import { useOwnRecordForDate, useOwnRecordsForHistory, useRecordStatusForMonth } from "@/lib/db/queries";
+import { formatClock, saveQuickRecord, type QuickOutcome } from "@/lib/db/quickRecord";
 import { findLatestOwnRecordForDate, saveRecord } from "@/lib/db/records";
 import { setSelectedChildId, useSelectedChildId } from "@/lib/db/selectedChild";
 import { describeErrorForUser } from "@/lib/errors";
 import { RECORD_FLOW_RESET_EVENT } from "@/lib/recordFlowReset";
+import { DEFAULT_COPY_FIELDS, copyFormToChildren, type CopyField } from "./_home/copyToChildren";
 import { clearDraft, loadDraft, saveDraft } from "./_home/draftStorage";
 import { emptyForm, formFromRecord, formToInput, type FormState, type Step } from "./_home/formState";
 import { HomeStepView } from "./_home/HomeStepView";
@@ -30,6 +32,8 @@ export default function RecordPage() {
   const [form, setForm] = useState<FormState | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [copy, setCopy] = useState<{ childIds: string[]; fields: CopyField[] }>({ childIds: [], fields: DEFAULT_COPY_FIELDS });
+  const [quickNotice, setQuickNotice] = useState<string | null>(null);
 
   // popstate など非同期の経路から最新値を読むための参照。
   const formRef = useRef<FormState | null>(null);
@@ -59,6 +63,7 @@ export default function RecordPage() {
     initialPhotoIdsRef.current = photos.map((p) => p.id);
     savedRef.current = false;
     setError(null);
+    setCopy({ childIds: [], fields: DEFAULT_COPY_FIELDS });
     setForm(next);
     window.history.pushState({ appStep: "form" }, "");
     setStep("form");
@@ -147,6 +152,7 @@ export default function RecordPage() {
     setError(null);
     try {
       await saveRecord(formToInput(form, userId));
+      await copyFormToChildren(form, copy.childIds, copy.fields, userId);
       savedRef.current = true;
       window.history.back(); // popstate ハンドラがホームへ戻し、下書きを消す
     } catch (e) {
@@ -154,6 +160,17 @@ export default function RecordPage() {
       setError(describeErrorForUser(e, "保存に失敗しました"));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function onQuick(outcome: QuickOutcome) {
+    if (!today) return;
+    try {
+      await saveQuickRecord({ outcome, recordDate: today, userId, childId });
+      setQuickNotice(`${formatClock(new Date())} に残しました`);
+    } catch (e) {
+      console.error(e);
+      setQuickNotice(describeErrorForUser(e, "保存に失敗しました"));
     }
   }
 
@@ -175,6 +192,9 @@ export default function RecordPage() {
         history={history ?? []}
         yesterday={yesterday ?? null}
         childName={childList.length >= 2 ? (childList.find((c) => c.id === form.childId)?.name ?? null) : null}
+        otherChildren={childList.filter((c) => c.id !== form.childId)}
+        copy={copy}
+        onCopyChange={setCopy}
         saving={saving}
         error={error}
         onSave={onSave}
@@ -196,6 +216,8 @@ export default function RecordPage() {
       onSelectChild={setSelectedChildId}
       ownRecord={ownRecord}
       onStart={() => void openForm(selectedDate, childId)}
+      onQuick={(o) => void onQuick(o)}
+      quickNotice={quickNotice}
     />
   );
 }

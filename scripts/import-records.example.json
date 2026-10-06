@@ -1,0 +1,22 @@
+[
+  {
+    "recordDate": "2026-01-05",
+    "outcome": "rough",
+    "times": { "arrive": "15:00", "hwStart": "16:00", "hwEnd": "17:30", "dinner": "18:30", "bath": "19:30", "prep": "20:00", "bed": "21:00" },
+    "dinner": "little",
+    "dinnerWhy": ["眠い"],
+    "free": ["TV"],
+    "friend": [],
+    "trigger": ["宿題"],
+    "behavior": ["泣く"],
+    "response": ["見守る"],
+    "responseEffect": "mid",
+    "body": [],
+    "memo": "これは架空のサンプルです。実データはこのファイルに書かず、scripts/data/ に置いてください。"
+  },
+  {
+    "recordDate": "2026-01-06",
+    "outcome": "calm",
+    "times": { "dinner": "18:00", "bed": "20:30" }
+  }
+]

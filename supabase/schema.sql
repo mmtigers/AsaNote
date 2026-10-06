@@ -230,3 +230,102 @@ create policy "evening_notification_settings are updatable by owner"
   on evening_notification_settings for update to authenticated using (auth.uid() = user_id);
 create policy "evening_notification_settings are deletable by owner"
   on evening_notification_settings for delete to authenticated using (auth.uid() = user_id);
+
+-- 試したこと(ルール変更)と検討事項ボード(SPEC §4.4)。家族(グループ)で共有する設定情報なので、
+-- 閲覧・編集・削除は作成者と同じグループのメンバーなら誰でもできる(children と違い、片方の親が
+-- 立てた項目をもう片方が解決済みにできる必要があるため)。
+create table if not exists evening_rules (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  child_id uuid references children(id) on delete set null, -- null = 子ども全員
+  title text not null check (char_length(title) between 1 and 100),
+  started_on date not null,
+  ended_on date,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists evening_concerns (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  title text not null check (char_length(title) between 1 and 200),
+  resolved_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+alter table evening_rules enable row level security;
+alter table evening_concerns enable row level security;
+
+drop policy if exists "evening_rules are readable by owner or group members" on evening_rules;
+drop policy if exists "evening_rules are insertable by owner" on evening_rules;
+drop policy if exists "evening_rules are updatable by owner or group members" on evening_rules;
+drop policy if exists "evening_rules are deletable by owner or group members" on evening_rules;
+drop policy if exists "evening_concerns are readable by owner or group members" on evening_concerns;
+drop policy if exists "evening_concerns are insertable by owner" on evening_concerns;
+drop policy if exists "evening_concerns are updatable by owner or group members" on evening_concerns;
+drop policy if exists "evening_concerns are deletable by owner or group members" on evening_concerns;
+
+create policy "evening_rules are readable by owner or group members"
+  on evening_rules for select to authenticated
+  using (
+    auth.uid() = user_id
+    or exists (
+      select 1 from group_members gm_self
+      join group_members gm_owner on gm_owner.group_id = gm_self.group_id
+      where gm_self.user_id = auth.uid() and gm_owner.user_id = evening_rules.user_id
+    )
+  );
+create policy "evening_rules are insertable by owner"
+  on evening_rules for insert to authenticated with check (auth.uid() = user_id);
+create policy "evening_rules are updatable by owner or group members"
+  on evening_rules for update to authenticated
+  using (
+    auth.uid() = user_id
+    or exists (
+      select 1 from group_members gm_self
+      join group_members gm_owner on gm_owner.group_id = gm_self.group_id
+      where gm_self.user_id = auth.uid() and gm_owner.user_id = evening_rules.user_id
+    )
+  );
+create policy "evening_rules are deletable by owner or group members"
+  on evening_rules for delete to authenticated
+  using (
+    auth.uid() = user_id
+    or exists (
+      select 1 from group_members gm_self
+      join group_members gm_owner on gm_owner.group_id = gm_self.group_id
+      where gm_self.user_id = auth.uid() and gm_owner.user_id = evening_rules.user_id
+    )
+  );
+
+create policy "evening_concerns are readable by owner or group members"
+  on evening_concerns for select to authenticated
+  using (
+    auth.uid() = user_id
+    or exists (
+      select 1 from group_members gm_self
+      join group_members gm_owner on gm_owner.group_id = gm_self.group_id
+      where gm_self.user_id = auth.uid() and gm_owner.user_id = evening_concerns.user_id
+    )
+  );
+create policy "evening_concerns are insertable by owner"
+  on evening_concerns for insert to authenticated with check (auth.uid() = user_id);
+create policy "evening_concerns are updatable by owner or group members"
+  on evening_concerns for update to authenticated
+  using (
+    auth.uid() = user_id
+    or exists (
+      select 1 from group_members gm_self
+      join group_members gm_owner on gm_owner.group_id = gm_self.group_id
+      where gm_self.user_id = auth.uid() and gm_owner.user_id = evening_concerns.user_id
+    )
+  );
+create policy "evening_concerns are deletable by owner or group members"
+  on evening_concerns for delete to authenticated
+  using (
+    auth.uid() = user_id
+    or exists (
+      select 1 from group_members gm_self
+      join group_members gm_owner on gm_owner.group_id = gm_self.group_id
+      where gm_self.user_id = auth.uid() and gm_owner.user_id = evening_concerns.user_id
+    )
+  );

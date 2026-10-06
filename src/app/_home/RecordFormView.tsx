@@ -17,7 +17,9 @@ import { useRecordPhotos } from "@/lib/db/photos";
 import { buildRecordPreview } from "@/lib/recordPreview";
 import { countTagUsage, rankTagOptions } from "@/lib/tagOptions";
 import { collectMilestoneHistory, rankTimeCandidates, timeMenuOptions } from "@/lib/timeCandidates";
+import { COPY_FIELD_OPTIONS, type CopyField } from "./copyToChildren";
 import type { FormState } from "./formState";
+import type { Child } from "@/types/models";
 import { MilestoneRow } from "./MilestoneRow";
 import { PhotoStrip } from "./PhotoStrip";
 import { TagChips } from "./TagChips";
@@ -30,6 +32,10 @@ interface RecordFormViewProps {
   /** 前日の記録。あれば「昨日と同じにする」を出す。 */
   yesterday: LocalRecord | null;
   childName: string | null;
+  /** 記録対象以外の子ども。1人以上いるときだけ「他の子へコピー」を出す。 */
+  otherChildren: Child[];
+  copy: { childIds: string[]; fields: CopyField[] };
+  onCopyChange: (copy: { childIds: string[]; fields: CopyField[] }) => void;
   saving: boolean;
   error: string | null;
   onSave: () => void;
@@ -58,6 +64,9 @@ export function RecordFormView({
   history,
   yesterday,
   childName,
+  otherChildren,
+  copy,
+  onCopyChange,
   saving,
   error,
   onSave,
@@ -241,6 +250,40 @@ export function RecordFormView({
         </p>
         <PhotoStrip recordId={form.id} />
       </Section>
+
+      {otherChildren.length > 0 && (
+        <Section title="👫 他の子にもコピー" hint="保存するときに反映します">
+          <SubLabel>コピー先</SubLabel>
+          <TagChips
+            options={otherChildren.map((c) => c.name)}
+            selected={otherChildren.filter((c) => copy.childIds.includes(c.id)).map((c) => c.name)}
+            onToggle={(name) => {
+              const id = otherChildren.find((c) => c.name === name)?.id;
+              if (!id) return;
+              const childIds = copy.childIds.includes(id) ? copy.childIds.filter((x) => x !== id) : [...copy.childIds, id];
+              onCopyChange({ ...copy, childIds });
+            }}
+          />
+          {copy.childIds.length > 0 && (
+            <>
+              <SubLabel>コピーする項目</SubLabel>
+              <TagChips
+                options={COPY_FIELD_OPTIONS.map((o) => o.label)}
+                selected={COPY_FIELD_OPTIONS.filter((o) => copy.fields.includes(o.field)).map((o) => o.label)}
+                onToggle={(label) => {
+                  const field = COPY_FIELD_OPTIONS.find((o) => o.label === label)?.field;
+                  if (!field) return;
+                  const fields = copy.fields.includes(field) ? copy.fields.filter((x) => x !== field) : [...copy.fields, field];
+                  onCopyChange({ ...copy, fields });
+                }}
+              />
+              <p className="mt-2 text-[11px] text-[var(--sub)]">
+                その子の様子・きっかけ・メモはそのままです。記録がまだ無い子は、様子が未入力の記録ができます。
+              </p>
+            </>
+          )}
+        </Section>
+      )}
 
       <Section title="記録プレビュー">
         <p className="rounded-2xl bg-[var(--surface-2)] p-3 text-sm leading-relaxed">

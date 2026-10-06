@@ -39,3 +39,7 @@ next-env.d.ts
 /playwright-report
 /blob-report
 /playwright/.cache
+
+# 過去メモの取り込み用データ(個人情報を含むためコミットしない。scripts/import-records.mjs 参照)
+/scripts/data/
+*.local.json
