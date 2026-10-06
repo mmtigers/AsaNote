@@ -20,8 +20,8 @@ import {
 } from "@/lib/db/board";
 import { useChildren } from "@/lib/db/children";
 import { useRecordsTimeline } from "@/lib/db/queries";
-import { formatDateShort, toDateInputValue } from "@/lib/date";
-import { describeErrorForUser } from "@/lib/errors";
+import { formatDateShort, toDateInputValue } from "@note/core/date";
+import { describeErrorForUser } from "@note/core/errors";
 import { formatMinutes } from "@/app/stats/aggregate";
 import { compareAroundRule, COMPARE_WINDOW_DAYS, type PeriodSummary } from "./compare";
 

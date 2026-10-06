@@ -6,8 +6,8 @@ import { PartnerAvatar } from "@/components/PartnerAvatar";
 import { canEditRecord, isOwnRecord } from "@/lib/db/ownership";
 import type { LocalRecord } from "@/lib/db/localDb";
 import { OUTCOME_OPTIONS } from "@/constants/choices";
-import { formatDateShort } from "@/lib/date";
-import { computeDetailStats, groupRecordsByPeriod, type PeriodUnit } from "./detail";
+import { formatDateShort } from "@note/core/date";
+import { computeDetailStats, groupRecordsByPeriod, type PeriodUnit } from "@note/core/stats/detail";
 
 const OUTCOME_BADGE_STYLES = {
   accent: "bg-[var(--accent-soft)] text-[var(--accent)]",

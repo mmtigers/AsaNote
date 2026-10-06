@@ -12,7 +12,7 @@ import {
 } from "@/lib/db/groups";
 import { pullFromCloud } from "@/lib/db/sync";
 import type { Group, GroupInvite, GroupMemberProfile } from "@/types/models";
-import { runAction, runSilently } from "./runAction";
+import { runAction, runSilently } from "@note/core/group/runAction";
 
 const SHARE_COPIED_VISIBLE_MS = 2000;
 

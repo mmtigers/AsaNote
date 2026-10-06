@@ -5,6 +5,7 @@
 ```
 apps/asa/      あさノート(本番運用中)
 apps/yoru/     よるノート(公開前)
+packages/core/ 共通コード(@note/core。日付・祝日・エラー表示・localStorage ストアなど。Phase 1 で少しずつ移している)
 supabase/      あさノートの schema・Edge Functions・cron(共有DBの共通表の「正」。移動しない)
 .github/       CI・DB反映ワークフロー(アプリごとに分けてある)
 docs/          モノレポ全体の運用ドキュメント(アプリ固有の docs は apps/*/docs)
@@ -20,7 +21,7 @@ npm ci                 # 全ワークスペースの依存を入れる(package-l
 npm run dev:asa        # あさノートを起動
 npm run dev:yoru       # よるノートを起動
 npm run lint           # 全アプリの lint
-npm run test           # 全アプリの単体テスト
+npm run test           # 全アプリ・共通コードの単体テスト
 ```
 
 アプリ単体のコマンド(`build` / `test:e2e` / `db:types` など)は、`apps/<app>` へ移動して実行するか、

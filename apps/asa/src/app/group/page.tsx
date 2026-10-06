@@ -8,7 +8,7 @@ import { ChildrenSection } from "./ChildrenSection";
 import { GroupMemberSections } from "./GroupMemberSections";
 import { GroupOnboardingSections } from "./GroupOnboardingSections";
 import { NotificationSection } from "./NotificationSection";
-import { runAction } from "./runAction";
+import { runAction } from "@note/core/group/runAction";
 import { useChildrenAdmin } from "./useChildrenAdmin";
 import { useGroupAdmin } from "./useGroupAdmin";
 import { useNotificationSettings } from "./useNotificationSettings";

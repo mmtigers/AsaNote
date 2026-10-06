@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/Skeleton";
 import { OUTCOME_OPTIONS } from "@/constants/choices";
 import { OUTCOME_SOFT_STYLES } from "@/constants/outcomeStyles";
 import { useAuth } from "@/lib/auth/AuthProvider";
-import { formatDateShort } from "@/lib/date";
+import { formatDateShort } from "@note/core/date";
 import { useChildren } from "@/lib/db/children";
 import type { LocalRecord } from "@/lib/db/localDb";
 import { canEditRecord } from "@/lib/db/ownership";

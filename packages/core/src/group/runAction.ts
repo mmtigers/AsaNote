@@ -1,4 +1,4 @@
-import { describeErrorForUser } from "@/lib/errors";
+import { describeErrorForUser } from "../errors";
 
 export type ActionResult<T> = { ok: true; value: T } | { ok: false };
 

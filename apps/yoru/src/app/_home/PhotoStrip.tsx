@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { PHOTO_MAX_PER_RECORD } from "@/constants/choices";
-import { describeErrorForUser } from "@/lib/errors";
+import { describeErrorForUser } from "@note/core/errors";
 import type { LocalPhoto } from "@/lib/db/localDb";
 import { addPhoto, getPhotoUrl, PhotoLimitError, removePhoto, useRecordPhotos } from "@/lib/db/photos";
 

@@ -6,7 +6,7 @@
 // スキーマ変更と型の再生成が必要になるため、既存の列に載せている。
 // 旧データや別端末で入った任意の時刻(例 "07:08")も、同じ境界で3区分のどれかへ寄せて
 // 表示する。保存した値を読み直すと必ず元の区分に戻る(往復して区分がずれない)。
-import { parseTimeToMinutes } from "./date";
+import { parseTimeToMinutes } from "@note/core/date";
 
 export interface DepartSlot {
   key: string;

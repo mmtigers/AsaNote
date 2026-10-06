@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Skeleton } from "@/components/Skeleton";
 import { useAuth } from "@/lib/auth/AuthProvider";
-import { addDays, diffInDays, toDateInputValue, toMonthOf } from "@/lib/date";
+import { addDays, diffInDays, toDateInputValue, toMonthOf } from "@note/core/date";
 import { resolveEffectiveChildId, useChildren } from "@/lib/db/children";
 import { localDb } from "@/lib/db/localDb";
 import { discardUnsavedPhotos } from "@/lib/db/photos";
@@ -12,7 +12,7 @@ import { formatClock, saveQuickRecord, type QuickOutcome } from "@/lib/db/quickR
 import { findLatestOwnRecordForDate, saveRecord } from "@/lib/db/records";
 import { setSelectedChildId, useSelectedChildId } from "@/lib/db/selectedChild";
 import { track } from "@/lib/analytics";
-import { describeErrorForUser } from "@/lib/errors";
+import { describeErrorForUser } from "@note/core/errors";
 import { RECORD_FLOW_RESET_EVENT } from "@/lib/recordFlowReset";
 import { DEFAULT_COPY_FIELDS, copyFormToChildren, type CopyField } from "./_home/copyToChildren";
 import { clearDraft, loadDraft, saveDraft } from "./_home/draftStorage";

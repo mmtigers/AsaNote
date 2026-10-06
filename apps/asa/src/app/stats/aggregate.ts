@@ -1,7 +1,7 @@
 // 傾向タブ(#4)の集計ロジック。画面から切り離した純関数として置き、テストで固定する
 // (件数の数え間違い・曜日のズレは画面がエラーにならず静かに嘘をつくため)。
 import type { Outcome } from "@/constants/choices";
-import { WEEKDAYS, parseDateInputValue } from "@/lib/date";
+import { WEEKDAYS, parseDateInputValue } from "@note/core/date";
 import { WAKE_SLOTS, wakeSlotOfTimeValue } from "@/lib/wakeTime";
 
 // 集計に必要なフィールドだけを要求する(テストで最小のオブジェクトを渡せるようにするため)。

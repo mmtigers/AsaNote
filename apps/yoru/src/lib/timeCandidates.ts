@@ -1,5 +1,5 @@
 import type { MilestoneKey } from "@/constants/choices";
-import { parseTimeToMinutes } from "@/lib/date";
+import { parseTimeToMinutes } from "@note/core/date";
 
 const CANDIDATE_COUNT = 3;
 

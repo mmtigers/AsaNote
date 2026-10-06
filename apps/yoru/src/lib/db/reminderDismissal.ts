@@ -1,6 +1,6 @@
 "use client";
 
-import { createLocalStorageStore } from "@/lib/localStorageStore";
+import { createLocalStorageStore } from "@note/core/localStorageStore";
 
 // 「後で」を選んだ場合、その日のうちはアプリ内リマインドを再表示しない。
 // 日付が変われば自動的に再度対象になる。

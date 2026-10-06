@@ -1,5 +1,5 @@
 // 「試したこと」の前後比較。画面から切り離した純関数として置き、テストで固定する。
-import { addDays, parseTimeToMinutes } from "@/lib/date";
+import { addDays, parseTimeToMinutes } from "@note/core/date";
 import { countOutcomes, roughRate, type AggregatableRecord, type OutcomeCounts } from "@/app/stats/aggregate";
 
 export const COMPARE_WINDOW_DAYS = 14;

@@ -7,7 +7,7 @@ import { PartnerRecordStatus } from "@/components/PartnerRecordStatus";
 import { RecordReminderNotice } from "@/components/RecordReminderNotice";
 import { MonthCalendar } from "@/components/MonthCalendar";
 import { OUTCOME_OPTIONS, type Outcome } from "@/constants/choices";
-import { formatDateLabel, toMonthOf } from "@/lib/date";
+import { formatDateLabel, toMonthOf } from "@note/core/date";
 import type { LocalRecord } from "@/lib/db/localDb";
 import { useRecordPhotos } from "@/lib/db/photos";
 import { buildRecordPreview } from "@/lib/recordPreview";

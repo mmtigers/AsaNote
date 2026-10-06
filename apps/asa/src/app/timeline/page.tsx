@@ -14,7 +14,7 @@ import { deleteRecord } from "@/lib/db/records";
 import { useRecordsTimeline } from "@/lib/db/queries";
 import type { LocalRecord } from "@/lib/db/localDb";
 import { OUTCOME_OPTIONS, type Outcome } from "@/constants/choices";
-import { formatDateShort } from "@/lib/date";
+import { formatDateShort } from "@note/core/date";
 import { wakeTimeLabel } from "@/lib/wakeTime";
 
 const OUTCOME_BADGE_STYLES = {

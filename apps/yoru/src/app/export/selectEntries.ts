@@ -1,5 +1,5 @@
 import { DINNER_OPTIONS, EFFECT_OPTIONS, MILESTONES, OUTCOME_OPTIONS } from "@/constants/choices";
-import { parseDateInputValue, WEEKDAYS } from "@/lib/date";
+import { parseDateInputValue, WEEKDAYS } from "@note/core/date";
 import type { LocalRecord } from "@/lib/db/localDb";
 import { isOwnRecord } from "@/lib/db/ownership";
 

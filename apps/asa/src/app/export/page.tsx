@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState, type ChangeEvent } from "react";
 import { useAuth } from "@/lib/auth/AuthProvider";
-import { addDays, formatDateLabel, toDateInputValue } from "@/lib/date";
+import { addDays, formatDateLabel, toDateInputValue } from "@note/core/date";
 import { useGroupMembers } from "@/lib/db/groups";
 import { isOwnRecord } from "@/lib/db/ownership";
 import { useRecordsTimeline } from "@/lib/db/queries";

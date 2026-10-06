@@ -1,6 +1,6 @@
 "use client";
 
-import { createLocalStorageStore } from "@/lib/localStorageStore";
+import { createLocalStorageStore } from "@note/core/localStorageStore";
 
 // ホーム画面で最後に選んだ「今どの子どもを記録しているか」を端末に覚えておく。
 // タイムライン・傾向側の絞り込みは各ページのローカルstateで別管理し、常に「すべて」

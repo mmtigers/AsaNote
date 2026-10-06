@@ -7,7 +7,7 @@ import { useOwnRecordsForReasons } from "@/lib/db/queries";
 import { countReasonUsage, rankReasonOptions } from "@/lib/reasonOptions";
 import { buildDiaryText } from "@/lib/recordPreview";
 import { track } from "@/lib/analytics";
-import { diffInDays } from "@/lib/date";
+import { diffInDays } from "@note/core/date";
 import { loadDraft } from "./draftStorage";
 import { emptyForm, type Step } from "./types";
 

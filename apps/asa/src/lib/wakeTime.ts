@@ -1,7 +1,7 @@
 // 起床時刻は「7時より前 / 7時〜7時15分 / 7時15分〜」の3択で記録する。出発時刻
 // (departTime.ts)と同じ方針で、保存先の `records.wake_time`(time 型)に区分ごとの
 // 代表値を書き込み、表示するときに時刻から区分へ引き直す。専用の列は足さない。
-import { parseTimeToMinutes } from "./date";
+import { parseTimeToMinutes } from "@note/core/date";
 
 export interface WakeSlot {
   key: string;
