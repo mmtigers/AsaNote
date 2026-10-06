@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChildSwitcher } from "@/components/ChildSwitcher";
+import { ChildSwitcher } from "@note/core/components/ChildSwitcher";
 import { MonthCalendar } from "@/components/MonthCalendar";
-import { SkeletonList } from "@/components/Skeleton";
+import { SkeletonList } from "@note/core/components/Skeleton";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useChildren } from "@/lib/db/children";
 import { buildMemberEmailMap, useGroupMembers } from "@note/core/db/groups";

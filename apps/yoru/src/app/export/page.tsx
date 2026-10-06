@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
-import { ChildSwitcher } from "@/components/ChildSwitcher";
+import { ChildSwitcher } from "@note/core/components/ChildSwitcher";
 import { OUTCOME_OPTIONS } from "@/constants/choices";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { addDays, formatDateLabel, toDateInputValue } from "@note/core/date";

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import { MonthCalendar } from "@/components/MonthCalendar";
-import { ChildSwitcher } from "@/components/ChildSwitcher";
+import { ChildSwitcher } from "@note/core/components/ChildSwitcher";
 import { PartnerRecordStatus } from "@/components/PartnerRecordStatus";
 import { RecordReminderNotice } from "@/components/RecordReminderNotice";
 import { ReleaseNotice } from "@/components/ReleaseNotice";

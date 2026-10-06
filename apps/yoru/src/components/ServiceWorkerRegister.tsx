@@ -1,18 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
+import { ServiceWorkerRegister as ServiceWorkerRegisterBase } from "@note/core/components/ServiceWorkerRegister";
 import { registerSyncListeners } from "@/lib/db/sync";
 
+// 登録は @note/core。登録後に、このアプリの同期のリスナーを張る(モジュールレベルの安定した関数を渡す)。
 export function ServiceWorkerRegister() {
-  useEffect(() => {
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch((error) => {
-        console.error("Service worker registration failed:", error);
-      });
-    }
-
-    registerSyncListeners();
-  }, []);
-
-  return null;
+  return <ServiceWorkerRegisterBase onRegistered={registerSyncListeners} />;
 }

@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ChildSwitcher } from "@/components/ChildSwitcher";
+import { ChildSwitcher } from "@note/core/components/ChildSwitcher";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { Skeleton } from "@/components/Skeleton";
+import { Skeleton } from "@note/core/components/Skeleton";
 import { OUTCOME_OPTIONS } from "@/constants/choices";
 import { OUTCOME_SOFT_STYLES } from "@/constants/outcomeStyles";
 import { useAuth } from "@/lib/auth/AuthProvider";
@@ -16,7 +16,7 @@ import { useRecordPhotos } from "@/lib/db/photos";
 import { useRecordsTimeline } from "@/lib/db/queries";
 import { deleteRecord } from "@/lib/db/records";
 import { useGroupMembers, buildMemberEmailMap } from "@note/core/db/groups";
-import { PartnerAvatar } from "@/components/PartnerAvatar";
+import { PartnerAvatar } from "@note/core/components/PartnerAvatar";
 import { buildRecordPreview } from "@/lib/recordPreview";
 
 interface RecordCardProps {

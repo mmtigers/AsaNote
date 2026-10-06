@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Skeleton } from "@/components/Skeleton";
+import { Skeleton } from "@note/core/components/Skeleton";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { addDays, diffInDays, toDateInputValue, toMonthOf } from "@note/core/date";
 import { resolveEffectiveChildId, useChildren } from "@/lib/db/children";

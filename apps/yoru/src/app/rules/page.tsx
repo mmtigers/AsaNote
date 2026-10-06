@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AuthStatus } from "@/components/AuthStatus";
-import { SkeletonList } from "@/components/Skeleton";
+import { SkeletonList } from "@note/core/components/Skeleton";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import {
   CONCERN_TITLE_MAX,

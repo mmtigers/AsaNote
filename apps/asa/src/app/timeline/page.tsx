@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { ChildSwitcher } from "@/components/ChildSwitcher";
+import { ChildSwitcher } from "@note/core/components/ChildSwitcher";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
-import { PartnerAvatar } from "@/components/PartnerAvatar";
-import { SkeletonList } from "@/components/Skeleton";
+import { PartnerAvatar } from "@note/core/components/PartnerAvatar";
+import { SkeletonList } from "@note/core/components/Skeleton";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useChildren } from "@/lib/db/children";
 import { buildMemberEmailMap, useGroupMembers } from "@note/core/db/groups";

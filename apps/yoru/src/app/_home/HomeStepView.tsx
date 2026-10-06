@@ -1,7 +1,7 @@
 "use client";
 
 import { AuthStatus } from "@/components/AuthStatus";
-import { ChildSwitcher } from "@/components/ChildSwitcher";
+import { ChildSwitcher } from "@note/core/components/ChildSwitcher";
 import { ReleaseNotice } from "@/components/ReleaseNotice";
 import { PartnerRecordStatus } from "@/components/PartnerRecordStatus";
 import { RecordReminderNotice } from "@/components/RecordReminderNotice";
