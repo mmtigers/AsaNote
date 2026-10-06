@@ -29,7 +29,7 @@ vi.mock("@note/core/db/groups", () => ({
   joinGroupByCode: mocks.joinGroupByCode,
   leaveGroup: mocks.leaveGroup,
 }));
-vi.mock("@/lib/db/children", () => ({
+vi.mock("@note/core/db/children", () => ({
   getChildren: mocks.getChildren,
   createChild: mocks.createChild,
   updateChild: mocks.updateChild,

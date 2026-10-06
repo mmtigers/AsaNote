@@ -1,7 +1,7 @@
 "use client";
 
-import { ConfirmDialog } from "@note/core/components/ConfirmDialog";
-import type { ChildrenAdmin } from "./useChildrenAdmin";
+import type { ChildrenAdmin } from "../../group/useChildrenAdmin";
+import { ConfirmDialog } from "../ConfirmDialog";
 
 // 「お子さま」セクションの表示専用コンポーネント(#62)。
 // 状態と操作は useChildrenAdmin が持ち、ここは組み立てだけを行う。

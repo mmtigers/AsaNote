@@ -69,6 +69,8 @@
   - キー・イベント名は `${APP_ID}:...` で組み立てる。値は既存と同じ(`asa-note:` / `yoru-note:`)。
   - 例: 認証(`@note/core/auth`)は、クラウド同期の呼び出し(`pullFromCloud` など)をコールバックで受け取る。
     アプリ側の `src/lib/auth/AuthProvider.tsx` が、自分の `sync.ts` の関数(モジュールレベルの安定した関数)を渡す。
+  - 例: グループ管理(`@note/core/group/useGroupAdmin`)は、招待の文面に入るアプリ名(`APP_NAME`。`src/lib/appConfig.ts`)と、
+    同期の関数(`pullFromCloud`)を引数で受け取る。画面(`app/group/page.tsx`)はアプリに残し、部品とフックは core から使う。
   - アプリごとの値に依存する部分(例: `useEffectiveChildId` は選択中の子ども)は、アプリ側のラッパー(`src/lib/db/children.ts`)に残す。
     各アプリの `src/lib/appStorageKeys.test.ts` が、キー名とイベント名が変わっていないことを固定している(変えると端末の保存済みの値が消える)。
 - 端末内データのキー名は変えない(変えるとユーザーの保存済みの状態が消える)。

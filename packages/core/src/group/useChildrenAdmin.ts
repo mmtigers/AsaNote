@@ -1,9 +1,9 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { createChild, deleteChild, getChildren, updateChild } from "@/lib/db/children";
-import type { Child } from "@/types/models";
-import { runAction } from "@note/core/group/runAction";
+import { createChild, deleteChild, getChildren, updateChild } from "../db/children";
+import type { Child } from "../types/group";
+import { runAction } from "./runAction";
 
 // 共有設定画面の「お子さま」まわりの状態と操作(#62)。
 // 画面(page.tsx)は表示の組み立てだけを持ち、追加・改名・削除の手順はここに閉じる。
