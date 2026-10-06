@@ -83,9 +83,12 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Supabase の環境変数を渡さずにビルドし、ログイン無し(端末内の IndexedDB だけ)の動きを確かめる。
-      # 実DB・同期は対象外(Issue #12 の実機確認)。
+      # ログイン無し(端末内の IndexedDB だけ)の動きを確かめる。実DB・同期は対象外(Issue #12 の実機確認)。
+      # Supabase の URL は CSP の接続先の許可に使われるため、placeholder を渡す(通信は発生しない)。
       - name: Build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
         run: npm run build
 
       - name: Install Chromium

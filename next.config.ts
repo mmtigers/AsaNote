@@ -1,8 +1,16 @@
 import type { NextConfig } from "next";
+import { buildContentSecurityPolicy } from "./src/lib/csp";
 
 // Issue #62: 認証 Cookie を扱うアプリとして最低限のセキュリティヘッダを付与する。
-// CSP は Next.js のインライン script 等との調整が必要なため、ここでは付けない。
+// CSP は静的なまま使える方式(nonce なし)にしている。理由と許可の内容は src/lib/csp.ts を参照。
 const securityHeaders = [
+  {
+    key: "Content-Security-Policy",
+    value: buildContentSecurityPolicy({
+      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+      isDev: process.env.NODE_ENV === "development",
+    }),
+  },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
