@@ -8,7 +8,7 @@ import {
   saveNotificationSettings,
 } from "@/lib/db/notificationSettings";
 import { isPushSupported, requestPushSubscription } from "@/lib/push";
-import { runAction } from "./runAction";
+import { runAction } from "@note/core/group/runAction";
 
 // 共有設定画面の「通知」まわりの状態と操作(#3-2)。use*Adminフック群と同じ形に揃え、
 // 画面(page.tsx)は表示の組み立てだけを持つ。

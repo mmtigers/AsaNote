@@ -1,7 +1,7 @@
 // 傾向ページ(#2)の集計ロジック。画面から切り離した純関数として置き、テストで固定する
 // (件数の数え間違いは画面がエラーにならず静かに嘘をつくため)。
 import { OUTCOME_OPTIONS, type MilestoneKey, type Outcome, type ResponseEffect } from "@/constants/choices";
-import { parseTimeToMinutes } from "@/lib/date";
+import { parseTimeToMinutes } from "@note/core/date";
 
 // 集計に必要なフィールドだけを要求する(テストで最小のオブジェクトを渡せるようにするため)。
 export interface AggregatableRecord {

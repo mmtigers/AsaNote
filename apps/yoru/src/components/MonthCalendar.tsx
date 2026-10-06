@@ -2,8 +2,8 @@
 
 import type { Outcome } from "@/constants/choices";
 import { OUTCOME_COLOR_STYLES, OUTCOME_SOFT_STYLES } from "@/constants/outcomeStyles";
-import { WEEKDAYS, toMonthOf } from "@/lib/date";
-import { getHolidayName } from "@/lib/holidays";
+import { WEEKDAYS, toMonthOf } from "@note/core/date";
+import { getHolidayName } from "@note/core/holidays";
 
 function pad2(n: number): string {
   return String(n).padStart(2, "0");

@@ -11,7 +11,7 @@ import {
   isRoughOutcome,
   type TagField,
 } from "@/constants/choices";
-import { formatDateLabel } from "@/lib/date";
+import { formatDateLabel } from "@note/core/date";
 import type { LocalRecord } from "@/lib/db/localDb";
 import { useRecordPhotos } from "@/lib/db/photos";
 import { buildRecordPreview } from "@/lib/recordPreview";

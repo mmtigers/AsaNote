@@ -1,6 +1,6 @@
 // あさノート連携(SPEC §5)の集計。夜の記録と「その翌朝」のあさノートの記録を、日付と子どもで
 // 論理結合して見る。画面から切り離した純関数として置き、テストで固定する。
-import { addDays, parseTimeToMinutes } from "@/lib/date";
+import { addDays, parseTimeToMinutes } from "@note/core/date";
 import type { Outcome } from "@/constants/choices";
 import type { MorningOutcome, MorningRecord } from "@/lib/db/morning";
 import type { AggregatableRecord } from "./aggregate";

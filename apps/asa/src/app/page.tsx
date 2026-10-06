@@ -17,7 +17,7 @@ import { useStepNavigation } from "./_home/useStepNavigation";
 import { useRecordForm } from "./_home/useRecordForm";
 import { useDraftPersistence } from "./_home/useDraftPersistence";
 import type { Step } from "./_home/types";
-import { addDays, diffInDays, formatDateLabel, toDateInputValue, toMonthOf } from "@/lib/date";
+import { addDays, diffInDays, formatDateLabel, toDateInputValue, toMonthOf } from "@note/core/date";
 import { useRecordFlowResetListener } from "@/lib/recordFlowReset";
 import { track } from "@/lib/analytics";
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { createLocalStorageStore } from "@/lib/localStorageStore";
+import { createLocalStorageStore } from "@note/core/localStorageStore";
 
 // 最後に確認したアプデのバージョンを覚えておき、それより新しいリリースがあれば
 // トップ画面のアプデ通知バナーに「新着」として出す(reminderDismissal.ts と同じ定型)。

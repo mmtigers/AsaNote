@@ -3,7 +3,7 @@
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useHasTodayOwnRecord } from "@/lib/db/queries";
 import { dismissReminderForToday, useDismissedDate } from "@/lib/db/reminderDismissal";
-import { toDateInputValue } from "@/lib/date";
+import { toDateInputValue } from "@note/core/date";
 
 // 正午(12時)以降にアプリを開いた時点で、その日の記録がまだなら知らせる(#6)。
 // 本格的なPush通知(アプリを閉じていても届く)には別途Supabase側の作業

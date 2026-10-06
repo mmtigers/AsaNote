@@ -2,7 +2,7 @@ import { isOwnRecord } from "@/lib/db/ownership";
 import { OUTCOME_OPTIONS, type Outcome } from "@/constants/choices";
 import { departTimeLabel } from "@/lib/departTime";
 import { wakeTimeLabel } from "@/lib/wakeTime";
-import { parseDateInputValue, WEEKDAYS } from "@/lib/date";
+import { parseDateInputValue, WEEKDAYS } from "@note/core/date";
 
 export interface ExportableRecord {
   recordDate: string;

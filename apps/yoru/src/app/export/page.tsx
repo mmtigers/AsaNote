@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState, type ChangeEvent } from "react";
 import { ChildSwitcher } from "@/components/ChildSwitcher";
 import { OUTCOME_OPTIONS } from "@/constants/choices";
 import { useAuth } from "@/lib/auth/AuthProvider";
-import { addDays, formatDateLabel, toDateInputValue } from "@/lib/date";
+import { addDays, formatDateLabel, toDateInputValue } from "@note/core/date";
 import { useChildren } from "@/lib/db/children";
 import { useGroupMembers } from "@/lib/db/groups";
 import type { LocalRecord } from "@/lib/db/localDb";

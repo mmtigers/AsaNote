@@ -3,7 +3,9 @@
 ## 構成と方針
 
 - npm workspaces(`apps/*`)。依存のロックはルートの `package-lock.json` 1つ。
-- 共通コードの切り出し(`packages/core`)は Phase 1 以降。この段階ではコードの中身は変えていない。
+- 共通コードは `packages/core`(`@note/core`)に置く。ビルド不要で、TS のソースをそのまま公開し、Next.js 側が取り込んで変換する
+  (Next の Turbopack / webpack は、workspaces のパッケージを自動で変換するので `transpilePackages` は不要)。
+  アプリからは `import { ... } from "@note/core/date"` のように、`src/` 配下のパスで取り込む。
 - `supabase/` は**あさノートのものをルート直下のまま**残している(共有DBの共通表の定義の正。
   `db-deploy.yml` が本番DBへ自動適用するため、パスを変えない)。
   よるノートの `schema.sql` などは `apps/yoru/supabase/`。統合は別フェーズで検討する。
@@ -15,6 +17,7 @@
 |---|---|---|
 | `ci.yml` | あさノート | `working-directory: apps/asa`。`npm ci` はルートで実行 |
 | `ci-yoru.yml` | よるノート | 同上(`apps/yoru`) |
+| `ci-core.yml` | 共通コード | `packages/core` の lint・型検査・テスト |
 | `db-deploy.yml` | あさノート → 本番DB | **変更していない**。`supabase/schema.sql` の変更で自動適用 |
 | `db-deploy-yoru.yml` | よるノート → 本番DB | `apps/yoru/supabase/schema.sql` の変更で自動適用。**自分自身のパスはトリガーに含めない**(ワークフローを足しただけで本番へ適用されないように)。適用前に `check-schema-safety` を通す |
 
@@ -54,3 +57,10 @@
   生成物なのでコミットして差し支えない。
 - コード中の `#62` などの Issue 番号は、取り込み前のリポジトリでは別々の番号体系だった。
   よるノート側(`apps/yoru`)の番号は、アーカイブした旧 `yorunote` リポジトリの Issue を指す。
+
+## 共通コード(`packages/core`)の方針
+
+- **2つのアプリで同一にしたいものだけ**を移す。先回りの抽象化はしない。アプリ固有のもの(記録フロー・同期・選択肢など)は各アプリに残す。
+- アプリ名・文言・localStorage のキー接頭辞などの違いは、引数や設定で渡して吸収する(共通コードの中でアプリを判別しない)。
+- 端末内データのキー名は変えない(変えるとユーザーの保存済みの状態が消える)。
+- テストは共通コードの隣に置く(`packages/core/src/**/*.test.ts`)。移したファイルのテストをアプリ側に残さない。

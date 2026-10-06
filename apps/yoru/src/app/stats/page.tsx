@@ -12,7 +12,7 @@ import { buildMemberEmailMap, useGroupMembers } from "@/lib/db/groups";
 import type { LocalRecord } from "@/lib/db/localDb";
 import { useMorningRecords, type MorningOutcome } from "@/lib/db/morning";
 import { useRecordsTimeline } from "@/lib/db/queries";
-import { formatDateShort, toDateInputValue, toMonthOf } from "@/lib/date";
+import { formatDateShort, toDateInputValue, toMonthOf } from "@note/core/date";
 import {
   averageBedtimeByOutcome,
   bedtimeTrend,

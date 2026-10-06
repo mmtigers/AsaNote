@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { releases } from "@/data/releases";
 import { useLastSeenVersion } from "@/lib/releaseSeen";
-import { formatDateShort } from "@/lib/date";
+import { formatDateShort } from "@note/core/date";
 
 // トップ画面に埋め込む、最新アプデの案内。1行のみ表示し、詳細・全履歴は
 // /updates ページに任せる(バージョンを重ねるほど詳細をここで展開すると

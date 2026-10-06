@@ -11,7 +11,7 @@ import { useRecordsTimeline } from "@/lib/db/queries";
 import type { LocalRecord } from "@/lib/db/localDb";
 import { OUTCOME_OPTIONS, type Outcome } from "@/constants/choices";
 import { OUTCOME_COLOR_STYLES } from "@/constants/outcomeStyles";
-import { toDateInputValue, toMonthOf } from "@/lib/date";
+import { toDateInputValue, toMonthOf } from "@note/core/date";
 import {
   outcomeByDate,
   recordsForWakeTimeBucket,

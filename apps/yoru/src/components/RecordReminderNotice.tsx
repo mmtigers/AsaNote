@@ -3,7 +3,7 @@
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useHasTodayOwnRecord } from "@/lib/db/queries";
 import { dismissReminderForToday, useDismissedDate } from "@/lib/db/reminderDismissal";
-import { toDateInputValue } from "@/lib/date";
+import { toDateInputValue } from "@note/core/date";
 
 // 20時以降にアプリを開いた時点で、その日の記録がまだなら知らせる。
 // アプリを閉じていても届く通知はPush(send-evening-reminders)が担うので、これはアプリ内だけの補助。

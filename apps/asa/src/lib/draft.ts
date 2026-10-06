@@ -1,6 +1,6 @@
 "use client";
 
-import { createLocalStorageStore } from "@/lib/localStorageStore";
+import { createLocalStorageStore } from "@note/core/localStorageStore";
 
 // 記録フローがlocalStorageに保存する「入力途中の下書き」のキーと存在確認を、
 // BottomNavなど他のコンポーネントからも参照できるように共有しておくモジュール。

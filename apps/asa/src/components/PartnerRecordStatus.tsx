@@ -3,7 +3,7 @@
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useGroupMembers } from "@/lib/db/groups";
 import { useHasTodayPartnerRecord } from "@/lib/db/queries";
-import { toDateInputValue } from "@/lib/date";
+import { toDateInputValue } from "@note/core/date";
 
 interface PartnerRecordStatusProps {
   childId: string | null;

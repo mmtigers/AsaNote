@@ -1,6 +1,6 @@
 // 傾向タブの各項目タップ時の詳細表示(#3-3)で使う集計ロジック。画面から切り離した
 // 純関数として置き、テストで固定する(aggregate.tsと同じ方針)。
-import { WEEKDAYS, parseDateInputValue } from "@/lib/date";
+import { WEEKDAYS, parseDateInputValue } from "../date";
 
 export type PeriodUnit = "day" | "week" | "month";
 
