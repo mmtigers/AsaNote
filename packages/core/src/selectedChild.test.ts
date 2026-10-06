@@ -1,6 +1,8 @@
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getSelectedChildId, setSelectedChildId, useSelectedChildId } from "./selectedChild";
+import { createSelectedChildStore } from "./selectedChild";
+
+const { getSelectedChildId, setSelectedChildId, useSelectedChildId } = createSelectedChildStore("test-app");
 
 afterEach(() => {
   cleanup();
@@ -60,5 +62,23 @@ describe("selectedChild", () => {
     act(() => setSelectedChildId(null));
 
     expect(result.current).toBeNull();
+  });
+});
+
+describe("createSelectedChildStore", () => {
+  it("localStorage のキーは `${appId}:selectedChildId`", () => {
+    createSelectedChildStore("app-x").setSelectedChildId("c9");
+    expect(window.localStorage.getItem("app-x:selectedChildId")).toBe("c9");
+  });
+
+  it("空文字は未選択として消す", () => {
+    setSelectedChildId("c1");
+    setSelectedChildId("");
+    expect(getSelectedChildId()).toBeNull();
+  });
+
+  it("アプリが違えば値も別々に持つ", () => {
+    createSelectedChildStore("app-1").setSelectedChildId("c1");
+    expect(createSelectedChildStore("app-2").getSelectedChildId()).toBeNull();
   });
 });

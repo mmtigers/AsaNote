@@ -1,8 +1,9 @@
 # モノレポのルート。各アプリ固有の無視設定(.next / coverage / next-env.d.ts など)は
 # apps/*/.gitignore に置く。ここには、ルートで生成されるものだけを書く。
 
-# dependencies(npm workspaces のため、依存はルートの node_modules に集約される)
-/node_modules
+# dependencies(npm workspaces のため、依存は基本ルートの node_modules に集約されるが、
+# vitest のキャッシュなどが apps/*・packages/* の node_modules/.vite にできるため、階層を問わず無視する)
+node_modules
 
 # misc
 .DS_Store

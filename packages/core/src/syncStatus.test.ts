@@ -1,5 +1,7 @@
-import { beforeEach, describe, expect, it } from "vitest";
-import { dismissSyncFailureNotice, getSyncFailing, reportSyncOutcome } from "./syncStatus";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { createSyncStatus } from "./syncStatus";
+
+const { dismissSyncFailureNotice, getSyncFailing, reportSyncOutcome } = createSyncStatus("test-app");
 
 beforeEach(() => {
   // 各テストの前に、成功報告でカウンタとdismiss状態を確実にリセットする。
@@ -54,5 +56,24 @@ describe("syncStatus", () => {
 
     reportSyncOutcome(false);
     expect(getSyncFailing()).toBe(true);
+  });
+});
+
+describe("createSyncStatus", () => {
+  it("アプリごとに状態が独立している", () => {
+    const a = createSyncStatus("app-a");
+    const b = createSyncStatus("app-b");
+    for (let i = 0; i < 3; i++) a.reportSyncOutcome(false);
+    expect(a.getSyncFailing()).toBe(true);
+    expect(b.getSyncFailing()).toBe(false);
+  });
+
+  it("イベント名は `${appId}:sync-status-changed`", () => {
+    const status = createSyncStatus("app-c");
+    const listener = vi.fn();
+    window.addEventListener("app-c:sync-status-changed", listener);
+    for (let i = 0; i < 3; i++) status.reportSyncOutcome(false);
+    window.removeEventListener("app-c:sync-status-changed", listener);
+    expect(listener).toHaveBeenCalledTimes(1);
   });
 });
