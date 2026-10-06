@@ -1,6 +1,6 @@
 "use client";
 
-import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { ConfirmDialog } from "@note/core/components/ConfirmDialog";
 import type { GroupAdmin } from "./useGroupAdmin";
 
 // グループに属しているときの表示(メンバー・招待コード・脱退)(#62)。

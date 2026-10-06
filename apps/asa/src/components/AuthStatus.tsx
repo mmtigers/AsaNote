@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { ConfirmDialog } from "@note/core/components/ConfirmDialog";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { clearDraft } from "@/app/_home/draftStorage";
 import { clearLocalData } from "@/lib/db/localDb";

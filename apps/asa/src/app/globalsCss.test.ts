@@ -14,4 +14,9 @@ describe("globals.css", () => {
     const css = readFileSync(GLOBALS_CSS, "utf8");
     expect(css).toContain('@source "../../../../packages/core/src";');
   });
+
+  it("core のテストファイルは走査しない(テスト内の文字から、余計なクラスが作られないように)", () => {
+    const css = readFileSync(GLOBALS_CSS, "utf8");
+    expect(css).toContain('@source not "../../../../packages/core/src/**/*.test.{ts,tsx}";');
+  });
 });
