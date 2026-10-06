@@ -14,7 +14,7 @@ const authGetUser = vi.fn();
 const fromMock = vi.fn();
 const rpcMock = vi.fn();
 
-vi.mock("@note/core/supabase/client", () => ({
+vi.mock("../supabase/client", () => ({
   getSupabaseClient: () => ({
     auth: { getUser: authGetUser },
     from: fromMock,

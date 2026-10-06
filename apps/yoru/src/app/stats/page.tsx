@@ -8,7 +8,7 @@ import { EFFECT_OPTIONS, OUTCOME_OPTIONS } from "@/constants/choices";
 import { OUTCOME_COLOR_STYLES } from "@/constants/outcomeStyles";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useChildren } from "@/lib/db/children";
-import { buildMemberEmailMap, useGroupMembers } from "@/lib/db/groups";
+import { buildMemberEmailMap, useGroupMembers } from "@note/core/db/groups";
 import type { LocalRecord } from "@/lib/db/localDb";
 import { useMorningRecords, type MorningOutcome } from "@/lib/db/morning";
 import { useRecordsTimeline } from "@/lib/db/queries";

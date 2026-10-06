@@ -15,7 +15,7 @@ import { canEditRecord } from "@note/core/ownership";
 import { useRecordPhotos } from "@/lib/db/photos";
 import { useRecordsTimeline } from "@/lib/db/queries";
 import { deleteRecord } from "@/lib/db/records";
-import { useGroupMembers, buildMemberEmailMap } from "@/lib/db/groups";
+import { useGroupMembers, buildMemberEmailMap } from "@note/core/db/groups";
 import { PartnerAvatar } from "@/components/PartnerAvatar";
 import { buildRecordPreview } from "@/lib/recordPreview";
 
