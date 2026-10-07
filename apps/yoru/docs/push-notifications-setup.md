@@ -34,6 +34,12 @@ npx supabase login
 npx supabase link --project-ref <PROJECT_REF>
 ```
 
+> **コマンドを実行する場所に注意。** よるノートの関数は `apps/yoru/supabase/functions/` にある(あさノートの関数は、リポジトリのルートの `supabase/functions/`)。
+> `supabase functions deploy` は、実行した場所の `supabase/functions/` を探すので、ルートで実行すると
+> `Entrypoint path does not exist` で失敗する(何も反映されないので、やり直せばよい)。
+> よるノートの関数は、**`apps/yoru` に移動して、`--project-ref <PROJECT_REF>` を付けて**デプロイする(`apps/yoru` には `supabase link` の設定が無いため)。
+> `supabase secrets set` は、プロジェクト単位なので、どこで実行してもよい(`link` 済みの場所、または `--project-ref` 付き)。
+
 ## 4. Edge Functionのシークレットを設定する
 
 ```bash
@@ -51,7 +57,8 @@ npx supabase secrets set EVENING_CRON_SECRET=<合言葉>
 ## 5. Edge Functionをデプロイする
 
 ```bash
-npx supabase functions deploy send-evening-reminders
+cd apps/yoru
+npx supabase functions deploy send-evening-reminders --project-ref <PROJECT_REF>
 ```
 
 `send-evening-reminders` は、`x-cron-secret` ヘッダが、手順4で設定した `EVENING_CRON_SECRET` と一致する呼び出しだけを
@@ -90,7 +97,8 @@ SQL Editor で `supabase/cron-evening-reminders.sql` の `<PROJECT_REF>`・`<SER
 3. Edge Functionをデプロイする。
 
    ```bash
-   npx supabase functions deploy notify-evening-partner
+   cd apps/yoru
+   npx supabase functions deploy notify-evening-partner --project-ref <PROJECT_REF>
    ```
 
    `x-notify-secret` ヘッダが `EVENING_NOTIFY_SECRET` と一致しない呼び出しは `401`(未設定なら `500`)。
