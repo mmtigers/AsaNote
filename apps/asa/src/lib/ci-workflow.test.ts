@@ -40,10 +40,10 @@ function usesRefs(yaml: string): { action: string; ref: string }[] {
 }
 
 describe(".github/workflows のアクション参照", () => {
-  it("ワークフローを検出できている(あさノート・よるノート・core・DB反映の4系統以上)", () => {
+  it("ワークフローを検出できている(あさノート・よるノート・共通・core・DB反映)", () => {
     const names = workflows().map(([name]) => name);
     expect(names).toEqual(
-      expect.arrayContaining(["ci.yml", "ci-yoru.yml", "ci-core.yml", "db-deploy.yml", "db-deploy-yoru.yml"]),
+      expect.arrayContaining(["ci.yml", "ci-yoru.yml", "ci-core.yml", "_app-ci.yml", "db-deploy.yml", "db-deploy-yoru.yml"]),
     );
   });
 
