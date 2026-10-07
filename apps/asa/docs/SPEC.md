@@ -375,7 +375,7 @@ Supabase Edge Function `send-reminders`（`supabase/functions/send-reminders/ind
 
 `push_subscriptions` / `notification_settings` テーブルは `schema.sql` の自動適用に含まれる。**Edge Functionのデプロイ、VAPID鍵の発行とシークレット設定、`pg_cron` の登録、パートナー通知のトリガー作成は自動化の対象外**で、`docs/push-notifications-setup.md` の手順で手動実施する（§8）。iOSでは、ホーム画面に追加したPWAとして開いている必要がある（同ドキュメント）。
 
-`send-reminders` と `notify-partner` は、どちらも呼び出し元の Authorization を検証する(`send-reminders` は `_shared/pushLogic.ts` の `isAuthorizedCall`、service role key と一致する Bearer だけを通す。Q6 で解消)。
+`send-reminders` は、呼び出し元を cron 専用の合言葉(`x-cron-secret` ヘッダ。関数側の `CRON_SECRET` と一致するものだけを通す。`_shared/pushLogic.ts` の `isAuthorizedCron`)で確かめる。`notify-partner` は service role の Bearer 一致を要求する。Q6 で解消。
 
 ## 5. データモデル
 
@@ -522,7 +522,7 @@ stateDiagram-v2
 ### 6.7 その他の防御
 
 - セキュリティヘッダ（`next.config.ts`）: `X-Content-Type-Options: nosniff`、`X-Frame-Options: DENY`、`Referrer-Policy: strict-origin-when-cross-origin`、`Permissions-Policy`（camera / microphone / geolocation を無効）。CSP は付けていない（Next.jsのインラインscript等との調整が必要なため）。
-- Edge Function: `notify-partner` と `send-reminders` は、service role の Bearer 一致を要求する（`send-reminders` は `isAuthorizedCall`。Supabase の JWT 検証は公開の anon キーでも通してしまうため、関数側で確かめる）。
+- Edge Function: `notify-partner` は service role の Bearer 一致を要求する。`send-reminders` は cron 専用の合言葉（`x-cron-secret` = `CRON_SECRET`、`isAuthorizedCron`）を要求する。Supabase の JWT 検証は公開の anon キーでも通してしまうため、関数側で確かめる。`SUPABASE_SERVICE_ROLE_KEY` は非推奨で、値がダッシュボードの鍵と同じとは限らないため、`send-reminders` では使わない。
 - CI: GitHub Actions はコミットSHAで固定（テストで固定。`src/lib/ci-workflow.test.ts`）、ワークフローは最小権限（`contents: read`）、`npm audit --omit=dev` で本番依存の脆弱性を検査（§10）。
 
 ## 7. 同期・オフライン
@@ -879,7 +879,7 @@ npm run test:e2e       # Playwright（dev サーバーを自動起動）
 | Q3 | `analytics_step_funnel_daily` が旧ステップ名（`result` / `reason`）を数えるため、フロー1画面化後は到達数が常に0。ビューを更新するか | §11.3 | `supabase/schema.sql` |
 | Q4 | 体調（`conditionScale`）の入力UIが無く、`ConditionScalePicker` は未使用。復活させるか、列・型ごと整理するか | §5.1 | `src/app/_home/ConditionScalePicker.tsx` |
 | Q5 | ログアウトしてもPush購読（ブラウザ側とサーバー側 `push_subscriptions`）を解除しない。共有端末で前ユーザー宛の通知が届き続けうる。`unsubscribeCurrentDevice` は未使用 | §3.6, §6.6 | `src/lib/push.ts`, `src/components/AuthStatus.tsx` |
-| Q6 | (解消) `send-reminders` に Authorization の検証を追加した(`isAuthorizedCall`)。デプロイ後は、pg_cron の呼び出しが service role key で行われていることの確認が要る | §4.6, §6.7 | `supabase/functions/send-reminders/index.ts`, `docs/push-notifications-setup.md` |
+| Q6 | (解消) `send-reminders` を `x-cron-secret`(`CRON_SECRET`)で確かめるようにした。`notify-partner` は service role の Bearer 一致のままで、同じ理由(非推奨の `SUPABASE_SERVICE_ROLE_KEY` が鍵と一致しない)で、実際には弾かれていないかの確認が要る | §4.6, §6.7 | `supabase/functions/*/index.ts`, `docs/push-notifications-setup.md` |
 | Q7 | `manifest` の `theme_color` / `background_color`（`#f6f3ec`）と、`layout.tsx` の `themeColor`・CSSの背景（`#fff5f6`）が不一致 | §13.2 | `public/manifest.webmanifest`, `src/app/layout.tsx`, `globals.css` |
 | Q8 | 子ども一覧の取得に失敗（オフライン起動など）すると「子どもなし」扱いになり、複数の子どもがいても `childId: null` で保存される。許容か | §3.1.7 | `src/lib/db/children.ts`, `src/lib/db/useAuthedList.ts` |
 | Q9 | パートナーの新規記録が反映されるのは、起動時・ログイン・グループ参加/脱退時のみ。復帰時の取得や定期取得は不要か | §7.3 | `src/lib/auth/AuthProvider.tsx`, `src/app/group/useGroupAdmin.ts` |
