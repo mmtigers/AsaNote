@@ -4,6 +4,7 @@
 -- これらを外部キー・RLSで参照するため、素のPostgresで schema.sql を適用するにはこの最小定義が要る。
 -- 列はあさノートの定義に合わせてあるが、あさノート側が共通表の列を変えたら、ここも追随すること
 -- (生成される型の共通表の部分は、このスタブ由来)。本番スキーマには含めない。
+-- ずれは CI の `npm run check:stub`(scripts/check-shared-stub.mjs)が検出する。
 create table if not exists groups (
   id uuid primary key default gen_random_uuid(),
   name text,
