@@ -42,7 +42,7 @@ export function RecordReminderNotice({ onStartRecording }: RecordReminderNoticeP
       role="status"
       className="mb-4 flex items-center justify-between gap-3 rounded-2xl bg-[var(--accent-soft)] px-4 py-3 text-[13px] font-medium text-[var(--accent)]"
     >
-      <span>🔔 今日の記録がまだのようです</span>
+      <span>🔔 あなたの今日の記録がまだのようです</span>
       <div className="flex flex-none items-center gap-3">
         <button type="button" onClick={onStartRecording} className="underline underline-offset-2">
           記録する
