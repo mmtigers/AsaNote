@@ -11,7 +11,7 @@
 // 処理の流れ:
 //   1. 現在時刻をJSTのHH:MMに丸め、notification_settings.reminder_timeが一致し
 //      enabled=trueのユーザーを探す(pg_cronを毎分実行にしているため分単位の一致でよい)。
-//   2. そのユーザーの「今日(JST)」の記録にoutcomeが入っていれば何もしない
+//   2. 「今日(JST)」の記録にoutcomeが入っていれば、本人または同じグループの誰かでも、何もしない
 //      (アプリ内リマインダーRecordReminderNoticeと同じ「未入力なら知らせる」方針)。
 //   3. 未入力なら、そのユーザーのpush_subscriptions全件へ通知を送る。
 //      送信に失敗した購読(410 Gone等、失効した購読)はその場で削除する。
@@ -24,6 +24,7 @@ import {
   reminderPayload,
   selectReminderTargets,
   sendToSubscriptions,
+  type GroupMembership,
   type PushSubscriptionRow,
 } from "../_shared/pushLogic.ts";
 
@@ -77,13 +78,33 @@ Deno.serve(async (req) => {
     });
   }
 
-  // 今日(JST)、outcomeまで入った記録が既にあるユーザーは対象から除く。
+  // 同じグループの人が記録済みかも見るため、due ユーザーの所属グループとその全メンバーを集める。
+  const { data: ownMemberships, error: ownMembershipsError } = await supabase
+    .from("group_members")
+    .select("user_id, group_id")
+    .in("user_id", dueUserIds);
+  if (ownMembershipsError) {
+    console.error("group_membersの取得に失敗しました:", ownMembershipsError);
+    return new Response("failed to load group_members", { status: 500 });
+  }
+  const groupIds = [...new Set((ownMemberships ?? []).map((m) => m.group_id as string))];
+  const { data: groupMemberships, error: groupMembershipsError } = groupIds.length
+    ? await supabase.from("group_members").select("user_id, group_id").in("group_id", groupIds)
+    : { data: [] as GroupMembership[], error: null };
+  if (groupMembershipsError) {
+    console.error("group_membersの取得に失敗しました:", groupMembershipsError);
+    return new Response("failed to load group_members", { status: 500 });
+  }
+  const memberships = (groupMemberships ?? []) as GroupMembership[];
+  const involvedUserIds = [...new Set([...dueUserIds, ...memberships.map((m) => m.user_id)])];
+
+  // 今日(JST)、outcomeまで入った記録が本人または同じグループの誰かに既にあれば、対象から除く。
   const { data: todaysRecords, error: recordsError } = await supabase
     .from("records")
     .select("user_id")
     .eq("record_date", today)
     .not("outcome", "is", null)
-    .in("user_id", dueUserIds);
+    .in("user_id", involvedUserIds);
 
   if (recordsError) {
     console.error("recordsの取得に失敗しました:", recordsError);
@@ -92,7 +113,8 @@ Deno.serve(async (req) => {
 
   const targetUserIds = selectReminderTargets(
     dueUserIds,
-    (todaysRecords ?? []).map((row) => row.user_id as string)
+    (todaysRecords ?? []).map((row) => row.user_id as string),
+    memberships
   );
 
   if (targetUserIds.length === 0) {

@@ -25,10 +25,30 @@ export function jstDateNow(now: Date): string {
   return JST_DATE_FORMAT.format(now);
 }
 
-// 今日(JST)、outcomeまで入った記録が既にあるユーザーを除いた、リマインド対象を返す。
-export function selectReminderTargets(dueUserIds: string[], alreadyRecordedUserIds: Iterable<string>): string[] {
-  const recorded = new Set(alreadyRecordedUserIds);
-  return dueUserIds.filter((id) => !recorded.has(id));
+export interface GroupMembership {
+  user_id: string;
+  group_id: string;
+}
+
+// リマインド対象を返す。今日(JST)、結果まで入った記録が**本人または同じグループの誰か**に
+// 既にあれば対象から除く(夫婦のどちらかが記録済みなら、もう一方に催促しない)。
+export function selectReminderTargets(
+  dueUserIds: string[],
+  recordedUserIds: Iterable<string>,
+  memberships: GroupMembership[]
+): string[] {
+  const recorded = new Set(recordedUserIds);
+  const groupOf = new Map(memberships.map((m) => [m.user_id, m.group_id]));
+  const recordedGroups = new Set<string>();
+  for (const userId of recorded) {
+    const groupId = groupOf.get(userId);
+    if (groupId) recordedGroups.add(groupId);
+  }
+  return dueUserIds.filter((id) => {
+    if (recorded.has(id)) return false;
+    const groupId = groupOf.get(id);
+    return !(groupId && recordedGroups.has(groupId));
+  });
 }
 
 // 410 Gone / 404 Not Found はブラウザ側で購読が失効したことを示す。
