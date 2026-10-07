@@ -70,7 +70,6 @@ supabase/
   ci/             CI(型ドリフト検査)で使うSQLスタブ
 scripts/
   gen-db-types.sh     database.types.ts の再生成スクリプト
-  check-release-notes.mjs  CIの更新履歴チェック
   import-records.mjs  過去の記録をまとめてSupabaseへ登録する一括インポートスクリプト
                        (service role key使用。使い方はファイル冒頭のコメント参照)
 e2e/              Playwright のE2Eテスト

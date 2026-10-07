@@ -3,12 +3,12 @@
 // このリポジトリの vitest 既定環境は jsdom だが、jsdom では import.meta.url が
 // file: URL にならず fileURLToPath が落ちる。ファイルを読むだけの検査なので
 // このファイルだけ node 環境に切り替える。
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 /**
- * `.github/workflows/ci.yml` の静的検査(#60)。
+ * `.github/workflows/*.yml`(あさノート・よるノート・core・DB反映の全ワークフロー)の静的検査(#60・#156)。
  *
  * サードパーティのアクションをメジャータグ(`@v4`)で参照すると、タグは可変なので
  * 同じ `@v4` が後から別のコードを指しうる。`supabase/setup-cli@v1` に至っては
@@ -19,11 +19,18 @@ import { describe, expect, it } from "vitest";
  * エコシステムが SHA ごと追随する(`with.version` は対象外なので手動)。
  */
 
-const WORKFLOW = fileURLToPath(new URL("../../../../.github/workflows/ci.yml", import.meta.url));
+const WORKFLOWS_DIR = fileURLToPath(new URL("../../../../.github/workflows/", import.meta.url));
+
+/** 検査対象のワークフロー(ファイル名 → 中身)。ファイルが増えても自動で対象になる。 */
+function workflows(): [string, string][] {
+  return readdirSync(WORKFLOWS_DIR)
+    .filter((name) => /\.ya?ml$/.test(name))
+    .sort()
+    .map((name) => [name, readFileSync(`${WORKFLOWS_DIR}${name}`, "utf8")]);
+}
 
 /** `uses:` の参照をすべて拾う(`actions/checkout@<ref>` の `<ref>` 部分)。 */
-function usesRefs(): { action: string; ref: string }[] {
-  const yaml = readFileSync(WORKFLOW, "utf8");
+function usesRefs(yaml: string): { action: string; ref: string }[] {
   // このリポジトリの tsconfig は noUncheckedIndexedAccess が有効なので、
   // キャプチャグループの参照は undefined を潰してから返す。
   return [...yaml.matchAll(/uses:\s*([^@\s]+)@(\S+)/g)].map((m) => ({
@@ -32,24 +39,32 @@ function usesRefs(): { action: string; ref: string }[] {
   }));
 }
 
-describe(".github/workflows/ci.yml のアクション参照", () => {
-  const refs = usesRefs();
-
-  it("uses: を1つ以上検出できている(正規表現が壊れていないことの確認)", () => {
-    expect(refs.length).toBeGreaterThan(0);
+describe(".github/workflows のアクション参照", () => {
+  it("ワークフローを検出できている(あさノート・よるノート・core・DB反映の4系統以上)", () => {
+    const names = workflows().map(([name]) => name);
+    expect(names).toEqual(
+      expect.arrayContaining(["ci.yml", "ci-yoru.yml", "ci-core.yml", "db-deploy.yml", "db-deploy-yoru.yml"]),
+    );
   });
 
-  it.each(refs)("$action が 40 桁のコミットSHAで固定されている", ({ ref }) => {
-    expect(ref).toMatch(/^[0-9a-f]{40}$/);
-  });
+  describe.each(workflows())("%s", (_name, yaml) => {
+    const refs = usesRefs(yaml);
 
-  it("固定した SHA の横に、どのバージョンかを示すコメントが付いている", () => {
-    // SHA だけだと「今どのバージョンで動いているか」が読めず、上げ時の判断ができない。
-    const yaml = readFileSync(WORKFLOW, "utf8");
-    const pinned = [...yaml.matchAll(/uses:\s*[^@\s]+@[0-9a-f]{40}(.*)$/gm)];
-    expect(pinned.length).toBe(refs.length);
-    for (const match of pinned) {
-      expect((match[1] ?? "").trim()).toMatch(/^#\s*v?\d+\.\d+\.\d+/);
-    }
+    it("uses: を1つ以上検出できている(正規表現が壊れていないことの確認)", () => {
+      expect(refs.length).toBeGreaterThan(0);
+    });
+
+    it.each(refs)("$action が 40 桁のコミットSHAで固定されている", ({ ref }) => {
+      expect(ref).toMatch(/^[0-9a-f]{40}$/);
+    });
+
+    it("固定した SHA の横に、どのバージョンかを示すコメントが付いている", () => {
+      // SHA だけだと「今どのバージョンで動いているか」が読めず、上げ時の判断ができない。
+      const pinned = [...yaml.matchAll(/uses:\s*[^@\s]+@[0-9a-f]{40}(.*)$/gm)];
+      expect(pinned.length).toBe(refs.length);
+      for (const match of pinned) {
+        expect((match[1] ?? "").trim()).toMatch(/^#\s*v?\d+\.\d+\.\d+/);
+      }
+    });
   });
 });

@@ -12,7 +12,7 @@
 
 ### 更新ルール
 
-CIが強制するもの（`.github/workflows/ci.yml` の `release-notes-check`、判定は `scripts/check-release-notes.mjs`）:
+CIが強制するもの（`.github/workflows/ci.yml` の `release-notes-check`、判定は ルートの `scripts/check-release-notes.mjs`）:
 
 | 条件 | 結果 |
 |---|---|
@@ -714,7 +714,7 @@ supabase/
   cron-reminders.sql, partner-notify-trigger.sql                  手動適用
   ci/auth-stub.sql        CIの型ドリフト検査用スタブ
 public/                   sw.js, manifest.webmanifest, icons/, apple-touch-icon.png
-scripts/                  check-release-notes.mjs, gen-db-types.sh, import-records.mjs
+scripts/                  gen-db-types.sh, import-records.mjs(更新履歴の検査 check-release-notes.mjs はルートの scripts/)
 e2e/record-flow.spec.ts   Playwright E2E
 docs/                     SPEC.md（本書）, push-notifications-setup.md
 .github/                  workflows/ci.yml, workflows/db-deploy.yml, dependabot.yml
@@ -750,7 +750,7 @@ npm run test:e2e       # Playwright（dev サーバーを自動起動）
 | `lint-build-test` | `npm ci` → `npm audit --audit-level=high --omit=dev`（本番依存のみ） → `lint` → `next typegen` → `tsc --noEmit` → `test:coverage`（`coverage-report` 成果物を14日保存） → `build`（ダミーのSupabase環境変数） |
 | `e2e-test` | chromiumを入れて `npm run test:e2e`。失敗時のみ `playwright-report` を7日保存 |
 | `db-types-check` | `postgres:16` に `auth-stub.sql` と `schema.sql` を適用し、固定版のSupabase CLI（2.117.0）で `supabase gen types` した結果が `src/lib/db/database.types.ts` と一致するか検査。ずれたら `npm run db:types`（要Docker）で再生成を促す |
-| `release-notes-check` | `scripts/check-release-notes.mjs`（テスト: `src/lib/releaseNotesCheck.test.ts`）。判定条件と例外は本書冒頭の更新ルール |
+| `release-notes-check` | ルートの `scripts/check-release-notes.mjs`（テスト: `src/lib/releaseNotesCheck.test.ts`）。判定条件と例外は本書冒頭の更新ルール |
 
 - 本番への反映は別のワークフロー（`db-deploy.yml`、§8.2）。
 - Dependabot（`.github/dependabot.yml`）: npmとGitHub Actionsを週次（月曜9:00 JST）で確認。npmのminor/patchは1本のグループPRにまとめ、メジャーは個別PR。ただし `eslint` と `typescript` のメジャーは無視（`eslint-config-next` 配下のプラグインや `typescript-eslint` が未対応のため。理由は同ファイルのコメント）。`vitest` 5 と `@types/node` は更新済みで無視対象ではない。
