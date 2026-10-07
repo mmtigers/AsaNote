@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   displayNameFromEmail,
-  isAuthorizedCron,
-  MIN_CRON_SECRET_LENGTH,
+  isAuthorizedSecret,
+  MIN_SECRET_LENGTH,
   isStaleSubscriptionError,
   jstDateNow,
   jstTimeNow,
@@ -62,29 +62,29 @@ describe("isStaleSubscriptionError", () => {
   });
 });
 
-describe("isAuthorizedCron", () => {
+describe("isAuthorizedSecret", () => {
   const secret = "0123456789abcdef0123456789abcdef";
 
   it("設定した合言葉と一致するときだけ通す", () => {
-    expect(isAuthorizedCron(secret, secret)).toBe(true);
+    expect(isAuthorizedSecret(secret, secret)).toBe(true);
   });
 
   it("別の値・前後の差・ヘッダ無しは通さない", () => {
-    expect(isAuthorizedCron("other-secret-value-xxxxxxxxxxxxxxxx", secret)).toBe(false);
-    expect(isAuthorizedCron(`${secret}x`, secret)).toBe(false);
-    expect(isAuthorizedCron(secret.slice(0, -1), secret)).toBe(false);
-    expect(isAuthorizedCron(`Bearer ${secret}`, secret)).toBe(false);
-    expect(isAuthorizedCron(null, secret)).toBe(false);
-    expect(isAuthorizedCron("", secret)).toBe(false);
+    expect(isAuthorizedSecret("other-secret-value-xxxxxxxxxxxxxxxx", secret)).toBe(false);
+    expect(isAuthorizedSecret(`${secret}x`, secret)).toBe(false);
+    expect(isAuthorizedSecret(secret.slice(0, -1), secret)).toBe(false);
+    expect(isAuthorizedSecret(`Bearer ${secret}`, secret)).toBe(false);
+    expect(isAuthorizedSecret(null, secret)).toBe(false);
+    expect(isAuthorizedSecret("", secret)).toBe(false);
   });
 
   it("サーバー側の合言葉が未設定・空・短すぎるときは、一致していても通さない", () => {
-    expect(isAuthorizedCron(secret, undefined)).toBe(false);
-    expect(isAuthorizedCron("", "")).toBe(false);
-    const tooShort = "a".repeat(MIN_CRON_SECRET_LENGTH - 1);
-    expect(isAuthorizedCron(tooShort, tooShort)).toBe(false);
-    const minimum = "a".repeat(MIN_CRON_SECRET_LENGTH);
-    expect(isAuthorizedCron(minimum, minimum)).toBe(true);
+    expect(isAuthorizedSecret(secret, undefined)).toBe(false);
+    expect(isAuthorizedSecret("", "")).toBe(false);
+    const tooShort = "a".repeat(MIN_SECRET_LENGTH - 1);
+    expect(isAuthorizedSecret(tooShort, tooShort)).toBe(false);
+    const minimum = "a".repeat(MIN_SECRET_LENGTH);
+    expect(isAuthorizedSecret(minimum, minimum)).toBe(true);
   });
 });
 

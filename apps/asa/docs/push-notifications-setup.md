@@ -95,13 +95,36 @@ Supabaseダッシュボードの SQL Editor で `supabase/cron-reminders.sql` �
 他メンバーのうち`/group`で「パートナーがきろくを追加したとき」をONにしている人へ通知する。
 VAPID鍵・シークレット(手順1〜4)は共通。
 
-```bash
-npx supabase functions deploy notify-partner
-```
+**切り替えの順番**(上から順に行う):
 
-その後、SQL Editorで`supabase/partner-notify-trigger.sql`の`<PROJECT_REF>`と
-`<SERVICE_ROLE_KEY>`を置き換えて実行する(recordsにトリガーを作る。実値はコミットしない)。
+1. 合言葉を作って、関数側に設定する。`send-reminders` の `CRON_SECRET` とは**別の値**にする。
+   ```bash
+   openssl rand -hex 32     # 出力された値を、手順3でも使う。公開しない
+   npx supabase secrets set PARTNER_NOTIFY_SECRET=<上の値>
+   ```
+2. 関数をデプロイする。
+   ```bash
+   npx supabase functions deploy notify-partner
+   ```
+3. SQL Editorで`supabase/partner-notify-trigger.sql`の`<PROJECT_REF>`・`<SERVICE_ROLE_KEY>`・
+   `<NOTIFY_SECRET>`(手順1の値)を置き換えて実行する(recordsにトリガーを作る。実値はコミットしない。
+   実行後はタブを保存せずに閉じ、ターミナルは`clear`で消す)。
+
+`notify-partner` は、`x-notify-secret` ヘッダが `PARTNER_NOTIFY_SECRET` と一致する呼び出しだけを受け付ける
+(それ以外は`401`、未設定なら`500`)。`SUPABASE_SERVICE_ROLE_KEY` との一致は使わない
+(`send-reminders` と同じ理由。手順5のデプロイ後の確認を参照)。`Authorization` ヘッダは、Supabase の入口の
+JWT 検証を通すために残す。
+
 通知文言の「〇〇さん」は記録した人のメールアドレスの@より前。
+
+**通知を受け取る人**は、各自の端末で`/group`画面の通知をONにして購読し、「パートナーがきろくを追加したとき」
+もONにする(既定はOFF)。受け取る人の端末の購読が無いと、届かない。
+
+> **トリガーはmainへのマージでは自動適用されない。** 手順3を実行しないと、パートナー通知は一度も呼ばれない。
+> 入っているかは、次で確認できる(2行出れば入っている)。
+> ```sql
+> select tgname from pg_trigger where tgrelid = 'public.records'::regclass and not tgisinternal;
+> ```
 
 ## 7. 動作確認
 
@@ -120,8 +143,9 @@ npx supabase functions deploy notify-partner
 - 通知が届かない場合、まずEdge Functionのログを確認する。Supabaseダッシュボードの
   Edge Functions > `send-reminders` > Logs で見られる(Supabase CLIに`functions logs`
   コマンドは無い)。
-- pg_cronからの呼び出し結果は、SQL Editorで`select status_code, content, created from net._http_response order by created desc limit 5;`
-  を実行すると確認できる(200なら正常、401はservice_roleキーの誤り、404はPROJECT_REFの誤り)。
+- pg_cronやトリガーからの呼び出し結果は、SQL Editorで`select status_code, content, created from net._http_response order by created desc limit 5;`
+  を実行すると確認できる(200なら正常、401は合言葉(`CRON_SECRET` / `PARTNER_NOTIFY_SECRET`)の不一致、404はPROJECT_REFの誤り)。
+  このテーブルの記録は、既定で数時間(6時間ほど)で消えるので、確認は、呼び出しの直後に行う。
 - 500で、ログに`Vapid public key must be a URL safe Base 64 (without "=")`と出る場合は、
   `VAPID_PUBLIC_KEY`の値が不正(末尾の`=`・引用符・空白の混入、秘密鍵との取り違え)。
   `npx supabase secrets set VAPID_PUBLIC_KEY=...`で入れ直す。Vercelの

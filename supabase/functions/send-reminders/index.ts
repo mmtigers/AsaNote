@@ -18,7 +18,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
 import {
-  isAuthorizedCron,
+  isAuthorizedSecret,
   jstDateNow,
   jstTimeNow,
   reminderPayload,
@@ -48,7 +48,7 @@ Deno.serve(async (req) => {
       status: 500,
     });
   }
-  if (!isAuthorizedCron(req.headers.get("x-cron-secret"), Deno.env.get("CRON_SECRET"))) {
+  if (!isAuthorizedSecret(req.headers.get("x-cron-secret"), Deno.env.get("CRON_SECRET"))) {
     return new Response("unauthorized", { status: 401 });
   }
 
