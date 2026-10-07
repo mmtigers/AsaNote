@@ -56,6 +56,11 @@ jobs:
         if: ${{ inputs.check-schema }}
         run: npm run check:schema
 
+      # CI の型生成に使う共通表のスタブが、共通表の正(あさノートの supabase/schema.sql)とずれていないか。
+      - name: Check shared-tables stub matches the asa schema
+        if: ${{ inputs.check-schema }}
+        run: npm run check:stub
+
       - name: Generate Next.js route types
         run: npx next typegen
 

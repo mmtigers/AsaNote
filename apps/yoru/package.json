@@ -9,6 +9,7 @@
     "lint": "eslint",
     "db:types": "bash scripts/gen-db-types.sh",
     "check:schema": "node scripts/check-schema-safety.mjs",
+    "check:stub": "node scripts/check-shared-stub.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
