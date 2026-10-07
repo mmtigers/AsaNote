@@ -58,6 +58,20 @@ npx supabase functions deploy send-reminders
 `Authorization: Bearer <service_role key>` を付けてPOSTすると動作確認できる
 (未入力ユーザーがいなければ `{"checked":0,"sent":0}` 等を返す)。
 
+`send-reminders` は、`Authorization` が service role key と一致する呼び出しだけを受け付ける
+(それ以外は `401 unauthorized`)。Supabase の JWT 検証は公開されている anon キーでも通ってしまうため、
+関数の側で確かめている。動作確認(キーの値はシェルの履歴などに残さないこと):
+
+- service role key を付けた呼び出し → 200(上記のJSON)
+- anon キー、またはヘッダ無しの呼び出し → 401
+
+デプロイ後は、pg_cron からの呼び出しが 200 で通っていることも確認する(`401` が並んでいたら、
+下記6のジョブに入れた鍵が service role key ではない)。SQL Editor で:
+
+```sql
+select status_code, created from net._http_response order by created desc limit 5;
+```
+
 ## 6. pg_cronで定期実行する
 
 Supabaseダッシュボードの SQL Editor で `supabase/cron-reminders.sql` を開き、

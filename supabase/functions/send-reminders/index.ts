@@ -16,6 +16,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
 import {
+  isAuthorizedCall,
   jstDateNow,
   jstTimeNow,
   reminderPayload,
@@ -35,6 +36,12 @@ Deno.serve(async (req) => {
     return new Response("必要な環境変数(VAPID_*)が未設定です。docs/push-notifications-setup.mdを参照してください。", {
       status: 500,
     });
+  }
+
+  // 呼び出せるのは pg_cron(service role)だけ。Supabase の JWT 検証は公開されている anon キーでも
+  // 通してしまうため、ここで service role key との一致を確かめる(これが無いと誰でも繰り返し発火できる)。
+  if (!isAuthorizedCall(req.headers.get("Authorization"), serviceRoleKey)) {
+    return new Response("unauthorized", { status: 401 });
   }
 
   webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
