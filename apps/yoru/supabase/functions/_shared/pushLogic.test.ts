@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   displayNameFromEmail,
-  isAuthorizedCall,
+  isAuthorizedSecret,
   isStaleSubscriptionError,
   jstDateNow,
   jstTimeNow,
@@ -70,25 +70,25 @@ describe("sendToSubscriptions", () => {
   });
 });
 
-describe("isAuthorizedCall", () => {
-  const key = "service-role-key-value";
+describe("isAuthorizedSecret", () => {
+  const secret = "0123456789abcdef0123";
 
-  it("service role key と一致する Bearer だけを通す", () => {
-    expect(isAuthorizedCall(`Bearer ${key}`, key)).toBe(true);
+  it("合言葉と一致するときだけ通す", () => {
+    expect(isAuthorizedSecret(secret, secret)).toBe(true);
   });
 
-  it("anon キーなど別の値・前後の差・ヘッダ無し・形式違いは通さない", () => {
-    expect(isAuthorizedCall("Bearer anon-key", key)).toBe(false);
-    expect(isAuthorizedCall(`Bearer ${key}x`, key)).toBe(false);
-    expect(isAuthorizedCall(`Bearer ${key.slice(0, -1)}`, key)).toBe(false);
-    expect(isAuthorizedCall(key, key)).toBe(false);
-    expect(isAuthorizedCall(null, key)).toBe(false);
-    expect(isAuthorizedCall("", key)).toBe(false);
+  it("別の値・前後の差・ヘッダ無しは通さない", () => {
+    expect(isAuthorizedSecret("other-secret-value-xx", secret)).toBe(false);
+    expect(isAuthorizedSecret(`${secret}x`, secret)).toBe(false);
+    expect(isAuthorizedSecret(secret.slice(0, -1), secret)).toBe(false);
+    expect(isAuthorizedSecret(null, secret)).toBe(false);
+    expect(isAuthorizedSecret("", secret)).toBe(false);
   });
 
-  it("サーバー側のキーが空のときは、空の Bearer でも通さない", () => {
-    expect(isAuthorizedCall("Bearer ", "")).toBe(false);
-    expect(isAuthorizedCall("Bearer x", "")).toBe(false);
+  it("サーバー側の合言葉が未設定・短すぎるときは、一致していても通さない", () => {
+    expect(isAuthorizedSecret("", "")).toBe(false);
+    expect(isAuthorizedSecret("x", undefined)).toBe(false);
+    expect(isAuthorizedSecret("short", "short")).toBe(false);
   });
 });
 
