@@ -23,7 +23,7 @@
 | `db-deploy.yml` | あさノート → 本番DB | **変更していない**。`supabase/schema.sql` の変更で自動適用 |
 | `db-deploy-yoru.yml` | よるノート → 本番DB | `apps/yoru/supabase/schema.sql` の変更で自動適用。**自分自身のパスはトリガーに含めない**(ワークフローを足しただけで本番へ適用されないように)。適用前に `check-schema-safety` を通す |
 
-`check-release-notes.mjs` はアプリ単位で動く(変更ファイルはアプリ相対、lock の version はルートの
+`check-release-notes.mjs` はルートの `scripts/` に1つだけ置き、各アプリの CI が `working-directory` をアプリにして実行する(あさノート・よるノートで共通。テストは `apps/asa/src/lib/releaseNotesCheck.test.ts`)。アプリ単位で動く(変更ファイルはアプリ相対、lock の version はルートの
 `package-lock.json` の `packages["apps/<app>"]` を見る)。
 
 ## Vercel の設定(あさノート・本番切り替え時)

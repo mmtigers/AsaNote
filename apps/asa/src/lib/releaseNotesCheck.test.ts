@@ -4,7 +4,7 @@ import {
   compareVersions,
   isUserFacingChange,
   topReleaseVersion,
-} from "../../scripts/check-release-notes.mjs";
+} from "../../../../scripts/check-release-notes.mjs";
 
 const releases = (v: string) => `export const releases = [\n  {\n    version: "${v}",\n  },\n];`;
 
