@@ -1,7 +1,8 @@
 name: CI (yorunote)
 
 # モノレポ化(apps/yoru)に伴い、よるノート用のCIとしてルートの .github/workflows に置いたもの。
-# あさノート用の ci.yml とは別ワークフロー(判定内容がアプリごとに違うため。共通化は後続フェーズ)。
+# あさノート用の ci.yml とは別ワークフロー。共通のジョブ(依存の検査・lint・型・単体テスト・ビルド、更新履歴の検査)は
+# _app-ci.yml にあり、ここにはよるノート固有のもの(E2E・型ずれの検査)だけを置く。
 
 on:
   push:
@@ -21,63 +22,10 @@ permissions:
 
 jobs:
   lint-build-test:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    defaults:
-      run:
-        working-directory: apps/yoru
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install dependencies
-        # モノレポ: package-lock.json はルートにあるので、ルートで全ワークスペースを入れる。
-        working-directory: .
-        run: npm ci
-
-      # 本番に入る依存(dependencies)だけを検査する。devDependencies(eslint-config-next 経由の
-      # braces, GHSA-vfj7-8cjw-p6xm)には npm 上に修正版が無く、本番コードには入らないため対象外。
-      # braces に修正版が出たら --omit=dev を外して全依存の検査へ戻す。
-      - name: Security audit
-        working-directory: .
-        run: npm audit --audit-level=high --omit=dev --workspace apps/yoru
-
-      - name: Lint
-        run: npm run lint
-
-      # 共有モードではあさノートと同じDBへ適用するため、schema.sql が evening_* 以外に触れていないかを
-      # 静的に検査する(DROP / ALTER を共通表へ向けない。docs/SPEC.md §7)。
-      - name: Check schema.sql only touches evening_* objects
-        run: npm run check:schema
-
-      - name: Generate Next.js route types
-        run: npx next typegen
-
-      - name: Type check
-        run: npx tsc --noEmit
-
-      - name: Unit tests (with coverage)
-        # Issue #60: 以前は npm run test のみでカバレッジを CI で計測・保存していなかった。
-        # 閾値は設けず(vitest.config.mts のコメント参照)、成果物として残して推移を見る。
-        run: npm run test:coverage
-
-      - name: Upload coverage report
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: coverage-report
-          path: apps/yoru/coverage/
-          retention-days: 14
-
-      - name: Build
-        env:
-          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
-        run: npm run build
+    uses: ./.github/workflows/_app-ci.yml
+    with:
+      app: apps/yoru
+      check-schema: true
 
   e2e:
     name: E2E (Playwright)
@@ -168,29 +116,3 @@ jobs:
             echo "::error::apps/yoru/supabase/schema.sql の変更が apps/yoru/src/lib/db/database.types.ts へ反映されていません。'npm run db:types'(要Docker。apps/yoru で実行)で再生成し、差分をコミットしてください。"
             exit 1
           fi
-
-  release-notes-check:
-    name: Release notes check
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    defaults:
-      run:
-        working-directory: apps/yoru
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-
-      # ユーザー向けの変更なのに src/data/releases.ts が更新されない、またはversionが
-      # releases.ts / package.json / package-lock.json でずれる場合は失敗させる。
-      # 更新履歴に載せない変更(依存更新・内部リファクタ・docsのみ等)は、PRに `no-release-note`
-      # ラベルを付けるか、PR本文・コミットメッセージに `[skip release-note]` と書くと例外にできる。
-      # 判定の中身はリポジトリルートの scripts/check-release-notes.mjs(あさノート・よるノート共通。テストは apps/asa/src/lib/releaseNotesCheck.test.ts)。
-      # PRのタイトル・本文・ラベルは外部入力なので、シェルへ直接埋め込まず環境変数で渡す。
-      - name: Check release notes were updated
-        env:
-          BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before }}
-          PR_LABELS: ${{ toJSON(github.event.pull_request.labels.*.name) }}
-          PR_TITLE: ${{ github.event.pull_request.title }}
-          PR_BODY: ${{ github.event.pull_request.body }}
-        run: node ../../scripts/check-release-notes.mjs

@@ -17,8 +17,9 @@
 
 | ワークフロー | 対象 | 備考 |
 |---|---|---|
-| `ci.yml` | あさノート | `working-directory: apps/asa`。`npm ci` はルートで実行 |
-| `ci-yoru.yml` | よるノート | 同上(`apps/yoru`) |
+| `ci.yml` | あさノート | 共通ジョブ(`_app-ci.yml`)を呼ぶ + あさノート固有の E2E・型ずれの検査 |
+| `ci-yoru.yml` | よるノート | 共通ジョブ(`_app-ci.yml`、`check-schema: true`)を呼ぶ + よるノート固有の E2E・型ずれの検査 |
+| `_app-ci.yml` | 共通(再利用ワークフロー) | 依存の検査・lint・型・単体テスト・ビルド、更新履歴の検査。`app` で対象アプリを渡す。`working-directory` はアプリ、`npm ci` はルートで実行 |
 | `ci-core.yml` | 共通コード | `packages/core` の lint・型検査・テスト |
 | `db-deploy.yml` | あさノート → 本番DB | **変更していない**。`supabase/schema.sql` の変更で自動適用 |
 | `db-deploy-yoru.yml` | よるノート → 本番DB | `apps/yoru/supabase/schema.sql` の変更で自動適用。**自分自身のパスはトリガーに含めない**(ワークフローを足しただけで本番へ適用されないように)。適用前に `check-schema-safety` を通す |
