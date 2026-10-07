@@ -10,6 +10,11 @@ export function dismissReminderForToday(today: string) {
   store.set(today);
 }
 
+// ログアウト時に消す(共有端末で、前の人の「後で」が次の人に効かないようにする。#131)。
+export function clearReminderDismissal() {
+  store.set(null);
+}
+
 export function useDismissedDate(): string | null {
   return store.use();
 }

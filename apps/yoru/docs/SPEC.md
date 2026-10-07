@@ -79,7 +79,7 @@
 
 更新履歴は `src/data/releases.ts` に新しい順で書く。ユーザーに見える変更を入れるときは追加して `package.json` / `package-lock.json` の version も同じ値に上げる(CI の `release-notes-check` が検査。依存更新などは PR ラベル `no-release-note` か本文の `[skip release-note]` で除外)。
 
-ホームのカレンダーは今日より後の日を選べない。ログアウトすると、端末内のDB・入力途中の下書き・選択中の子どもを消す。想定外のエラーと存在しないURLは、日本語の専用画面(`error.tsx` / `global-error.tsx` / `not-found.tsx`)を出す。
+ホームのカレンダーは今日より後の日を選べない。ログアウトすると、この端末のPush購読(ブラウザ側とサーバーの行)・端末内のDB・入力途中の下書き・選択中の子ども・リマインドを閉じた日付を消す。想定外のエラーと存在しないURLは、日本語の専用画面(`error.tsx` / `global-error.tsx` / `not-found.tsx`)を出す。
 
 下部ナビ: 記録する / これまで / 傾向 / 試したこと / 共有(`/export` はナビに無く、「これまで」の画面からのリンクで開く)。
 

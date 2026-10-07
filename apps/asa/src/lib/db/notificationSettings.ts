@@ -1,7 +1,7 @@
 "use client";
 
 import { getSupabaseClient } from "@note/core/supabase/client";
-import type { PushSubscriptionKeys } from "@/lib/push";
+import { unsubscribeCurrentDevice, type PushSubscriptionKeys } from "@/lib/push";
 
 export interface NotificationSettings {
   reminderTime: string; // "HH:MM"
@@ -55,5 +55,17 @@ export async function savePushSubscription(userId: string, keys: PushSubscriptio
       { user_id: userId, endpoint: keys.endpoint, p256dh: keys.p256dh, auth_key: keys.auth },
       { onConflict: "endpoint" }
     );
+  if (error) throw error;
+}
+
+// ログアウト時に、この端末のPush購読を解除し、サーバーの行も消す(#131)。
+// 共有端末で、前のユーザー宛の通知が次の人の端末に届き続けないようにするため。
+// サーバーの行はRLS(本人のみ削除可)のため、サインアウトの**前**に呼ぶこと。
+// 先にブラウザ側を解除する: サーバーの行を消せなかった(オフライン等)場合も、端末には
+// 通知が届かなくなる。
+export async function removeThisDevicePushSubscription(): Promise<void> {
+  const endpoint = await unsubscribeCurrentDevice();
+  if (!endpoint) return;
+  const { error } = await getSupabaseClient().from("push_subscriptions").delete().eq("endpoint", endpoint);
   if (error) throw error;
 }

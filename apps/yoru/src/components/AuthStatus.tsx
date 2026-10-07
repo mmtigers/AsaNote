@@ -5,6 +5,8 @@ import { useState } from "react";
 import { ConfirmDialog } from "@note/core/components/ConfirmDialog";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { clearLocalData } from "@/lib/db/localDb";
+import { removeThisDevicePushSubscription } from "@/lib/db/notificationSettings";
+import { clearReminderDismissal } from "@/lib/db/reminderDismissal";
 import { setSelectedChildId } from "@/lib/db/selectedChild";
 import { clearDraft } from "@/app/_home/draftStorage";
 import { usePendingSyncCount } from "@/lib/db/queries";
@@ -20,6 +22,13 @@ export function AuthStatus() {
   const [unsyncedOnLogout, setUnsyncedOnLogout] = useState<number | null>(null);
 
   async function signOutAndClear() {
+    // この端末のPush購読(ブラウザ側とサーバーの行)を解除する(#131)。サーバーの行の削除は
+    // ログイン中でないとできないため、サインアウトの前に行う。失敗してもログアウトは続ける。
+    try {
+      await removeThisDevicePushSubscription();
+    } catch (error) {
+      console.error(error);
+    }
     try {
       await getSupabaseClient().auth.signOut();
     } catch (error) {
@@ -36,6 +45,7 @@ export function AuthStatus() {
       // 共有端末で、前の人の内容が次の人の画面に出ないようにする。
       clearDraft();
       setSelectedChildId(null);
+      clearReminderDismissal();
     }
   }
 

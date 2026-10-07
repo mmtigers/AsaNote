@@ -305,9 +305,10 @@ ON/OFFと時刻の設定。仕様は §4。
 - **ログアウト**（ホームのヘッダー）:
   1. まず最終の同期を1回試す。
   2. それでもクラウドへ未反映の変更（未送信の記録・未反映の削除）が残っていれば、件数を示す確認ダイアログを出し、「消してログアウト」を選ばない限り何もしない（「やめる」で中止）。
-  3. サインアウトし、**この端末のIndexedDB（Dexie）を全消去**する。サインアウトに失敗しても消去は行う。共有端末で前ユーザーのデータが次のユーザーのアカウントへ誤同期されるのを防ぐため。
-  - 消去されるのはIndexedDBのみ。`localStorage` の下書き・選択中の子ども等は残る。**要確認 Q16**
-  - Push購読は解除しない。**要確認 Q5**
+  3. **この端末のPush購読を解除する**（ブラウザ側の購読と、サーバーの `push_subscriptions` の行。行の削除はログイン中でないとできないため、サインアウトの前に行う）。失敗（オフライン等）してもログアウトは続ける。ブラウザ側は先に解除するので、サーバーの行が残っても、この端末には通知が届かない。
+  4. サインアウトし、**この端末のIndexedDB（Dexie）を全消去**する。サインアウトに失敗しても消去は行う。共有端末で前ユーザーのデータが次のユーザーのアカウントへ誤同期されるのを防ぐため。
+  5. `localStorage` の下書き（メモを含む）・選択中の子ども・アプリ内リマインドを閉じた日付も消す（#131）。端末単位の設定（更新履歴の既読・マジックリンクのクールダウン）は消さない。
+  - ログインし直したあと、この端末で通知を受け取るには、「共有」タブで通知をもう一度オンにする（購読を作り直す）。
 
 ### 3.7 更新履歴（`/updates`・更新通知）
 
@@ -423,9 +424,9 @@ Supabase Edge Function `send-reminders`（`supabase/functions/send-reminders/ind
 |---|---|---|---|
 | IndexedDB（Dexie `asa-note-db`, v1） | `records`（索引: `id`, `recordDate`, `syncStatus`） | 記録（自分＋パートナー分のミラー） | **消える**（全テーブルを消去） |
 | 同上 | `pendingRecordDeletes`（`id`） | 未反映の削除のキュー | 消える |
-| `localStorage` | `asa-note:draft` | 記録フォームの下書き | 残る（**要確認 Q16**） |
-| 同上 | `asa-note:selectedChildId` | ホームで選択中の子ども | 残る |
-| 同上 | `asa-note:reminderDismissedDate` | アプリ内リマインドを閉じた日付 | 残る |
+| `localStorage` | `asa-note:draft` | 記録フォームの下書き | **消える** |
+| 同上 | `asa-note:selectedChildId` | ホームで選択中の子ども | **消える** |
+| 同上 | `asa-note:reminderDismissedDate` | アプリ内リマインドを閉じた日付 | **消える** |
 | 同上 | `asa-note:lastSeenReleaseVersion` | 最後に確認した更新履歴の版 | 残る |
 | 同上 | `asa-note:lastOtpSentAt` | マジックリンク最終送信時刻（クールダウン） | 残る |
 
@@ -517,7 +518,7 @@ stateDiagram-v2
 
 - **ログアウトでIndexedDBを全消去**する（共有端末で前ユーザーの記録が次のユーザーのアカウントへ誤同期されるのを防ぐため）。消去前に最終同期を試み、クラウドへ未反映の変更が残る場合は件数を示して確認を取る（§3.6）。
 - 同期されていない端末内の記録を失わないことを、消去より優先する（確認ダイアログで明示的に選ばない限り消さない）。
-- `localStorage`（下書き等）とPush購読は、ログアウトでは消えない。**要確認 Q16 / Q5**
+- `localStorage` の下書き・選択中の子ども・リマインドを閉じた日付と、この端末のPush購読（ブラウザ側とサーバーの行）も、ログアウトで消す（#131）。
 
 ### 6.7 その他の防御
 
@@ -838,7 +839,6 @@ npm run test:e2e       # Playwright（dev サーバーを自動起動）
 - **グループは1ユーザー1つ**。3人以上の運用は未検証。最後のメンバーが脱退したグループ・招待コードは残る。子どもの作成者が脱退すると、相手からは（RLSの条件が成り立たず）その子どもが見えなくなる。Q10 → [#128](https://github.com/mmtigers/AsaNote/issues/128)
 - **招待コードの総当たり耐性**: アプリ側の試行制限なし。Q11 → [#129](https://github.com/mmtigers/AsaNote/issues/129)
 - **Pushのリマインドは分単位の完全一致**: その分に実行が欠けるとその日は届かない（§4.3）。 → [#130](https://github.com/mmtigers/AsaNote/issues/130)
-- **ログアウトで消えないもの**: `localStorage`（下書き等）とPush購読。Q16 / Q5 → [#131](https://github.com/mmtigers/AsaNote/issues/131)
 - **IndexedDB書き込み失敗の専用UIなし**（§3.1.7）。 → [#132](https://github.com/mmtigers/AsaNote/issues/132)
 - **初回訪問直後のオフライン起動**: 未検証（§7.7）。Q15 → [#133](https://github.com/mmtigers/AsaNote/issues/133)
 - **未来日の記録が可能**。Q19 → [#134](https://github.com/mmtigers/AsaNote/issues/134)
@@ -878,7 +878,7 @@ npm run test:e2e       # Playwright（dev サーバーを自動起動）
 | Q2 | `buildExportFilename` が `.csv` 付きの名前を返し、印刷時の `document.title`（PDF保存名の候補）にも `.csv` が付く | §3.4 | `src/app/export/page.tsx`, `selectEntries.ts`, 同テスト |
 | Q3 | `analytics_step_funnel_daily` が旧ステップ名（`result` / `reason`）を数えるため、フロー1画面化後は到達数が常に0。ビューを更新するか | §11.3 | `supabase/schema.sql` |
 | Q4 | 体調（`conditionScale`）の入力UIが無く、`ConditionScalePicker` は未使用。復活させるか、列・型ごと整理するか | §5.1 | `src/app/_home/ConditionScalePicker.tsx` |
-| Q5 | ログアウトしてもPush購読（ブラウザ側とサーバー側 `push_subscriptions`）を解除しない。共有端末で前ユーザー宛の通知が届き続けうる。`unsubscribeCurrentDevice` は未使用 | §3.6, §6.6 | `src/lib/push.ts`, `src/components/AuthStatus.tsx` |
+| Q5（解消済み #131） | ログアウト時にPush購読（ブラウザ側とサーバー側 `push_subscriptions`）を解除するようにした | §3.6, §6.6 | `src/lib/push.ts`, `src/components/AuthStatus.tsx` |
 | Q6 | (解消) `send-reminders` と `notify-partner` を、専用の合言葉(`CRON_SECRET` / `PARTNER_NOTIFY_SECRET`)で確かめるようにした。非推奨の `SUPABASE_SERVICE_ROLE_KEY` との一致は、正しい鍵でも 401 になったため使わない | §4.6, §6.7 | `supabase/functions/*/index.ts`, `docs/push-notifications-setup.md` |
 | Q7 | `manifest` の `theme_color` / `background_color`（`#f6f3ec`）と、`layout.tsx` の `themeColor`・CSSの背景（`#fff5f6`）が不一致 | §13.2 | `public/manifest.webmanifest`, `src/app/layout.tsx`, `globals.css` |
 | Q8 | 子ども一覧の取得に失敗（オフライン起動など）すると「子どもなし」扱いになり、複数の子どもがいても `childId: null` で保存される。許容か | §3.1.7 | `src/lib/db/children.ts`, `src/lib/db/useAuthedList.ts` |
@@ -889,7 +889,7 @@ npm run test:e2e       # Playwright（dev サーバーを自動起動）
 | Q13 | 想定利用者の範囲（家族内の限定運用か一般公開か）、データの保持期間、退会（アカウント・データ削除）の方針。退会機能はコードに無い | §1.2, §6.5 | README、コード全般 |
 | Q14 | タイムラインのカードに子ども名が出ない／エクスポートが子どもで分かれない。意図か | §3.2, §3.4 | `src/app/timeline/page.tsx`, `src/app/export/page.tsx` |
 | Q15 | 初回訪問直後にオフラインで起動できるか（プリキャッシュは `/` とアイコンのみで、JS等は遅延キャッシュ）。未検証 | §7.7 | `public/sw.js` |
-| Q16 | ログアウトで消すのはIndexedDBのみ。`localStorage` の下書き（メモを含む）・選択中の子ども等は残る。共有端末での扱いはこれでよいか | §3.6, §5.3, §6.6 | `src/lib/db/localDb.ts`, `src/components/AuthStatus.tsx` |
+| Q16（解消済み #131） | ログアウトで、IndexedDBに加え、`localStorage` の下書き・選択中の子ども・リマインドを閉じた日付も消すようにした | §3.6, §5.3, §6.6 | `src/lib/db/localDb.ts`, `src/components/AuthStatus.tsx` |
 | Q17 | 計測の `entry_point: "push_reminder"` はアプリ内リマインド経由。名称を直すか、Push通知のタップを別に計測するか | §11.2 | `src/app/page.tsx` |
 | Q18 | Google Fonts を外部から取得（CSSの `@import`）。プライバシー・オフライン時の見た目の方針 | §6.5, §12 | `src/app/globals.css`, `public/sw.js` |
 | Q19 | ホームのカレンダーは未来日も選べて記録できる。意図か | §3.1.1 | `src/components/MonthCalendar.tsx`, `src/app/page.tsx` |
