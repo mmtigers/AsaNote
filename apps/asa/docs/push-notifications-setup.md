@@ -39,14 +39,18 @@ npx supabase link --project-ref <PROJECT_REF>
 ## 4. Edge Functionのシークレットを設定する
 
 `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` はSupabaseが全Edge Functionへ自動で
-注入するため、ここで設定するのは以下の3つだけ。
+注入するため、ここで設定するのは以下の4つだけ。
 
 ```bash
 npx supabase secrets set \
   VAPID_PUBLIC_KEY=<1で生成した公開鍵> \
   VAPID_PRIVATE_KEY=<1で生成した秘密鍵> \
-  VAPID_SUBJECT=mailto:<連絡先メールアドレス>
+  VAPID_SUBJECT=mailto:<連絡先メールアドレス> \
+  CRON_SECRET=<16文字以上のランダムな文字列(例: openssl rand -hex 32 の出力)>
 ```
+
+`CRON_SECRET` は、手順6で cron に渡す値と**同じもの**にする(cron からの呼び出しだけを通すための合言葉)。
+公開しない。ターミナルに表示した値は、手順6のSQLへ貼ったあと、`clear` で画面から消す。
 
 ## 5. Edge Functionをデプロイする
 
@@ -58,24 +62,28 @@ npx supabase functions deploy send-reminders
 `Authorization: Bearer <service_role key>` を付けてPOSTすると動作確認できる
 (未入力ユーザーがいなければ `{"checked":0,"sent":0}` 等を返す)。
 
-`send-reminders` は、`Authorization` が service role key と一致する呼び出しだけを受け付ける
-(それ以外は `401 unauthorized`)。Supabase の JWT 検証は公開されている anon キーでも通ってしまうため、
-関数の側で確かめている。動作確認(キーの値はシェルの履歴などに残さないこと):
+`send-reminders` は、`x-cron-secret` ヘッダが、手順4で設定した `CRON_SECRET` と一致する呼び出しだけを
+受け付ける(それ以外は `401 unauthorized`。`CRON_SECRET` が未設定なら `500`)。Supabase の JWT 検証は
+公開されている anon キーでも通ってしまうため、関数の側で、cron 専用の合言葉を確かめている。
 
-- service role key を付けた呼び出し → 200(上記のJSON)
-- anon キー、またはヘッダ無しの呼び出し → 401
+> `SUPABASE_SERVICE_ROLE_KEY` との一致は、使わない。この変数は非推奨(JWT Signing Keys への移行後)で、
+> 関数の中の値が、ダッシュボードの `service_role` の鍵と同じとは限らず、正しい鍵でも弾いてしまった。
 
-デプロイ後は、pg_cron からの呼び出しが 200 で通っていることも確認する(`401` が並んでいたら、
-下記6のジョブに入れた鍵が service role key ではない)。SQL Editor で:
+**初回の切り替え順(止まらない順番)**: ①手順4で `CRON_SECRET` を設定 → ②手順6の SQL で、cron に
+`x-cron-secret` ヘッダを足す(古い関数はこのヘッダを無視するので、この時点では動き続ける)→ ③関数を
+デプロイ(この手順)。デプロイ後は、cron からの呼び出しが `200` で通っていることを確認する。
+SQL Editor で:
 
 ```sql
-select status_code, created from net._http_response order by created desc limit 5;
+select status_code, content, created from net._http_response order by created desc limit 5;
 ```
+
+`401`(`unauthorized`)が並ぶなら、cron の合言葉と、関数の `CRON_SECRET` が違う。手順6を、同じ値で登録し直す。
 
 ## 6. pg_cronで定期実行する
 
 Supabaseダッシュボードの SQL Editor で `supabase/cron-reminders.sql` を開き、
-ファイル内の `<PROJECT_REF>` と `<SERVICE_ROLE_KEY>` を実際の値に置き換えてから
+ファイル内の `<PROJECT_REF>`・`<SERVICE_ROLE_KEY>`・`<CRON_SECRET>` を実際の値に置き換えてから
 実行する(このファイル自体は雛形なので、置き換えた実値はリポジトリに残さないこと)。
 
 `pg_cron` / `pg_net` 拡張が無効な場合は、Database > Extensions から有効化してから

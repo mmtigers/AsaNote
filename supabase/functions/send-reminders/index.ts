@@ -1,9 +1,11 @@
 // 未入力日のリマインドPush通知(#3-2)。
 //
-// pg_cron が毎分このEdge Functionを呼び出す(Authorization: Bearer <service_role key>)。
+// pg_cron が毎分このEdge Functionを呼び出す(Authorization: Bearer <service_role key> は Supabase の入口の
+// JWT 検証を通すため。呼び出し元の確認は、別ヘッダ x-cron-secret の合言葉で行う)。
 // SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY はSupabaseが全Edge Functionへ自動で注入する
 // (手動設定不要)。以下3つだけ `supabase secrets set` で個別に設定すること:
 //   VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBJECT(mailto:か https:// で始まる連絡先)
+// さらに、cron からの呼び出しを確かめる合言葉 CRON_SECRET(16文字以上)も設定すること。
 // 生成方法・デプロイ手順は docs/push-notifications-setup.md を参照。
 //
 // 処理の流れ:
@@ -16,7 +18,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
 import {
-  isAuthorizedCall,
+  isAuthorizedCron,
   jstDateNow,
   jstTimeNow,
   reminderPayload,
@@ -38,9 +40,15 @@ Deno.serve(async (req) => {
     });
   }
 
-  // 呼び出せるのは pg_cron(service role)だけ。Supabase の JWT 検証は公開されている anon キーでも
-  // 通してしまうため、ここで service role key との一致を確かめる(これが無いと誰でも繰り返し発火できる)。
-  if (!isAuthorizedCall(req.headers.get("Authorization"), serviceRoleKey)) {
+  // 呼び出せるのは pg_cron だけ。Supabase の JWT 検証は公開されている anon キーでも通してしまうため、
+  // cron 専用の合言葉(`x-cron-secret` ヘッダ。`supabase secrets set CRON_SECRET=...` で設定)を確かめる。
+  // `SUPABASE_SERVICE_ROLE_KEY` との一致は使わない(非推奨で、値がダッシュボードの鍵と同じとは限らない)。
+  if (!Deno.env.get("CRON_SECRET")) {
+    return new Response("CRON_SECRET が未設定です。docs/push-notifications-setup.mdを参照してください。", {
+      status: 500,
+    });
+  }
+  if (!isAuthorizedCron(req.headers.get("x-cron-secret"), Deno.env.get("CRON_SECRET"))) {
     return new Response("unauthorized", { status: 401 });
   }
 
