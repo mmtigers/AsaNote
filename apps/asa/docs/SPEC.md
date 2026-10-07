@@ -362,7 +362,7 @@ Supabase Edge Function `send-reminders`（`supabase/functions/send-reminders/ind
 条件と流れ:
 
 1. `records` のトリガー（`supabase/partner-notify-trigger.sql`）が、**結果入りの記録が新規にできた時だけ**発火する: INSERT で `outcome` が入っている、または UPDATE で `outcome` が null から値になった。結果が既にある記録の編集や、同期の再送（upsert）では発火しない。オフラインで作った記録は、同期でサーバーに入った時点で発火する。
-2. トリガーが Edge Function `notify-partner` を service role で呼ぶ（`{ user_id, record_id }`）。Authorization が service role と一致しなければ 401。クライアントからは呼ばない。
+2. トリガーが Edge Function `notify-partner` を呼ぶ（`{ user_id, record_id }`）。`x-notify-secret` ヘッダが関数側の `PARTNER_NOTIFY_SECRET` と一致しなければ 401。クライアントからは呼ばない。トリガーは `supabase/partner-notify-trigger.sql` を手動で実行して入れる（`schema.sql` の自動適用の対象外）。
 3. 記録者と同じグループの、本人以外のメンバーのうち `notify_partner_record = true` の人の全購読へ送る。**判定に使うのは受信者側の設定のみ**（記録者の設定は無関係）。子どもは区別しない。
 4. 内容: 「〇〇さんがきろくを追加しました」（〇〇は記録者のメールアドレスの `@` より前。表示名を持たないため。取れなければ「パートナーがきろくを追加しました」）。遷移先 `/timeline`。
 5. 410 / 404 の購読は削除。通知の失敗（`pg_net` 側の問題等）で記録の保存を巻き戻さない（トリガー内で例外を握る）。
@@ -375,7 +375,7 @@ Supabase Edge Function `send-reminders`（`supabase/functions/send-reminders/ind
 
 `push_subscriptions` / `notification_settings` テーブルは `schema.sql` の自動適用に含まれる。**Edge Functionのデプロイ、VAPID鍵の発行とシークレット設定、`pg_cron` の登録、パートナー通知のトリガー作成は自動化の対象外**で、`docs/push-notifications-setup.md` の手順で手動実施する（§8）。iOSでは、ホーム画面に追加したPWAとして開いている必要がある（同ドキュメント）。
 
-`send-reminders` は、呼び出し元を cron 専用の合言葉(`x-cron-secret` ヘッダ。関数側の `CRON_SECRET` と一致するものだけを通す。`_shared/pushLogic.ts` の `isAuthorizedCron`)で確かめる。`notify-partner` は service role の Bearer 一致を要求する。Q6 で解消。
+`send-reminders` は、呼び出し元を cron 専用の合言葉(`x-cron-secret` ヘッダ。関数側の `CRON_SECRET` と一致するものだけを通す。`_shared/pushLogic.ts` の `isAuthorizedSecret`)で確かめる。`notify-partner` も、トリガー専用の合言葉（`x-notify-secret` = `PARTNER_NOTIFY_SECRET`、`isAuthorizedSecret`）で確かめる。Q6 で解消。
 
 ## 5. データモデル
 
@@ -522,7 +522,7 @@ stateDiagram-v2
 ### 6.7 その他の防御
 
 - セキュリティヘッダ（`next.config.ts`）: `X-Content-Type-Options: nosniff`、`X-Frame-Options: DENY`、`Referrer-Policy: strict-origin-when-cross-origin`、`Permissions-Policy`（camera / microphone / geolocation を無効）。CSP は付けていない（Next.jsのインラインscript等との調整が必要なため）。
-- Edge Function: `notify-partner` は service role の Bearer 一致を要求する。`send-reminders` は cron 専用の合言葉（`x-cron-secret` = `CRON_SECRET`、`isAuthorizedCron`）を要求する。Supabase の JWT 検証は公開の anon キーでも通してしまうため、関数側で確かめる。`SUPABASE_SERVICE_ROLE_KEY` は非推奨で、値がダッシュボードの鍵と同じとは限らないため、`send-reminders` では使わない。
+- Edge Function: `send-reminders` は cron 専用の合言葉（`x-cron-secret` = `CRON_SECRET`）、`notify-partner` はトリガー専用の合言葉（`x-notify-secret` = `PARTNER_NOTIFY_SECRET`）を要求する（どちらも `isAuthorizedSecret`）。Supabase の JWT 検証は公開の anon キーでも通してしまうため、関数側で確かめる。`SUPABASE_SERVICE_ROLE_KEY` は非推奨で、値がダッシュボードの鍵と同じとは限らないため、どちらの関数でも使わない。
 - CI: GitHub Actions はコミットSHAで固定（テストで固定。`src/lib/ci-workflow.test.ts`）、ワークフローは最小権限（`contents: read`）、`npm audit --omit=dev` で本番依存の脆弱性を検査（§10）。
 
 ## 7. 同期・オフライン
@@ -879,7 +879,7 @@ npm run test:e2e       # Playwright（dev サーバーを自動起動）
 | Q3 | `analytics_step_funnel_daily` が旧ステップ名（`result` / `reason`）を数えるため、フロー1画面化後は到達数が常に0。ビューを更新するか | §11.3 | `supabase/schema.sql` |
 | Q4 | 体調（`conditionScale`）の入力UIが無く、`ConditionScalePicker` は未使用。復活させるか、列・型ごと整理するか | §5.1 | `src/app/_home/ConditionScalePicker.tsx` |
 | Q5 | ログアウトしてもPush購読（ブラウザ側とサーバー側 `push_subscriptions`）を解除しない。共有端末で前ユーザー宛の通知が届き続けうる。`unsubscribeCurrentDevice` は未使用 | §3.6, §6.6 | `src/lib/push.ts`, `src/components/AuthStatus.tsx` |
-| Q6 | (解消) `send-reminders` を `x-cron-secret`(`CRON_SECRET`)で確かめるようにした。`notify-partner` は service role の Bearer 一致のままで、同じ理由(非推奨の `SUPABASE_SERVICE_ROLE_KEY` が鍵と一致しない)で、実際には弾かれていないかの確認が要る | §4.6, §6.7 | `supabase/functions/*/index.ts`, `docs/push-notifications-setup.md` |
+| Q6 | (解消) `send-reminders` と `notify-partner` を、専用の合言葉(`CRON_SECRET` / `PARTNER_NOTIFY_SECRET`)で確かめるようにした。非推奨の `SUPABASE_SERVICE_ROLE_KEY` との一致は、正しい鍵でも 401 になったため使わない | §4.6, §6.7 | `supabase/functions/*/index.ts`, `docs/push-notifications-setup.md` |
 | Q7 | `manifest` の `theme_color` / `background_color`（`#f6f3ec`）と、`layout.tsx` の `themeColor`・CSSの背景（`#fff5f6`）が不一致 | §13.2 | `public/manifest.webmanifest`, `src/app/layout.tsx`, `globals.css` |
 | Q8 | 子ども一覧の取得に失敗（オフライン起動など）すると「子どもなし」扱いになり、複数の子どもがいても `childId: null` で保存される。許容か | §3.1.7 | `src/lib/db/children.ts`, `src/lib/db/useAuthedList.ts` |
 | Q9 | パートナーの新規記録が反映されるのは、起動時・ログイン・グループ参加/脱退時のみ。復帰時の取得や定期取得は不要か | §7.3 | `src/lib/auth/AuthProvider.tsx`, `src/app/group/useGroupAdmin.ts` |

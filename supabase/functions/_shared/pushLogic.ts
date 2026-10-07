@@ -43,20 +43,20 @@ export function displayNameFromEmail(email: string | undefined | null): string |
   return name ? name : null;
 }
 
-// 呼び出し元が pg_cron かを、cron 専用の合言葉(`CRON_SECRET`)で確かめる。
+// 呼び出し元を、専用の合言葉で確かめる(send-reminders は `CRON_SECRET`、notify-partner は `PARTNER_NOTIFY_SECRET`)。
 // 以前は service role key との一致で確かめていたが、`SUPABASE_SERVICE_ROLE_KEY` は非推奨になり(JWT Signing
 // Keys への移行後)、関数の中の値が、ダッシュボードの鍵と同じとは限らず、正しい鍵でも弾いてしまった。
 // 専用の合言葉なら、Supabase の鍵の仕組みに左右されない。Supabase の JWT 検証(既定で有効)は、公開の anon
 // キーでも通すため、これで「cron だけが呼べる」ようにしている。
 // 短すぎる合言葉は、推測されやすいので、設定ミスとして通さない。
-export const MIN_CRON_SECRET_LENGTH = 16;
+export const MIN_SECRET_LENGTH = 16;
 
-export function isAuthorizedCron(givenSecret: string | null, cronSecret: string | undefined): boolean {
-  if (!givenSecret || !cronSecret || cronSecret.length < MIN_CRON_SECRET_LENGTH) return false;
+export function isAuthorizedSecret(givenSecret: string | null, secret: string | undefined): boolean {
+  if (!givenSecret || !secret || secret.length < MIN_SECRET_LENGTH) return false;
   // 長さが違うときも含め、比較時間が一致位置に左右されないようにする。
-  let diff = givenSecret.length ^ cronSecret.length;
-  for (let i = 0; i < cronSecret.length; i++) {
-    diff |= (givenSecret.charCodeAt(i) || 0) ^ cronSecret.charCodeAt(i);
+  let diff = givenSecret.length ^ secret.length;
+  for (let i = 0; i < secret.length; i++) {
+    diff |= (givenSecret.charCodeAt(i) || 0) ^ secret.charCodeAt(i);
   }
   return diff === 0;
 }
