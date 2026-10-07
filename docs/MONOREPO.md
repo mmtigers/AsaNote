@@ -53,6 +53,13 @@
 2. Vercel の Root Directory を空(リポジトリのルート)に戻す。
 3. 急ぐ場合は、Vercel の Deployments から直前の成功デプロイを **Promote to Production**(即時に戻せる)。
 
+## 共通の設定(tsconfig・ESLint)
+
+- `tsconfig.base.json`(ルート): `apps/asa`・`apps/yoru`・`packages/core` の `tsconfig.json` が `extends` する、型検査の共通の土台。アプリごとに違うもの(`allowJs`・`incremental`・Next のプラグイン・`@/*` のパス・`include`)だけ、各 `tsconfig.json` に残す。
+- `eslint.base.mjs`(ルート): 3か所の `eslint.config.mjs` が取り込む、`eslint-config-next` の共通の土台。`ignore` など固有の設定は各 `eslint.config.mjs` に残す。`eslint.config.*` という名前にしないのは、ルートで eslint を動かしたときに自動で拾われないようにするため。
+- Vercel のあさノートのプロジェクトは「ルート外のファイルを含める」設定(上記)が有効なので、ルートの `tsconfig.base.json` を `extends` できる。この設定を切ると、ビルドが通らなくなる。
+- `vitest.config` / `playwright.config` は、アプリごとに中身が実質違う(対象ファイル・並列数・ポート・ブラウザの扱い)ため、共通化していない。
+
 ## 注意
 
 - `next dev` はアプリのディレクトリに `AGENTS.md` / `CLAUDE.md` を自動生成する(内容はルートと同じ)。
