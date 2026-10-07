@@ -34,16 +34,30 @@ describe("jstTimeNow / jstDateNow", () => {
 });
 
 describe("selectReminderTargets", () => {
-  it("今日outcome入りの記録があるユーザーを除く", () => {
-    expect(selectReminderTargets(["a", "b", "c"], ["b"])).toEqual(["a", "c"]);
+  const memberships = [
+    { user_id: "a", group_id: "g1" },
+    { user_id: "b", group_id: "g1" },
+    { user_id: "c", group_id: "g2" },
+  ];
+
+  it("本人が記録済みなら除く", () => {
+    expect(selectReminderTargets(["a", "c"], ["a"], memberships)).toEqual(["c"]);
   });
 
-  it("記録済みユーザーがいなければ全員が対象", () => {
-    expect(selectReminderTargets(["a", "b"], [])).toEqual(["a", "b"]);
+  it("同じグループの誰かが記録済みなら除く", () => {
+    expect(selectReminderTargets(["a", "b", "c"], ["b"], memberships)).toEqual(["c"]);
   });
 
-  it("全員記録済みなら対象は空", () => {
-    expect(selectReminderTargets(["a"], new Set(["a", "x"]))).toEqual([]);
+  it("別のグループの記録では除かない", () => {
+    expect(selectReminderTargets(["a", "c"], ["c"], memberships)).toEqual(["a"]);
+  });
+
+  it("グループ未所属は本人の記録だけで判断する", () => {
+    expect(selectReminderTargets(["x", "y"], ["y"], memberships)).toEqual(["x"]);
+  });
+
+  it("誰も記録していなければ全員が対象", () => {
+    expect(selectReminderTargets(["a", "b"], [], memberships)).toEqual(["a", "b"]);
   });
 });
 

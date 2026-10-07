@@ -351,7 +351,7 @@ ON/OFFと時刻の設定。仕様は §4。
 Supabase Edge Function `send-reminders`（`supabase/functions/send-reminders/index.ts`）を、`pg_cron` が**毎分**呼ぶ（`supabase/cron-reminders.sql`）。
 
 1. 現在のJST時刻（HH:MM）が `reminder_time` と一致し `enabled = true` のユーザーを探す（分単位の完全一致）。
-2. そのうち、今日（JST）に結果入りの記録が1件も無いユーザーだけを対象にする（子どもは区別しない。`selectReminderTargets`）。
+2. そのうち、今日（JST）に結果入りの記録が、**本人にも同じグループの誰にも1件も無い**ユーザーだけを対象にする（夫婦のどちらかが記録済みなら、もう一方には送らない。アプリ内の表示と同じ。子どもは区別しない。`selectReminderTargets`）。
 3. 対象ユーザーの**全購読**へ送る。内容: タイトル「あさノート」、本文「今日の記録がまだのようです」、遷移先 `/`。
 4. 送信が 410 / 404（購読の失効）なら、その購読行を削除する。それ以外の失敗は警告ログのみで購読は残す。
 
