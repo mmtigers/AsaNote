@@ -1,10 +1,12 @@
 // 未入力の夜のリマインドPush通知。
 //
-// pg_cron が毎分このEdge Functionを呼び出す(Authorization: Bearer <service_role key>)。
+// pg_cron が毎分このEdge Functionを呼び出す(Authorization: Bearer <service_role key> は Supabase の入口の
+// JWT 検証を通すため。呼び出し元の確認は、別ヘッダ x-cron-secret の合言葉(EVENING_CRON_SECRET)で行う)。
 // SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY はSupabaseが全Edge Functionへ自動で注入する。
-// 以下3つだけ `supabase secrets set` で設定すること(あさノートと同じプロジェクトを共有している
-// 場合は、あさノートで設定済みの値がそのまま使える):
+// 以下は `supabase secrets set` で設定すること(あさノートと同じプロジェクトを共有している
+// 場合、VAPID_* はあさノートで設定済みの値がそのまま使える。合言葉は、あさノートの CRON_SECRET とは別の値):
 //   VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / VAPID_SUBJECT(mailto:か https:// で始まる連絡先)
+//   EVENING_CRON_SECRET(16文字以上のランダムな文字列)
 // 手順は docs/push-notifications-setup.md を参照。
 //
 // 処理の流れ:
@@ -18,7 +20,7 @@
 // (共有モードでは同じ DB に同居するため、混ざるとあさノートの通知が届いてしまう)。
 import { createClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
-import { isAuthorizedCall } from "../_shared/pushLogic.ts";
+import { isAuthorizedSecret } from "../_shared/pushLogic.ts";
 import { runReminders, type ReminderDb } from "../_shared/reminderHandler.ts";
 
 // 処理の本体は _shared/reminderHandler.ts(テストあり)。ここは環境変数と本物のクライアントの組み立てだけ。
@@ -41,8 +43,13 @@ Deno.serve(async (request) => {
     });
   }
 
-  // cron 以外(anon キーを知っているだけの第三者)からの呼び出しは受け付けない。
-  if (!isAuthorizedCall(request.headers.get("Authorization"), serviceRoleKey)) {
+  // 呼び出せるのはcronだけ。Supabase の JWT 検証は公開されている anon キーでも通してしまうため、専用の合言葉
+  // (`x-cron-secret` ヘッダ。`supabase secrets set EVENING_CRON_SECRET=...` で設定)を確かめる。
+  // `SUPABASE_SERVICE_ROLE_KEY` との一致は使わない(非推奨で、値がダッシュボードの鍵と同じとは限らない)。
+  if (!Deno.env.get("EVENING_CRON_SECRET")) {
+    return new Response("EVENING_CRON_SECRET が未設定です。docs/push-notifications-setup.mdを参照してください。", { status: 500 });
+  }
+  if (!isAuthorizedSecret(request.headers.get("x-cron-secret"), Deno.env.get("EVENING_CRON_SECRET"))) {
     return new Response("unauthorized", { status: 401 });
   }
 

@@ -4,8 +4,11 @@
 -- 自動適用されない(schema.sql のみが対象)。SupabaseのSQL Editorで手動で1回実行すること。
 -- 手順の全体像は docs/push-notifications-setup.md を参照。
 --
--- 実行前に、下記の <PROJECT_REF> と <SERVICE_ROLE_KEY> を実際の値へ置き換えること
+-- 実行前に、下記の <PROJECT_REF>・<SERVICE_ROLE_KEY>・<NOTIFY_SECRET> を実際の値へ置き換えること
 -- (置き換えた実値はリポジトリに残さない)。
+--   <SERVICE_ROLE_KEY> : Supabase の入口の JWT 検証を通すため
+--   <NOTIFY_SECRET>    : `supabase secrets set EVENING_NOTIFY_SECRET=...` で設定した値と同じもの
+--                        (あさノートの PARTNER_NOTIFY_SECRET・EVENING_CRON_SECRET とは別の値)
 --
 -- あさノートの partner-notify-trigger.sql(records 用)とは別名・別の表のトリガー。
 -- 発火条件は「outcome入りの記録が新規にできた時」だけ:
@@ -28,7 +31,8 @@ begin
       url := 'https://<PROJECT_REF>.supabase.co/functions/v1/notify-evening-partner',
       headers := jsonb_build_object(
         'Content-Type', 'application/json',
-        'Authorization', 'Bearer <SERVICE_ROLE_KEY>'
+        'Authorization', 'Bearer <SERVICE_ROLE_KEY>',
+        'x-notify-secret', '<NOTIFY_SECRET>'
       ),
       body := jsonb_build_object('user_id', new.user_id, 'record_id', new.id)
     );

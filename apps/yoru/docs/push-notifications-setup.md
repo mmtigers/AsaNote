@@ -34,11 +34,19 @@ npx supabase login
 npx supabase link --project-ref <PROJECT_REF>
 ```
 
-## 4. Edge Functionのシークレットを設定する(あさノートで設定済みなら不要)
+## 4. Edge Functionのシークレットを設定する
 
 ```bash
+# VAPID_*: あさノートで設定済みなら不要(同じプロジェクトで共有される)
 npx supabase secrets set VAPID_PUBLIC_KEY=<公開鍵> VAPID_PRIVATE_KEY=<秘密鍵> VAPID_SUBJECT=mailto:<連絡先>
+
+# 合言葉(必須。16文字以上のランダムな文字列。例: openssl rand -hex 32 の出力)
+npx supabase secrets set EVENING_CRON_SECRET=<合言葉>
 ```
+
+`EVENING_CRON_SECRET` は、手順6で cron に渡す値と**同じもの**にする(cron からの呼び出しだけを通すための合言葉)。
+あさノートと同じ Supabase プロジェクトを共有するため、あさノートの `CRON_SECRET` とは**別の名前・別の値**にする。
+公開しない。ターミナルに表示した値は、手順6のSQLへ貼ったあと、`clear` で画面から消す。
 
 ## 5. Edge Functionをデプロイする
 
@@ -46,10 +54,18 @@ npx supabase secrets set VAPID_PUBLIC_KEY=<公開鍵> VAPID_PRIVATE_KEY=<秘密�
 npx supabase functions deploy send-evening-reminders
 ```
 
+`send-evening-reminders` は、`x-cron-secret` ヘッダが、手順4で設定した `EVENING_CRON_SECRET` と一致する呼び出しだけを
+受け付ける(それ以外は `401 unauthorized`。未設定なら `500`)。Supabase の JWT 検証は公開されている anon キーでも
+通ってしまうため、関数の側で、cron 専用の合言葉を確かめている。`SUPABASE_SERVICE_ROLE_KEY` との一致は使わない
+(非推奨の変数で、値がダッシュボードの鍵と同じとは限らず、あさノートでは、正しい鍵でも弾いてしまった)。
+
+デプロイ後、手順6のあとに、cron からの呼び出しが `200` で通っていることを確認する(トラブルシューティング参照)。
+匿名キーでの呼び出しが `401` になることも確かめる。
+
 ## 6. pg_cronで定期実行する
 
-SQL Editor で `supabase/cron-evening-reminders.sql` の `<PROJECT_REF>` と `<SERVICE_ROLE_KEY>` を置き換えて実行する。
-置き換えた実値はコミットしないこと。ジョブ名は `send-evening-reminders`(あさノートの `send-reminders` とは別)。
+SQL Editor で `supabase/cron-evening-reminders.sql` の `<PROJECT_REF>`・`<SERVICE_ROLE_KEY>`・`<CRON_SECRET>` を置き換えて実行する
+(`<CRON_SECRET>` は手順4の `EVENING_CRON_SECRET` と同じ値)。置き換えた実値はコミットしないこと。ジョブ名は `send-evening-reminders`(あさノートの `send-reminders` とは別)。
 
 ## 7. 動作確認
 
@@ -65,22 +81,32 @@ SQL Editor で `supabase/cron-evening-reminders.sql` の `<PROJECT_REF>` と `<S
 あさノートの `notify-partner` / `partner-notify-trigger.sql` とは別の関数・別のトリガー(対象は `evening_records`)。
 
 1. `supabase/schema.sql` を実行して `evening_notification_settings.notify_partner_record` 列を作る(`add column if not exists` なので再実行しても安全)。
-2. Edge Functionをデプロイする。
+2. 合言葉を作って、関数側に設定する。`EVENING_CRON_SECRET` とは**別の値**にする(あさノートの `PARTNER_NOTIFY_SECRET` とも別)。
+
+   ```bash
+   npx supabase secrets set EVENING_NOTIFY_SECRET=<16文字以上のランダムな文字列(openssl rand -hex 32 など)>
+   ```
+
+3. Edge Functionをデプロイする。
 
    ```bash
    npx supabase functions deploy notify-evening-partner
    ```
 
-3. SQL Editor で `supabase/evening-partner-notify-trigger.sql` の `<PROJECT_REF>` と `<SERVICE_ROLE_KEY>` を置き換えて実行する(置き換えた実値はコミットしない)。
-4. 確認: 2つの端末(別アカウント・同じグループ)で、片方が通知をON、もう片方が様子を選んで保存する。ONにした側へ通知が届けば成功。
+   `x-notify-secret` ヘッダが `EVENING_NOTIFY_SECRET` と一致しない呼び出しは `401`(未設定なら `500`)。
+
+4. SQL Editor で `supabase/evening-partner-notify-trigger.sql` の `<PROJECT_REF>`・`<SERVICE_ROLE_KEY>`・`<NOTIFY_SECRET>` を置き換えて実行する
+   (`<NOTIFY_SECRET>` は手順2と同じ値。置き換えた実値はコミットしない)。
+5. 確認: 2つの端末(別アカウント・同じグループ)で、片方が通知をON、もう片方が様子を選んで保存する。ONにした側へ通知が届けば成功。
    既に様子が入っている記録の編集や、同期の再送では通知されない。
 
 ## トラブルシューティング
 
 - 通知が届かない場合は、Supabase ダッシュボードの Edge Functions > `send-evening-reminders`(パートナー通知なら `notify-evening-partner`)> Logs を確認する。
 - cronの呼び出し結果: `select status_code, content, created from net._http_response order by created desc limit 5;`
-  (200なら正常、401は service_role キーの誤り、404は PROJECT_REF の誤り)。
-  関数は、Authorization が service_role キーと一致しない呼び出し(公開されている anon キーを含む)を 401 で断る。cron に別のキーを入れていないか確認する。
+  (200なら正常、401は合言葉(`EVENING_CRON_SECRET` / `EVENING_NOTIFY_SECRET`)の不一致、404は PROJECT_REF の誤り)。
+  合言葉の `401` が並ぶときは、cron・トリガーに入れた値と、`supabase secrets set` で設定した値を、同じにして登録し直す。
+  このテーブルの記録は、既定で数時間(6時間ほど)で消えるので、確認は、呼び出しの直後に行う。
 - 500 で `Vapid public key must be a URL safe Base 64` と出る場合は `VAPID_PUBLIC_KEY` の値が不正(末尾の `=`・引用符・空白の混入、秘密鍵との取り違え)。
 - 「通知機能が未設定です」と出る場合は、Vercel の `NEXT_PUBLIC_VAPID_PUBLIC_KEY` が未設定、または設定後に再デプロイしていない。
 - 購読の行が消えている場合は、ブラウザ側で購読が失効(410/404)して自動削除された可能性が高い。もう一度ONにし直す。
