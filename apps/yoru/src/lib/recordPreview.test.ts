@@ -53,9 +53,9 @@ describe("buildRecordPreview", () => {
     expect(text).toBe("穏やかな夜。");
   });
 
-  it("旧い時刻の記録は時間帯に寄せて文章にする", () => {
+  it("「ほか」で選んだ時刻は「ごろ」を付けて文章にする", () => {
     expect(buildRecordPreview({ ...EMPTY, outcome: "calm", times: { arrive: "14:45", bed: "21:30" } })).toBe(
-      "穏やかな夜。14〜15時に帰宅。21時以降に消灯。"
+      "穏やかな夜。14:45ごろに帰宅。21:30ごろに消灯。"
     );
   });
 });

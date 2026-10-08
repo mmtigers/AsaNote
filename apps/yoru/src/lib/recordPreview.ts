@@ -8,7 +8,7 @@ import {
   type Outcome,
   type ResponseEffect,
 } from "@/constants/choices";
-import { bandLabel } from "@/lib/timeBands";
+import { milestoneWhen } from "@/lib/timeBands";
 
 export interface PreviewInput {
   outcome: Outcome | null;
@@ -38,9 +38,9 @@ export function buildRecordPreview(input: PreviewInput): string | null {
   const { times } = input;
   const parts: string[] = [`${outcome.phrase}。`];
 
-  const arrive = bandLabel("arrive", times.arrive);
+  const arrive = milestoneWhen("arrive", times.arrive);
   if (arrive) parts.push(`${arrive}に帰宅。`);
-  const hwStart = bandLabel("hwStart", times.hwStart);
+  const hwStart = milestoneWhen("hwStart", times.hwStart);
   if (hwStart) parts.push(`宿題は${hwStart}に開始。`);
 
   const dinner = DINNER_OPTIONS.find((d) => d.value === input.dinner);
@@ -62,7 +62,7 @@ export function buildRecordPreview(input: PreviewInput): string | null {
 
   if (input.body.length > 0) parts.push(`からだ: ${joinTags(input.body)}。`);
   if (input.photoCount > 0) parts.push(`写真${input.photoCount}枚。`);
-  const bed = bandLabel("bed", times.bed);
+  const bed = milestoneWhen("bed", times.bed);
   if (bed) parts.push(`${bed}に消灯。`);
 
   const memo = input.memo?.trim();

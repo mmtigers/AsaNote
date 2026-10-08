@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bandLabel, milestoneDisplay, normalizeMilestoneValue, toBandId } from "./timeBands";
+import { milestoneDisplay, milestoneWhen, normalizeMilestoneValue, toBandId } from "./timeBands";
 
 describe("toBandId", () => {
   it("帯のidはそのまま", () => {
@@ -25,16 +25,24 @@ describe("toBandId", () => {
   });
 });
 
-describe("bandLabel / milestoneDisplay / normalizeMilestoneValue", () => {
-  it("帯の名前を返し、夕食は時刻のまま", () => {
-    expect(bandLabel("bed", "mid")).toBe("20〜21時");
-    expect(milestoneDisplay("hwStart", "19:30")).toBe("19時以降");
+describe("milestoneWhen / milestoneDisplay / normalizeMilestoneValue", () => {
+  it("帯は名前、「ほか」の時刻は「ごろ」付きで返す", () => {
+    expect(milestoneWhen("bed", "mid")).toBe("20〜21時");
+    expect(milestoneWhen("bed", "20:30")).toBe("20:30ごろ");
+    expect(milestoneWhen("bed", "bad")).toBeNull();
+  });
+
+  it("一覧・CSV用は、帯なら名前、時刻はそのまま。夕食は時刻のまま", () => {
+    expect(milestoneDisplay("hwStart", "early")).toBe("15〜17時");
+    expect(milestoneDisplay("hwStart", "19:30")).toBe("19:30");
     expect(milestoneDisplay("dinner", "18:30")).toBe("18:30");
     expect(milestoneDisplay("bed", null)).toBe("");
   });
 
-  it("保存用の値は帯のid、夕食は時刻のまま", () => {
-    expect(normalizeMilestoneValue("bed", "20:30")).toBe("mid");
+  it("帯のidと読める時刻は通し、読めない値は捨てる。夕食は時刻のまま", () => {
+    expect(normalizeMilestoneValue("bed", "20:30")).toBe("20:30");
+    expect(normalizeMilestoneValue("bed", "mid")).toBe("mid");
+    expect(normalizeMilestoneValue("bed", "ng")).toBeNull();
     expect(normalizeMilestoneValue("dinner", "18:00")).toBe("18:00");
     expect(normalizeMilestoneValue("bed", null)).toBeNull();
   });

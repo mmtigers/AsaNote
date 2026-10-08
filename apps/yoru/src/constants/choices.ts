@@ -22,8 +22,9 @@ export function isRoughOutcome(outcome: Outcome | null | undefined): boolean {
   return outcome === "rough" || outcome === "storm";
 }
 
-// 節目。arrive / hwStart / bath / bed は「時間帯」から1つ選ぶ(bands)。保存するのは帯のid(early / mid / late)で、
-// 時刻そのものではない。dinner だけは従来どおり時刻で、candidates が初期の候補ボタン(3つ)、
+// 節目。arrive / hwStart / bath / bed は「時間帯」のボタンから1つ選ぶ(bands)。保存するのは帯のid
+// (early / mid / late)。menu を持つ節目は「ほか」から時刻も選べて、その場合は "HH:MM" を保存する
+// (傾向では、その時刻が属する帯に数える)。dinner だけは時刻で、candidates が初期の候補ボタン(3つ)、
 // 使うほど「その項目でよく選ぶ時刻」へ入れ替わる(src/lib/timeCandidates.ts)。
 // from〜to を step 分刻みにしたものが「ほか」の選択肢。
 // bands の to は帯の終わり(分・その時刻は含まない)。上限が無い最後の帯は Infinity。
@@ -31,6 +32,7 @@ export const MILESTONES = [
   {
     key: "arrive",
     label: "帰宅",
+    menu: { from: "12:00", to: "17:00", step: 15 },
     bands: [
       { id: "early", label: "14時より前", to: 14 * 60 },
       { id: "mid", label: "14〜15時", to: 15 * 60 },
@@ -40,6 +42,7 @@ export const MILESTONES = [
   {
     key: "hwStart",
     label: "宿題 開始",
+    menu: { from: "15:00", to: "20:00", step: 30 },
     bands: [
       { id: "early", label: "15〜17時", to: 17 * 60 },
       { id: "mid", label: "17〜19時", to: 19 * 60 },
@@ -50,6 +53,7 @@ export const MILESTONES = [
   {
     key: "bath",
     label: "お風呂",
+    menu: { from: "15:00", to: "21:00", step: 30 },
     bands: [
       { id: "early", label: "15〜17時", to: 17 * 60 },
       { id: "mid", label: "17〜19時", to: 19 * 60 },
@@ -86,6 +90,9 @@ export const EFFECT_OPTIONS = [
 export type ResponseEffect = (typeof EFFECT_OPTIONS)[number]["value"];
 
 // 以下のタグは、使用回数の多い順に並べ替えられる(src/lib/tagOptions.ts)。
+// 「食べた」のときの理由。「少し」「食べず」のときは DINNER_WHY_TAGS。どちらも evening_records.dinner_why に入る。
+export const DINNER_ATE_WHY_TAGS = ["好きなメニュー", "お腹がすいていた", "楽しく食べた", "おかわりした"] as const;
+
 export const DINNER_WHY_TAGS = ["においが苦手", "メニューが好みでない", "テレビに集中", "疲れ・眠い", "食欲がない"] as const;
 
 export const FREE_TIME_TAGS = ["TV", "YouTube", "読書", "ゲーム", "外遊び", "お絵かき"] as const;
