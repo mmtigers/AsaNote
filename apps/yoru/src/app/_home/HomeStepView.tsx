@@ -11,7 +11,6 @@ import { formatDateLabel, toMonthOf } from "@note/core/date";
 import type { LocalRecord } from "@/lib/db/localDb";
 import { useRecordPhotos } from "@/lib/db/photos";
 import { buildRecordPreview } from "@/lib/recordPreview";
-import type { QuickOutcome } from "@/lib/db/quickRecord";
 import type { Child } from "@/types/models";
 
 interface HomeStepViewProps {
@@ -26,8 +25,6 @@ interface HomeStepViewProps {
   onSelectChild: (id: string | null) => void;
   ownRecord: LocalRecord | null | undefined;
   onStart: () => void;
-  onQuick: (outcome: QuickOutcome) => void;
-  quickNotice: string | null;
 }
 
 function RecordSummary({ record, onEdit }: { record: LocalRecord; onEdit: () => void }) {
@@ -62,8 +59,6 @@ export function HomeStepView({
   onSelectChild,
   ownRecord,
   onStart,
-  onQuick,
-  quickNotice,
 }: HomeStepViewProps) {
   const isToday = selectedDate === today;
   const hasRecord = !!ownRecord?.outcome;
@@ -71,8 +66,10 @@ export function HomeStepView({
   return (
     <main className="mx-auto flex max-w-md flex-col gap-4 px-4 pt-6">
       <header className="flex items-start justify-between gap-3">
-        <h1 className="text-lg font-bold">🌙 {formatDateLabel(selectedDate)}のきろく</h1>
-        <AuthStatus />
+        <h1 className="shrink-0 whitespace-nowrap text-lg font-bold">🌙 {formatDateLabel(selectedDate)}のきろく</h1>
+        <div className="min-w-0">
+          <AuthStatus />
+        </div>
       </header>
 
       <ReleaseNotice />
@@ -106,31 +103,6 @@ export function HomeStepView({
         >
           🌙 {isToday ? "今夜の様子を記録する" : "この日の様子を記録する"}
         </button>
-      )}
-
-      {isToday && (
-        <section aria-label="クイック記録" className="rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-4">
-          <p className="text-[13px] font-semibold">⚡ いま荒れた?ワンタップで時刻を残す</p>
-          <div className="mt-2 flex gap-2">
-            <button
-              type="button"
-              onClick={() => onQuick("rough")}
-              className="flex-1 rounded-full border border-[var(--line)] py-3 text-sm font-bold focus:ring-2 focus:ring-[var(--accent)]"
-            >
-              😣 少し荒れた
-            </button>
-            <button
-              type="button"
-              onClick={() => onQuick("storm")}
-              className="flex-1 rounded-full border border-[var(--line)] py-3 text-sm font-bold focus:ring-2 focus:ring-[var(--accent)]"
-            >
-              🌩 大荒れ
-            </button>
-          </div>
-          <p role="status" className="mt-2 min-h-4 text-xs text-[var(--sub)]">
-            {quickNotice ?? "詳細はあとで「記録を編集する」から足せます。"}
-          </p>
-        </section>
       )}
     </main>
   );

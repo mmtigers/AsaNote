@@ -1,7 +1,7 @@
 // 傾向ページ(#2)の集計ロジック。画面から切り離した純関数として置き、テストで固定する
 // (件数の数え間違いは画面がエラーにならず静かに嘘をつくため)。
-import { OUTCOME_OPTIONS, type MilestoneKey, type Outcome, type ResponseEffect } from "@/constants/choices";
-import { parseTimeToMinutes } from "@note/core/date";
+import { type BandMilestoneKey, type MilestoneKey, type Outcome, type ResponseEffect } from "@/constants/choices";
+import { bandsOf, toBandId } from "@/lib/timeBands";
 
 // 集計に必要なフィールドだけを要求する(テストで最小のオブジェクトを渡せるようにするため)。
 export interface AggregatableRecord {
@@ -60,16 +60,16 @@ export function recordsForOutcome<T extends AggregatableRecord>(records: T[], ou
   return newestFirst(records.filter((r) => r.outcome === outcome));
 }
 
+function recordsForBand<T extends AggregatableRecord>(records: T[], key: BandMilestoneKey, bandId: string): T[] {
+  return newestFirst(records.filter((r) => !!r.outcome && toBandId(key, r.times[key]) === bandId));
+}
+
+export function recordsForBedtime<T extends AggregatableRecord>(records: T[], bucketKey: string): T[] {
+  return recordsForBand(records, "bed", bucketKey);
+}
+
 export function recordsForHomeworkStart<T extends AggregatableRecord>(records: T[], bucketKey: string): T[] {
-  const bucket = HW_START_BUCKETS.find((b) => b.key === bucketKey);
-  if (!bucket) return [];
-  return newestFirst(
-    records.filter((r) => {
-      if (!r.outcome || !r.times.hwStart) return false;
-      const minutes = parseTimeToMinutes(r.times.hwStart);
-      return minutes !== null && minutes >= bucket.from && minutes < bucket.to;
-    })
-  );
+  return recordsForBand(records, "hwStart", bucketKey);
 }
 
 export function recordsForFriendPromise<T extends AggregatableRecord>(records: T[], bucketKey: "with" | "without" | string): T[] {
@@ -103,28 +103,27 @@ function toBucket(key: string, label: string, counts: OutcomeCounts): OutcomeBuc
   return { key, label, total: counts.calm + counts.rough + counts.storm, counts, roughRate: roughRate(counts) };
 }
 
-// 宿題開始時刻の区分(分)。境界はMILESTONES.hwStartの候補(15:30/16:00/17:00)に合わせた。
-const HW_START_BUCKETS = [
-  { key: "early", label: "〜15:59", from: 0, to: 16 * 60 },
-  { key: "mid", label: "16:00台", from: 16 * 60, to: 17 * 60 },
-  { key: "late", label: "17:00台", from: 17 * 60, to: 18 * 60 },
-  { key: "later", label: "18:00〜", from: 18 * 60, to: 24 * 60 },
-] as const;
-
-// 宿題開始時刻 × 様子。開始時刻と様子の両方がある記録だけが対象で、記録の無い区分は省く。
-export function outcomeByHomeworkStart(records: AggregatableRecord[]): OutcomeBucket[] {
-  const counts = new Map<string, OutcomeCounts>(HW_START_BUCKETS.map((b) => [b.key, emptyCounts()]));
+// ある節目(時間帯で選ぶもの)× 様子。節目と様子の両方がある記録だけが対象で、記録の無い帯は省く。
+function outcomeByBand(records: AggregatableRecord[], key: BandMilestoneKey): OutcomeBucket[] {
+  const bands = bandsOf(key);
+  const counts = new Map<string, OutcomeCounts>(bands.map((b) => [b.id, emptyCounts()]));
   for (const r of records) {
-    if (!r.outcome || !r.times.hwStart) continue;
-    const minutes = parseTimeToMinutes(r.times.hwStart);
-    if (minutes === null) continue;
-    const bucket = HW_START_BUCKETS.find((b) => minutes >= b.from && minutes < b.to);
-    const c = bucket && counts.get(bucket.key);
+    if (!r.outcome) continue;
+    const id = toBandId(key, r.times[key]);
+    const c = id && counts.get(id);
     if (c) c[r.outcome] += 1;
   }
-  return HW_START_BUCKETS.map((b) => toBucket(b.key, b.label, counts.get(b.key) ?? emptyCounts())).filter(
-    (b) => b.total > 0
-  );
+  return bands.map((b) => toBucket(b.id, b.label, counts.get(b.id) ?? emptyCounts())).filter((b) => b.total > 0);
+}
+
+// 宿題開始の時間帯 × 様子。
+export function outcomeByHomeworkStart(records: AggregatableRecord[]): OutcomeBucket[] {
+  return outcomeByBand(records, "hwStart");
+}
+
+// 消灯の時間帯 × 様子。
+export function outcomeByBedtime(records: AggregatableRecord[]): OutcomeBucket[] {
+  return outcomeByBand(records, "bed");
 }
 
 // 友達との約束の有無 × 様子。「約束あり」「約束なし」のタグが付いた記録だけが対象。
@@ -140,53 +139,6 @@ export function outcomeByFriendPromise(records: AggregatableRecord[]): OutcomeBu
   return [toBucket("with", "約束あり", withPromise), toBucket("without", "約束なし", without)].filter(
     (b) => b.total > 0
   );
-}
-
-// 消灯時刻 × 様子: 様子ごとの平均消灯時刻(分)。消灯時刻と様子の両方がある記録だけが対象。
-export interface BedtimeByOutcome {
-  outcome: Outcome;
-  count: number;
-  averageMinutes: number;
-}
-
-export function averageBedtimeByOutcome(records: AggregatableRecord[]): BedtimeByOutcome[] {
-  const sums = new Map<Outcome, { sum: number; count: number }>();
-  for (const r of records) {
-    if (!r.outcome || !r.times.bed) continue;
-    const minutes = parseTimeToMinutes(r.times.bed);
-    if (minutes === null) continue;
-    const cur = sums.get(r.outcome) ?? { sum: 0, count: 0 };
-    cur.sum += minutes;
-    cur.count += 1;
-    sums.set(r.outcome, cur);
-  }
-  return OUTCOME_OPTIONS.flatMap((o) => {
-    const s = sums.get(o.value);
-    return s ? [{ outcome: o.value, count: s.count, averageMinutes: Math.round(s.sum / s.count) }] : [];
-  });
-}
-
-export interface BedtimePoint {
-  date: string;
-  minutes: number;
-  outcome: Outcome | null;
-}
-
-// 消灯時刻の推移: 日付の古い順の直近limit件。同じ日に複数件(子どもが複数など)あれば最終更新が新しい方。
-export function bedtimeTrend(records: AggregatableRecord[], limit = 14): BedtimePoint[] {
-  const byDate = new Map<string, { point: BedtimePoint; updatedAt: string }>();
-  for (const r of records) {
-    if (!r.times.bed) continue;
-    const minutes = parseTimeToMinutes(r.times.bed);
-    if (minutes === null) continue;
-    const current = byDate.get(r.recordDate);
-    if (!current || r.updatedAt.localeCompare(current.updatedAt) > 0) {
-      byDate.set(r.recordDate, { point: { date: r.recordDate, minutes, outcome: r.outcome }, updatedAt: r.updatedAt });
-    }
-  }
-  return Array.from(byDate.values(), (v) => v.point)
-    .sort((a, b) => a.date.localeCompare(b.date))
-    .slice(-limit);
 }
 
 export interface TagCount {

@@ -6,7 +6,7 @@ const RECORD: LocalRecord = {
   id: "r1",
   recordDate: "2026-10-05",
   outcome: "rough",
-  times: { arrive: "15:00", hwStart: "16:00", bed: "20:45" },
+  times: { arrive: "late", hwStart: "early", dinner: "18:00", bed: "mid" },
   dinner: "little",
   dinnerWhy: ["においが苦手"],
   free: ["TV"],
@@ -15,7 +15,7 @@ const RECORD: LocalRecord = {
   behavior: ["号泣"],
   response: ["放置"],
   responseEffect: "mid",
-  body: ["蕁麻疹"],
+  body: ["疲れ"],
   memo: "メモ",
   userId: null,
   childId: "c1",
@@ -41,18 +41,27 @@ describe("toRecordRow / fromRecordRow", () => {
   it("未入力の節目は null の列になり、user_id が付く", () => {
     const row = toRecordRow(RECORD, "u1");
     expect(row.user_id).toBe("u1");
-    expect(row.t_arrive).toBe("15:00");
-    expect(row.t_dinner).toBeNull();
-    expect(row.t_bed).toBe("20:45");
+    expect(row.t_arrive).toBe("late");
+    expect(row.t_dinner).toBe("18:00");
+    expect(row.t_bath).toBeNull();
+    expect(row.t_bed).toBe("mid");
     expect(row.child_id).toBe("c1");
     expect(row.response_effect).toBe("mid");
   });
 
   it("往復しても内容が変わらない(秒付きの time でも HH:MM に戻る)", () => {
     const row = toRecordRow(RECORD, "u1");
-    const cloud = { ...row, t_arrive: "15:00:00", t_hw_start: "16:00:00", t_bed: "20:45:00" };
+    const cloud = { ...row, t_dinner: "18:00:00" };
     const back = fromRecordRow(cloud);
     expect(back).toEqual({ ...RECORD, userId: "u1", syncStatus: "synced" });
+  });
+
+  it("帯の節目に旧い時刻が残っていても、クラウドへは帯のidで書き、読むときも帯に寄せる", () => {
+    const row = toRecordRow({ ...RECORD, times: { arrive: "14:30", bed: "21:15" } }, "u1");
+    expect(row.t_arrive).toBe("mid");
+    expect(row.t_bed).toBe("late");
+    const back = fromRecordRow({ ...row, t_arrive: "14:30:00", t_hw_start: "18:00:00" });
+    expect(back.times).toEqual({ arrive: "mid", hwStart: "mid", bed: "late" });
   });
 
   it("配列列が null で返ってきても空配列にする", () => {

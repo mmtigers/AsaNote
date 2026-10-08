@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { AuthStatus } from "@/components/AuthStatus";
+import { ConfirmDialog } from "@note/core/components/ConfirmDialog";
 import { SkeletonList } from "@note/core/components/Skeleton";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import {
@@ -22,7 +23,6 @@ import { useChildren } from "@/lib/db/children";
 import { useRecordsTimeline } from "@/lib/db/queries";
 import { formatDateShort, toDateInputValue } from "@note/core/date";
 import { describeErrorForUser } from "@note/core/errors";
-import { formatMinutes } from "@/app/stats/aggregate";
 import { compareAroundRule, COMPARE_WINDOW_DAYS, type PeriodSummary } from "./compare";
 
 const CARD = "rounded-3xl border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm";
@@ -44,9 +44,9 @@ function PeriodColumn({ label, p }: { label: string; p: PeriodSummary }) {
           <p className="mt-2 text-lg font-bold tabular-nums">{p.roughRate}%</p>
           <p className="text-[11px] text-[var(--sub)]">荒れた({p.total}件中)</p>
           <p className="mt-1.5 text-[13px] font-semibold tabular-nums">
-            {p.averageBedMinutes === null ? "消灯 -" : `消灯 ${formatMinutes(p.averageBedMinutes)}`}
+            {p.commonBed === null ? "消灯 -" : `消灯 ${p.commonBed.label}`}
           </p>
-          {p.averageBedMinutes !== null && <p className="text-[11px] text-[var(--sub)]">({p.bedCount}件の平均)</p>}
+          {p.commonBed !== null && <p className="text-[11px] text-[var(--sub)]">(最も多い帯・{p.bedCount}件中{p.commonBed.count}件)</p>}
         </>
       )}
     </div>
@@ -72,6 +72,8 @@ function RuleCard({
     const scoped = records.filter((r) => rule.child_id === null || r.childId === rule.child_id);
     return compareAroundRule(scoped, { startedOn: rule.started_on, endedOn: rule.ended_on }, today);
   }, [records, rule, today]);
+
+  const [confirmDelete, setConfirmDelete] = useState(false);
 
   async function run(action: () => Promise<void>, failure: string) {
     try {
@@ -108,13 +110,22 @@ function RuleCard({
         <button
           type="button"
           className={SUBTLE}
-          onClick={() => {
-            if (window.confirm("この項目を削除しますか?")) void run(() => deleteRule(rule.id), "削除に失敗しました");
-          }}
+          onClick={() => setConfirmDelete(true)}
         >
           削除
         </button>
       </div>
+      <ConfirmDialog
+        open={confirmDelete}
+        message="この項目を削除します。よろしいですか？"
+        confirmLabel="削除する"
+        cancelLabel="やめる"
+        onConfirm={async () => {
+          setConfirmDelete(false);
+          await run(() => deleteRule(rule.id), "削除に失敗しました");
+        }}
+        onCancel={() => setConfirmDelete(false)}
+      />
     </article>
   );
 }
@@ -133,6 +144,7 @@ export default function RulesPage() {
   const [ruleStart, setRuleStart] = useState(today);
   const [ruleChild, setRuleChild] = useState<string>("");
   const [concernTitle, setConcernTitle] = useState("");
+  const [pendingConcernDelete, setPendingConcernDelete] = useState<Concern | null>(null);
 
   const reload = useCallback(async () => {
     try {
@@ -191,7 +203,6 @@ export default function RulesPage() {
       ) : (
         <>
           <section className="flex flex-col gap-3">
-            <h2 className="text-sm font-bold">ルール変更の記録</h2>
             <form
               className={`${CARD} flex flex-col gap-2.5`}
               onSubmit={(e) => {
@@ -205,7 +216,7 @@ export default function RulesPage() {
             >
               <input
                 className={INPUT}
-                placeholder="例: 食洗機は18:45まで"
+                placeholder="例: 18時までにお風呂に入る"
                 maxLength={RULE_TITLE_MAX}
                 value={ruleTitle}
                 onChange={(e) => setRuleTitle(e.target.value)}
@@ -284,9 +295,7 @@ export default function RulesPage() {
                     <button
                       type="button"
                       className={SUBTLE}
-                      onClick={() => {
-                        if (window.confirm("この項目を削除しますか?")) void submit(() => deleteConcern(c.id), "削除に失敗しました", () => {});
-                      }}
+                      onClick={() => setPendingConcernDelete(c)}
                     >
                       削除
                     </button>
@@ -298,6 +307,19 @@ export default function RulesPage() {
           </section>
         </>
       ))}
+
+      <ConfirmDialog
+        open={pendingConcernDelete !== null}
+        message="この項目を削除します。よろしいですか？"
+        confirmLabel="削除する"
+        cancelLabel="やめる"
+        onConfirm={async () => {
+          const target = pendingConcernDelete;
+          setPendingConcernDelete(null);
+          if (target) await submit(() => deleteConcern(target.id), "削除に失敗しました", () => {});
+        }}
+        onCancel={() => setPendingConcernDelete(null)}
+      />
     </main>
   );
 }

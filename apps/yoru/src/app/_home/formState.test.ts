@@ -13,14 +13,25 @@ describe("formState", () => {
 
   it("保存済みの記録からフォームに戻して、入力に変換しても内容が変わらない", () => {
     const record: LocalRecord = {
-      ...formToInput({ ...emptyForm("2026-10-05", null), outcome: "rough", memo: "m", free: ["TV"], times: { bed: "20:45" } }, "u1"),
+      ...formToInput({ ...emptyForm("2026-10-05", null), outcome: "rough", memo: "m", free: ["TV"], times: { bed: "mid" } }, "u1"),
       createdAt: "x",
       updatedAt: "x",
       syncStatus: "synced",
     };
     const form = formFromRecord(record);
-    expect(form.times).toEqual({ bed: "20:45" });
+    expect(form.times).toEqual({ bed: "mid" });
     expect(formToInput(form, "u1")).toEqual({ ...record, createdAt: undefined, updatedAt: undefined, syncStatus: undefined });
+  });
+
+  it("旧い時刻の記録は帯に寄せ、廃止した節目は読み込まない", () => {
+    const record = {
+      ...formToInput({ ...emptyForm("2026-10-05", null), outcome: "calm" }, "u1"),
+      times: { bed: "20:45", dinner: "18:00", hwEnd: "17:00", prep: "20:00" },
+      createdAt: "x",
+      updatedAt: "x",
+      syncStatus: "synced",
+    } as unknown as LocalRecord;
+    expect(formFromRecord(record).times).toEqual({ bed: "mid", dinner: "18:00" });
   });
 
   it("メモは上限で切り詰める", () => {

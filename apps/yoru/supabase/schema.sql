@@ -35,6 +35,27 @@ create table if not exists evening_records (
   updated_at timestamptz not null default now()
 );
 
+-- 節目(帰宅・宿題開始・お風呂・消灯)は時刻ではなく時間帯(early / mid / late)を保存する。
+-- 旧い time 列は text へ変換し、入っていた時刻は同じ基準で帯に寄せる。何度流しても同じ結果になる
+-- (すでに text なら、帯のidはそのまま残る)。t_hw_end / t_prep は廃止した項目で、アプリは読み書きしない。
+alter table evening_records
+  alter column t_arrive type text using (
+    case when t_arrive::text ~ '^[0-9]{2}:[0-9]{2}' then
+      case when t_arrive::text < '14:00' then 'early' when t_arrive::text < '15:00' then 'mid' else 'late' end
+    else t_arrive::text end),
+  alter column t_hw_start type text using (
+    case when t_hw_start::text ~ '^[0-9]{2}:[0-9]{2}' then
+      case when t_hw_start::text < '17:00' then 'early' when t_hw_start::text < '19:00' then 'mid' else 'late' end
+    else t_hw_start::text end),
+  alter column t_bath type text using (
+    case when t_bath::text ~ '^[0-9]{2}:[0-9]{2}' then
+      case when t_bath::text < '17:00' then 'early' when t_bath::text < '19:00' then 'mid' else 'late' end
+    else t_bath::text end),
+  alter column t_bed type text using (
+    case when t_bed::text ~ '^[0-9]{2}:[0-9]{2}' then
+      case when t_bed::text < '20:00' then 'early' when t_bed::text < '21:00' then 'mid' else 'late' end
+    else t_bed::text end);
+
 create index if not exists idx_evening_records_user_id on evening_records(user_id);
 create index if not exists idx_evening_records_record_date on evening_records(record_date desc);
 create index if not exists idx_evening_records_child_id on evening_records(child_id);
