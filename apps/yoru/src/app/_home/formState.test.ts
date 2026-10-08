@@ -23,7 +23,7 @@ describe("formState", () => {
     expect(formToInput(form, "u1")).toEqual({ ...record, createdAt: undefined, updatedAt: undefined, syncStatus: undefined });
   });
 
-  it("旧い時刻の記録は帯に寄せ、廃止した節目は読み込まない", () => {
+  it("「ほか」で選んだ時刻はそのまま読み込み、廃止した節目は読み込まない", () => {
     const record = {
       ...formToInput({ ...emptyForm("2026-10-05", null), outcome: "calm" }, "u1"),
       times: { bed: "20:45", dinner: "18:00", hwEnd: "17:00", prep: "20:00" },
@@ -31,7 +31,7 @@ describe("formState", () => {
       updatedAt: "x",
       syncStatus: "synced",
     } as unknown as LocalRecord;
-    expect(formFromRecord(record).times).toEqual({ bed: "mid", dinner: "18:00" });
+    expect(formFromRecord(record).times).toEqual({ bed: "20:45", dinner: "18:00" });
   });
 
   it("メモは上限で切り詰める", () => {

@@ -14,8 +14,8 @@ export function bandsOf(key: BandMilestoneKey): readonly BandDef[] {
 }
 
 /**
- * 保存された値を帯のidに揃える。新しい記録は帯のid(early / mid / late)そのもの、帯を導入する前の
- * 記録は "HH:MM" なので、その時刻が属する帯へ寄せる。どちらでもない値は null。
+ * 保存された値を帯のidに揃える。帯のid(early / mid / late)はそのまま、「ほか」で選んだ "HH:MM" は
+ * その時刻が属する帯へ寄せる(傾向の集計用)。どちらでもない値は null。
  */
 export function toBandId(key: BandMilestoneKey, value: string | null | undefined): BandId | null {
   if (!value) return null;
@@ -27,23 +27,27 @@ export function toBandId(key: BandMilestoneKey, value: string | null | undefined
   return bands.find((b) => minutes < b.to)?.id ?? null;
 }
 
-/** 表示用の帯の名前(「20〜21時」など)。帯にできない値は null。 */
-export function bandLabel(key: BandMilestoneKey, value: string | null | undefined): string | null {
-  const id = toBandId(key, value);
-  return bandsOf(key).find((b) => b.id === id)?.label ?? null;
+/** 日記文用: 帯なら「20〜21時」、時刻なら「20:30ごろ」。読めない値は null。 */
+export function milestoneWhen(key: BandMilestoneKey, value: string | null | undefined): string | null {
+  if (!value) return null;
+  const band = bandsOf(key).find((b) => b.id === value);
+  if (band) return band.label;
+  return parseTimeToMinutes(value) === null ? null : `${value}ごろ`;
 }
 
-/** 記録に入っている節目の値を表示用に整える。帯の節目は帯の名前、夕食は時刻のまま。 */
+/** 一覧・CSV用に整える。帯の節目は、帯なら帯の名前、時刻ならそのまま。夕食は時刻のまま。 */
 export function milestoneDisplay(key: MilestoneKey, value: string | null | undefined): string {
   if (!value) return "";
-  return isBandMilestone(key) ? (bandLabel(key, value) ?? "") : value;
+  if (!isBandMilestone(key)) return value;
+  return bandsOf(key).find((b) => b.id === value)?.label ?? (parseTimeToMinutes(value) === null ? "" : value);
 }
 
 /**
- * 保存・同期の直前に、帯の節目の値を帯のidへ揃える(帯を導入する前の "HH:MM" が残っていても
- * クラウドへはidで書く)。夕食など時刻の節目はそのまま。
+ * 保存・同期の前後で値を検める。帯のidと、読める "HH:MM" はそのまま通し、それ以外は捨てる
+ * (旧い版が書いた壊れた値を、帯の節目に持ち込まないため)。夕食など時刻の節目は素通し。
  */
 export function normalizeMilestoneValue(key: MilestoneKey, value: string | null | undefined): string | null {
   if (!value) return null;
-  return isBandMilestone(key) ? toBandId(key, value) : value;
+  if (!isBandMilestone(key)) return value;
+  return toBandId(key, value) ? value : null;
 }

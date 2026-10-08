@@ -56,12 +56,12 @@ describe("toRecordRow / fromRecordRow", () => {
     expect(back).toEqual({ ...RECORD, userId: "u1", syncStatus: "synced" });
   });
 
-  it("帯の節目に旧い時刻が残っていても、クラウドへは帯のidで書き、読むときも帯に寄せる", () => {
+  it("帯の節目で「ほか」から選んだ時刻は、そのまま書き、秒付きで返っても HH:MM に戻る", () => {
     const row = toRecordRow({ ...RECORD, times: { arrive: "14:30", bed: "21:15" } }, "u1");
-    expect(row.t_arrive).toBe("mid");
-    expect(row.t_bed).toBe("late");
-    const back = fromRecordRow({ ...row, t_arrive: "14:30:00", t_hw_start: "18:00:00" });
-    expect(back.times).toEqual({ arrive: "mid", hwStart: "mid", bed: "late" });
+    expect(row.t_arrive).toBe("14:30");
+    expect(row.t_bed).toBe("21:15");
+    const back = fromRecordRow({ ...row, t_arrive: "14:30:00", t_hw_start: "early", t_bath: "ng" });
+    expect(back.times).toEqual({ arrive: "14:30", hwStart: "early", bed: "21:15" });
   });
 
   it("配列列が null で返ってきても空配列にする", () => {

@@ -2,7 +2,9 @@
 
 import { useMemo, type ReactNode } from "react";
 import {
+  DINNER_ATE_WHY_TAGS,
   DINNER_OPTIONS,
+  DINNER_WHY_TAGS,
   EFFECT_OPTIONS,
   MEMO_MAX_LENGTH,
   MILESTONES,
@@ -80,6 +82,16 @@ export function RecordFormView({
   const optionsByField = useMemo(() => {
     const out = {} as Record<TagField, string[]>;
     for (const field of Object.keys(TAG_FIELDS) as TagField[]) {
+      if (field === "dinnerWhy") {
+        // 夕食の理由は、「食べた」と「少し・食べず」で選択肢が違う。追加タグも同じ側の記録だけから数える。
+        const ate = form.dinner === "ate";
+        out[field] = rankTagOptions(
+          ate ? DINNER_ATE_WHY_TAGS : DINNER_WHY_TAGS,
+          countTagUsage(history.filter((r) => (r.dinner === "ate") === ate), (r) => r.dinnerWhy),
+          form.dinnerWhy
+        );
+        continue;
+      }
       out[field] = rankTagOptions(
         TAG_FIELDS[field],
         countTagUsage(history, (r) => r[field]),
@@ -170,7 +182,14 @@ export function RecordFormView({
             onChange({ times });
           };
           return "bands" in m ? (
-            <BandRow key={m.key} label={m.label} value={form.times[m.key]} bands={m.bands} onChange={setTime} />
+            <BandRow
+              key={m.key}
+              label={m.label}
+              value={form.times[m.key]}
+              bands={m.bands}
+              menu={"menu" in m ? timeMenuOptions(m.menu.from, m.menu.to, m.menu.step) : undefined}
+              onChange={setTime}
+            />
           ) : (
             <MilestoneRow
               key={m.key}
@@ -191,10 +210,13 @@ export function RecordFormView({
           selected={DINNER_OPTIONS.filter((d) => d.value === form.dinner).map((d) => d.label)}
           onToggle={(label) => {
             const value = DINNER_OPTIONS.find((d) => d.label === label)?.value ?? null;
-            onChange({ dinner: form.dinner === value ? null : value });
+            const next = form.dinner === value ? null : value;
+            // 理由の選択肢は「食べた」と「少し・食べず」で違うので、側が変わるときは選びなおす。
+            const sideChanged = (form.dinner === "ate") !== (next === "ate") || (form.dinner === null) !== (next === null);
+            onChange({ dinner: next, ...(sideChanged ? { dinnerWhy: [] } : {}) });
           }}
         />
-        {(form.dinner === "little" || form.dinner === "no") && (
+        {form.dinner && (
           <>
             <SubLabel>理由</SubLabel>
             {chips("dinnerWhy")}
