@@ -1,3 +1,4 @@
+import { milestoneDisplay } from "@/lib/timeBands";
 import { DINNER_OPTIONS, EFFECT_OPTIONS, MILESTONES, OUTCOME_OPTIONS } from "@/constants/choices";
 import { parseDateInputValue, WEEKDAYS } from "@note/core/date";
 import type { LocalRecord } from "@/lib/db/localDb";
@@ -86,7 +87,7 @@ export function buildCsvContent(entries: LocalRecord[], ctx: CsvContext): string
       weekday,
       r.childId ? (ctx.childNames.get(r.childId) ?? "") : "",
       OUTCOME_OPTIONS.find((o) => o.value === r.outcome)?.label ?? "",
-      ...MILESTONES.map((m) => r.times[m.key] ?? ""),
+      ...MILESTONES.map((m) => milestoneDisplay(m.key, r.times[m.key])),
       DINNER_OPTIONS.find((d) => d.value === r.dinner)?.label ?? "",
       r.dinnerWhy.join("、"),
       r.free.join("、"),

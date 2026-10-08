@@ -68,14 +68,14 @@ describe("buildCsvContent", () => {
   it("列を展開し、写真は枚数のみ、パートナーはメールを出さず表示のみ", () => {
     const csv = buildCsvContent(
       [
-        rec({ times: { hwStart: "16:00", bed: "20:30" }, dinner: "little", trigger: ["宿題", "食事"], outcome: "rough" }),
+        rec({ times: { hwStart: "early", bed: "20:30" }, dinner: "little", trigger: ["宿題", "食事"], outcome: "rough" }),
         rec({ id: "r2", userId: "partner", childId: null }),
       ],
       ctx
     );
     const [header = "", first = "", second = ""] = csv.split("\r\n");
     expect(header.split(",")).toHaveLength(first.split(",").length);
-    expect(first).toContain("2026-10-03,土,智矢,少し荒れた,,16:00");
+    expect(first).toContain("2026-10-03,土,智矢,少し荒れた,,15〜17時");
     expect(first).toContain("少し,,,,宿題、食事");
     expect(first.endsWith(",2,自分")).toBe(true);
     expect(second.endsWith(",0,パートナー")).toBe(true);

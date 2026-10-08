@@ -1,6 +1,7 @@
-import { MEMO_MAX_LENGTH, type DinnerState, type MilestoneKey, type Outcome, type ResponseEffect } from "@/constants/choices";
+import { MEMO_MAX_LENGTH, MILESTONES, type DinnerState, type MilestoneKey, type Outcome, type ResponseEffect } from "@/constants/choices";
 import type { RecordFormInput } from "@/lib/db/records";
 import type { LocalRecord } from "@/lib/db/localDb";
+import { normalizeMilestoneValue } from "@/lib/timeBands";
 
 export type Step = "home" | "form";
 
@@ -52,8 +53,10 @@ export function emptyForm(recordDate: string, childId: string | null): FormState
 
 export function formFromRecord(record: LocalRecord): FormState {
   const times: FormState["times"] = {};
-  for (const [key, value] of Object.entries(record.times)) {
-    if (value) times[key as MilestoneKey] = value;
+  // 廃止した節目(宿題終了・明日の準備完了)は読み込まない。帯の節目に残る旧い "HH:MM" は帯へ寄せる。
+  for (const m of MILESTONES) {
+    const value = normalizeMilestoneValue(m.key, record.times[m.key]);
+    if (value) times[m.key] = value;
   }
   return {
     id: record.id,

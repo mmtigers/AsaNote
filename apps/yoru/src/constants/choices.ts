@@ -22,16 +22,49 @@ export function isRoughOutcome(outcome: Outcome | null | undefined): boolean {
   return outcome === "rough" || outcome === "storm";
 }
 
-// 節目の時刻。candidates は初期の候補ボタン(3つ)で、使うほど「その項目でよく選ぶ時刻」へ
-// 入れ替わる(src/lib/timeCandidates.ts)。from〜to を step 分刻みにしたものが「ほか」の選択肢。
+// 節目。arrive / hwStart / bath / bed は「時間帯」から1つ選ぶ(bands)。保存するのは帯のid(early / mid / late)で、
+// 時刻そのものではない。dinner だけは従来どおり時刻で、candidates が初期の候補ボタン(3つ)、
+// 使うほど「その項目でよく選ぶ時刻」へ入れ替わる(src/lib/timeCandidates.ts)。
+// from〜to を step 分刻みにしたものが「ほか」の選択肢。
+// bands の to は帯の終わり(分・その時刻は含まない)。上限が無い最後の帯は Infinity。
 export const MILESTONES = [
-  { key: "arrive", label: "帰宅", candidates: ["14:45", "15:00", "15:30"], from: "14:00", to: "17:00", step: 15 },
-  { key: "hwStart", label: "宿題 開始", candidates: ["15:30", "16:00", "17:00"], from: "15:00", to: "20:00", step: 30 },
-  { key: "hwEnd", label: "宿題 終了", candidates: ["16:30", "17:30", "19:30"], from: "15:30", to: "21:00", step: 30 },
+  {
+    key: "arrive",
+    label: "帰宅",
+    bands: [
+      { id: "early", label: "14時より前", to: 14 * 60 },
+      { id: "mid", label: "14〜15時", to: 15 * 60 },
+      { id: "late", label: "15時以降", to: Infinity },
+    ],
+  },
+  {
+    key: "hwStart",
+    label: "宿題 開始",
+    bands: [
+      { id: "early", label: "15〜17時", to: 17 * 60 },
+      { id: "mid", label: "17〜19時", to: 19 * 60 },
+      { id: "late", label: "19時以降", to: Infinity },
+    ],
+  },
   { key: "dinner", label: "夕食", candidates: ["17:30", "18:00", "18:30"], from: "17:00", to: "20:00", step: 30 },
-  { key: "bath", label: "お風呂", candidates: ["19:00", "19:30", "20:00"], from: "18:00", to: "21:00", step: 30 },
-  { key: "prep", label: "明日の準備 完了", candidates: ["19:30", "20:00", "20:30"], from: "18:00", to: "21:30", step: 30 },
-  { key: "bed", label: "消灯", candidates: ["20:00", "20:30", "21:00"], from: "19:30", to: "22:00", step: 15 },
+  {
+    key: "bath",
+    label: "お風呂",
+    bands: [
+      { id: "early", label: "15〜17時", to: 17 * 60 },
+      { id: "mid", label: "17〜19時", to: 19 * 60 },
+      { id: "late", label: "19時以降", to: Infinity },
+    ],
+  },
+  {
+    key: "bed",
+    label: "消灯",
+    bands: [
+      { id: "early", label: "20時より前", to: 20 * 60 },
+      { id: "mid", label: "20〜21時", to: 21 * 60 },
+      { id: "late", label: "21時以降", to: Infinity },
+    ],
+  },
 ] as const;
 
 export type MilestoneKey = (typeof MILESTONES)[number]["key"];
@@ -55,19 +88,9 @@ export type ResponseEffect = (typeof EFFECT_OPTIONS)[number]["value"];
 // 以下のタグは、使用回数の多い順に並べ替えられる(src/lib/tagOptions.ts)。
 export const DINNER_WHY_TAGS = ["においが苦手", "メニューが好みでない", "テレビに集中", "疲れ・眠い", "食欲がない"] as const;
 
-export const FREE_TIME_TAGS = [
-  "TV",
-  "YouTube",
-  "ドラえもん",
-  "ゲーム",
-  "たまごっち",
-  "外遊び",
-  "友達と",
-  "お絵描き",
-  "運動遊び",
-] as const;
+export const FREE_TIME_TAGS = ["TV", "YouTube", "読書", "ゲーム", "外遊び", "お絵かき"] as const;
 
-export const FRIEND_TAGS = ["約束あり", "約束なし", "家に来た", "時間を守れた", "時間を過ぎた"] as const;
+export const FRIEND_TAGS = ["約束あり", "約束なし"] as const;
 
 export const TRIGGER_TAGS = [
   "時間切れ・間に合わない",
@@ -82,7 +105,7 @@ export const BEHAVIOR_TAGS = ["号泣", "物を投げる", "暴言", "家出", "
 
 export const RESPONSE_TAGS = ["時間を宣言", "放置", "一緒に遊ぶ", "取り上げ", "食事を下げる", "気持ちを聞く"] as const;
 
-export const BODY_TAGS = ["蕁麻疹", "眠い・疲れ", "腹痛", "頭痛", "食欲なし"] as const;
+export const BODY_TAGS = ["疲れ", "腹痛", "食欲なし", "イライラ", "眠そう"] as const;
 
 // タグ系の項目。EveningRecord のどの配列列に入るかと、初期セットを対応づける。
 export const TAG_FIELDS = {
@@ -96,3 +119,8 @@ export const TAG_FIELDS = {
 } as const;
 
 export type TagField = keyof typeof TAG_FIELDS;
+
+// 時間帯で選ぶ節目(MILESTONES のうち bands を持つもの)。
+export type BandMilestone = Extract<(typeof MILESTONES)[number], { bands: unknown }>;
+export type BandMilestoneKey = BandMilestone["key"];
+export type BandId = BandMilestone["bands"][number]["id"];

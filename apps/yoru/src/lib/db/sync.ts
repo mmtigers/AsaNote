@@ -2,6 +2,7 @@ import { getSupabaseClient } from "@note/core/supabase/client";
 import type { DinnerState, MilestoneKey, Outcome, ResponseEffect } from "@/constants/choices";
 import type { EveningRecord } from "@/types/models";
 import { localDb, type LocalPhoto, type LocalRecord } from "./localDb";
+import { normalizeMilestoneValue } from "@/lib/timeBands";
 import { reportSyncOutcome } from "./syncStatus";
 
 let syncing = false;
@@ -18,10 +19,8 @@ export const PULL_PAGE_SIZE = 500;
 const TIME_COLUMNS = {
   arrive: "t_arrive",
   hwStart: "t_hw_start",
-  hwEnd: "t_hw_end",
   dinner: "t_dinner",
   bath: "t_bath",
-  prep: "t_prep",
   bed: "t_bed",
 } as const satisfies Record<MilestoneKey, string>;
 
@@ -70,7 +69,7 @@ export function normalizeTimeValue(value: string | null | undefined): string | n
 // user_id は RLS の INSERT/UPDATE ポリシーが要求するため必須で付与する。
 export function toRecordRow(record: LocalRecord, userId: string) {
   const times = Object.fromEntries(
-    (Object.keys(TIME_COLUMNS) as MilestoneKey[]).map((key) => [TIME_COLUMNS[key], record.times[key] ?? null])
+    (Object.keys(TIME_COLUMNS) as MilestoneKey[]).map((key) => [TIME_COLUMNS[key], normalizeMilestoneValue(key, record.times[key])])
   ) as TimeColumns;
   return {
     id: record.id,
@@ -97,7 +96,7 @@ export function toRecordRow(record: LocalRecord, userId: string) {
 export function fromRecordRow(row: CloudRecordRow): LocalRecord {
   const times: EveningRecord["times"] = {};
   for (const key of Object.keys(TIME_COLUMNS) as MilestoneKey[]) {
-    const v = normalizeTimeValue(row[TIME_COLUMNS[key]]);
+    const v = normalizeMilestoneValue(key, normalizeTimeValue(row[TIME_COLUMNS[key]]));
     if (v) times[key] = v;
   }
   return {

@@ -17,9 +17,8 @@ import { useRecordPhotos } from "@/lib/db/photos";
 import { buildRecordPreview } from "@/lib/recordPreview";
 import { countTagUsage, rankTagOptions } from "@/lib/tagOptions";
 import { collectMilestoneHistory, rankTimeCandidates, timeMenuOptions } from "@/lib/timeCandidates";
-import { COPY_FIELD_OPTIONS, type CopyField } from "./copyToChildren";
-import type { FormState } from "./formState";
-import type { Child } from "@/types/models";
+import { formFromRecord, type FormState } from "./formState";
+import { BandRow } from "./BandRow";
 import { MilestoneRow } from "./MilestoneRow";
 import { PhotoStrip } from "./PhotoStrip";
 import { TagChips } from "./TagChips";
@@ -32,10 +31,6 @@ interface RecordFormViewProps {
   /** 前日の記録。あれば「昨日と同じにする」を出す。 */
   yesterday: LocalRecord | null;
   childName: string | null;
-  /** 記録対象以外の子ども。1人以上いるときだけ「他の子へコピー」を出す。 */
-  otherChildren: Child[];
-  copy: { childIds: string[]; fields: CopyField[] };
-  onCopyChange: (copy: { childIds: string[]; fields: CopyField[] }) => void;
   saving: boolean;
   error: string | null;
   onSave: () => void;
@@ -64,9 +59,6 @@ export function RecordFormView({
   history,
   yesterday,
   childName,
-  otherChildren,
-  copy,
-  onCopyChange,
   saving,
   error,
   onSave,
@@ -74,12 +66,14 @@ export function RecordFormView({
 }: RecordFormViewProps) {
   const photos = useRecordPhotos(form.id);
 
-  const candidatesByKey = useMemo(
+  // 時刻で選ぶ節目(夕食)の候補ボタン。時間帯で選ぶ節目には要らない。
+  const dinnerMilestone = MILESTONES.find((m) => m.key === "dinner");
+  const dinnerCandidates = useMemo(
     () =>
-      Object.fromEntries(
-        MILESTONES.map((m) => [m.key, rankTimeCandidates(m.candidates, collectMilestoneHistory(history, m.key))])
-      ),
-    [history]
+      dinnerMilestone
+        ? rankTimeCandidates(dinnerMilestone.candidates, collectMilestoneHistory(history, "dinner"))
+        : [],
+    [history, dinnerMilestone]
   );
 
   // タグの並びは「使用回数の多い順」。フォームだけにある(まだ保存していない)追加タグも出す。
@@ -116,11 +110,7 @@ export function RecordFormView({
 
   function carryOverFromYesterday() {
     if (!yesterday) return;
-    const times: FormState["times"] = {};
-    for (const [key, value] of Object.entries(yesterday.times)) {
-      if (value) times[key as keyof FormState["times"]] = value;
-    }
-    onChange({ times, free: yesterday.free });
+    onChange({ times: formFromRecord(yesterday).times, free: yesterday.free });
   }
 
   return (
@@ -136,7 +126,7 @@ export function RecordFormView({
         <span className="w-12" aria-hidden />
       </header>
 
-      <Section title="今夜はどうだった?">
+      <Section title="今日はどうだった?">
         <div className="grid grid-cols-3 gap-2">
           {OUTCOME_OPTIONS.map((o) => {
             const on = form.outcome === o.value;
@@ -172,21 +162,26 @@ export function RecordFormView({
       )}
 
       <Section title="⏰ 節目の時刻" hint="だいたいでOK・近いものをタップ">
-        {MILESTONES.map((m) => (
-          <MilestoneRow
-            key={m.key}
-            label={m.label}
-            value={form.times[m.key]}
-            candidates={candidatesByKey[m.key] ?? m.candidates}
-            menu={timeMenuOptions(m.from, m.to, m.step)}
-            onChange={(value) => {
-              const times = { ...form.times };
-              if (value) times[m.key] = value;
-              else delete times[m.key];
-              onChange({ times });
-            }}
-          />
-        ))}
+        {MILESTONES.map((m) => {
+          const setTime = (value: string | undefined) => {
+            const times = { ...form.times };
+            if (value) times[m.key] = value;
+            else delete times[m.key];
+            onChange({ times });
+          };
+          return "bands" in m ? (
+            <BandRow key={m.key} label={m.label} value={form.times[m.key]} bands={m.bands} onChange={setTime} />
+          ) : (
+            <MilestoneRow
+              key={m.key}
+              label={m.label}
+              value={form.times[m.key]}
+              candidates={dinnerCandidates.length > 0 ? dinnerCandidates : m.candidates}
+              menu={timeMenuOptions(m.from, m.to, m.step)}
+              onChange={setTime}
+            />
+          );
+        })}
       </Section>
 
       <Section title="🍚 夕食">
@@ -207,10 +202,10 @@ export function RecordFormView({
         )}
       </Section>
 
-      <Section title="📺 自由時間・友達">
+      <Section title="📺 自由時間">
         <SubLabel>自由時間にしたこと</SubLabel>
         {chips("free")}
-        <SubLabel>友達・予定</SubLabel>
+        <SubLabel>友達</SubLabel>
         {chips("friend")}
       </Section>
 
@@ -252,39 +247,6 @@ export function RecordFormView({
         <PhotoStrip recordId={form.id} />
       </Section>
 
-      {otherChildren.length > 0 && (
-        <Section title="👫 他の子にもコピー" hint="保存するときに反映します">
-          <SubLabel>コピー先</SubLabel>
-          <TagChips
-            options={otherChildren.map((c) => c.name)}
-            selected={otherChildren.filter((c) => copy.childIds.includes(c.id)).map((c) => c.name)}
-            onToggle={(name) => {
-              const id = otherChildren.find((c) => c.name === name)?.id;
-              if (!id) return;
-              const childIds = copy.childIds.includes(id) ? copy.childIds.filter((x) => x !== id) : [...copy.childIds, id];
-              onCopyChange({ ...copy, childIds });
-            }}
-          />
-          {copy.childIds.length > 0 && (
-            <>
-              <SubLabel>コピーする項目</SubLabel>
-              <TagChips
-                options={COPY_FIELD_OPTIONS.map((o) => o.label)}
-                selected={COPY_FIELD_OPTIONS.filter((o) => copy.fields.includes(o.field)).map((o) => o.label)}
-                onToggle={(label) => {
-                  const field = COPY_FIELD_OPTIONS.find((o) => o.label === label)?.field;
-                  if (!field) return;
-                  const fields = copy.fields.includes(field) ? copy.fields.filter((x) => x !== field) : [...copy.fields, field];
-                  onCopyChange({ ...copy, fields });
-                }}
-              />
-              <p className="mt-2 text-[11px] text-[var(--sub)]">
-                その子の様子・きっかけ・メモはそのままです。記録がまだ無い子は、様子が未入力の記録ができます。
-              </p>
-            </>
-          )}
-        </Section>
-      )}
 
       <Section title="記録プレビュー">
         <p className="rounded-2xl bg-[var(--surface-2)] p-3 text-sm leading-relaxed">
@@ -305,7 +267,7 @@ export function RecordFormView({
             ✓ この日の記録を保存する
           </button>
           {!form.outcome && (
-            <p className="mt-1 text-center text-xs text-[var(--sub)]">「今夜はどうだった?」を選ぶと保存できます</p>
+            <p className="mt-1 text-center text-xs text-[var(--sub)]">「今日はどうだった?」を選ぶと保存できます</p>
           )}
         </div>
       </div>

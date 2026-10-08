@@ -75,9 +75,9 @@ describe("morningByBedtime", () => {
     ]
   );
 
-  it("消灯時刻の区分ごとに翌朝の内訳・行き渋り率・平均起床を出す", () => {
+  it("消灯の時間帯ごとに翌朝の内訳・行き渋り率・平均起床を出す", () => {
     const buckets = morningByBedtime(pairs);
-    expect(buckets.map((b) => b.key)).toEqual(["early", "later"]);
+    expect(buckets.map((b) => b.key)).toEqual(["mid", "late"]);
     const early = buckets[0]!;
     expect(early.total).toBe(2);
     expect(early.counts).toEqual({ smooth: 2, reluctant: 0, absent: 0 });

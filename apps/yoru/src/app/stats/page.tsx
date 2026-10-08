@@ -12,10 +12,10 @@ import { buildMemberEmailMap, useGroupMembers } from "@note/core/db/groups";
 import type { LocalRecord } from "@/lib/db/localDb";
 import { useMorningRecords, type MorningOutcome } from "@/lib/db/morning";
 import { useRecordsTimeline } from "@/lib/db/queries";
-import { formatDateShort, toDateInputValue, toMonthOf } from "@note/core/date";
+import { toDateInputValue, toMonthOf } from "@note/core/date";
 import {
-  averageBedtimeByOutcome,
-  bedtimeTrend,
+  outcomeByBedtime,
+  recordsForBedtime,
   countOutcomes,
   countTags,
   formatMinutes,
@@ -196,8 +196,7 @@ export default function StatsPage() {
       calendar: outcomeByDate(filtered),
       hwStart: outcomeByHomeworkStart(filtered),
       friend: outcomeByFriendPromise(filtered),
-      bedByOutcome: averageBedtimeByOutcome(filtered),
-      bedTrend: bedtimeTrend(filtered),
+      bed: outcomeByBedtime(filtered),
       triggers: countTags(rough, (r) => r.trigger),
       responses: responseEffectStats(filtered),
     };
@@ -303,56 +302,18 @@ export default function StatsPage() {
             }
           />
 
-          {summary.bedByOutcome.length > 0 && (
-            <section className={CARD}>
-              <h2 className="text-sm font-bold">🌙 消灯時刻と様子</h2>
-              <p className="mb-3 mt-1 text-[11px] text-[var(--sub)]">様子ごとの平均消灯時刻。</p>
-              <div className="grid grid-cols-3 gap-2">
-                {OUTCOME_OPTIONS.map((o) => {
-                  const stat = summary.bedByOutcome.find((s) => s.outcome === o.value);
-                  return (
-                    <div key={o.value} className="rounded-2xl bg-[var(--surface-2)] py-2.5 text-center">
-                      <p className="text-[11px] text-[var(--sub)]">
-                        {o.emoji} {o.label}
-                      </p>
-                      <p className="mt-1 text-base font-bold tabular-nums">
-                        {stat ? formatMinutes(stat.averageMinutes) : "―"}
-                      </p>
-                      {stat && <p className="text-[10px] text-[var(--sub)]">{stat.count}件</p>}
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-          )}
-
-          {summary.bedTrend.length > 0 && (
-            <section className={CARD}>
-              <h2 className="text-sm font-bold">消灯時刻の推移</h2>
-              <p className="mb-3 mt-1 text-[11px] text-[var(--sub)]">直近{summary.bedTrend.length}日。色は様子。</p>
-              <div className="flex flex-col gap-1.5">
-                {summary.bedTrend.map((p) => (
-                  <div key={p.date} className="flex items-center gap-2">
-                    <span className="w-14 flex-none text-[11px] text-[var(--sub)]">{formatDateShort(p.date)}</span>
-                    <div className="h-2 flex-1 overflow-hidden rounded-full bg-[var(--surface-2)]">
-                      {/* 19:00〜23:00 を横幅いっぱいに対応させる */}
-                      <div
-                        className={`h-full rounded-full ${p.outcome ? OUTCOME_COLOR_STYLES[p.outcome] : "bg-[var(--sub)]"}`}
-                        style={{ width: `${Math.min(100, Math.max(4, ((p.minutes - 19 * 60) / (4 * 60)) * 100))}%` }}
-                      />
-                    </div>
-                    <span className="w-11 flex-none text-right text-[12px] tabular-nums">{formatMinutes(p.minutes)}</span>
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
+          <OutcomeBucketList
+            title="🌙 消灯時刻と様子"
+            hint="バーは様子の割合、右の%は荒れた割合。消灯と様子を入力した記録だけ。"
+            data={summary.bed}
+            onSelect={(b) => setDetail({ title: `消灯 ${b.label}`, records: recordsForBedtime(filtered ?? [], b.key) })}
+          />
 
           {morning && morning.pairs > 0 && (
             <>
               <MorningBucketList
                 title="☀️ 消灯時刻と翌朝(あさノート)"
-                hint={`夜の消灯時刻と、翌朝のあさノートの結果。右の%は行き渋り+お休みの割合。翌朝の記録がある${morning.pairs}夜が対象。`}
+                hint={`夜の消灯の時間帯と、翌朝のあさノートの結果。右の%は行き渋り+お休みの割合。翌朝の記録がある${morning.pairs}夜が対象。`}
                 data={morning.byBedtime}
               />
               <MorningBucketList

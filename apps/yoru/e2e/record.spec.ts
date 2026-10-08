@@ -14,14 +14,14 @@ test.describe("記録の基本の流れ(ログイン無し)", () => {
     await page.getByRole("button", { name: /少し荒れた/ }).first().click();
     await expect(save).toBeEnabled();
 
-    // 節目の時刻は候補ボタンをタップするだけ(消灯の候補: 20:00 / 20:30 / 21:00)。
-    await page.getByRole("button", { name: "20:30", exact: true }).last().click();
+    // 節目は時間帯のボタンをタップするだけ(消灯: 20時より前 / 20〜21時 / 21時以降)。
+    await page.getByRole("button", { name: "20〜21時", exact: true }).last().click();
     await page.getByLabel("メモ").fill("E2Eテストの記録です");
     await save.click();
 
     // ホームに戻り、保存した記録の要約が出る。
     await expect(page.getByRole("button", { name: /少し荒れた夜/ })).toBeVisible();
-    await expect(page.getByText(/20:30ごろに消灯/)).toBeVisible();
+    await expect(page.getByText(/20〜21時に消灯/)).toBeVisible();
 
     // タイムラインにも並ぶ。
     await page.getByRole("link", { name: /これまで/ }).click();
@@ -57,16 +57,5 @@ test.describe("記録の基本の流れ(ログイン無し)", () => {
     // 下書きがあるときは、ホームに戻るとそのままフォームが開く。
     await page.getByRole("link", { name: /記録する/ }).click();
     await expect(page.getByLabel("メモ")).toHaveValue("書きかけのメモ");
-  });
-});
-
-test.describe("クイック記録", () => {
-  test("ワンタップで荒れを記録でき、時刻がメモに残る", async ({ page }) => {
-    await openHome(page);
-    await page.getByRole("button", { name: /大荒れ/ }).click();
-
-    await expect(page.getByRole("button", { name: /大荒れの夜/ })).toBeVisible();
-    await page.getByRole("button", { name: /記録を編集する/ }).click();
-    await expect(page.getByLabel("メモ")).toHaveValue(/\d{2}:\d{2} 大荒れ/);
   });
 });
