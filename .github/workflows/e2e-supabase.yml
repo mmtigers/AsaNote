@@ -1,0 +1,110 @@
+name: E2E (実Supabaseテストプロジェクト)
+
+# Issue #117: テスト専用のSupabaseプロジェクトに対する、グループ作成・招待参加・脱退のE2E。
+# 準備手順(schema.sql の適用・テストユーザー作成・後始末)は apps/asa/docs/e2e-supabase.md。
+#
+# 通常のCI(ci.yml)とは別ワークフローにしてあり、ここが失敗・skipしても ci.yml の結果には影響しない。
+#
+# - Secrets(下記)が未設定なら、E2E自体を実行せず成功(skip)で終わる。赤くならない。
+# - fork からの PR では Secrets が渡されないので、同じく skip で終わる。
+#   (pull_request_target は使わない。fork のコードを Secrets 付きで動かさないため。)
+# - 本番Supabaseには接続しない。E2E_SUPABASE_URL が本番と一致する等の場合は、テスト側のガードが中止する
+#   (apps/asa/e2e-supabase/config.ts)。本番のURLを Secret `E2E_PRODUCTION_SUPABASE_URL` に入れておくと、
+#   それとの一致も検出する(任意だが推奨)。
+#
+# 必要な Secrets(Settings > Secrets and variables > Actions):
+#   E2E_SUPABASE_URL / E2E_SUPABASE_ANON_KEY            テスト専用プロジェクトの URL と anon key
+#   E2E_USER_A_EMAIL / E2E_USER_A_PASSWORD               テストユーザーA(メールは asanote-e2e- で始まること)
+#   E2E_USER_B_EMAIL / E2E_USER_B_PASSWORD               テストユーザーB(同上)
+#   E2E_PRODUCTION_SUPABASE_URL (任意)                    本番のURL。誤接続の検出用
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "apps/asa/**"
+      - "packages/core/**"
+      - "supabase/schema.sql"
+      - ".github/workflows/e2e-supabase.yml"
+  pull_request:
+    branches: [main, master]
+    paths:
+      - "apps/asa/**"
+      - "packages/core/**"
+      - "supabase/schema.sql"
+      - ".github/workflows/e2e-supabase.yml"
+  workflow_dispatch:
+
+# 全実行で同じテストプロジェクト・同じテストユーザーを使うため、同時に走らせない(打ち切りもしない)。
+concurrency:
+  group: e2e-supabase
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  e2e-supabase:
+    name: E2E test (real Supabase test project)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/asa
+    env:
+      E2E_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+      E2E_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
+      E2E_USER_A_EMAIL: ${{ secrets.E2E_USER_A_EMAIL }}
+      E2E_USER_A_PASSWORD: ${{ secrets.E2E_USER_A_PASSWORD }}
+      E2E_USER_B_EMAIL: ${{ secrets.E2E_USER_B_EMAIL }}
+      E2E_USER_B_PASSWORD: ${{ secrets.E2E_USER_B_PASSWORD }}
+      E2E_PRODUCTION_SUPABASE_URL: ${{ secrets.E2E_PRODUCTION_SUPABASE_URL }}
+    steps:
+      # Secrets が全て揃っているかを最初に判定する。揃っていなければ以降のステップは全て飛ばし、成功で終える。
+      # (値そのものはログに出さない。未設定の名前だけを出す。)
+      - name: Check secrets are configured
+        id: check
+        working-directory: .
+        run: |
+          missing=""
+          for name in E2E_SUPABASE_URL E2E_SUPABASE_ANON_KEY E2E_USER_A_EMAIL E2E_USER_A_PASSWORD E2E_USER_B_EMAIL E2E_USER_B_PASSWORD; do
+            if [ -z "${!name}" ]; then missing="$missing $name"; fi
+          done
+          if [ -n "$missing" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::実SupabaseのE2Eをスキップします(未設定のSecrets:$missing)。fork のPR、または準備前は正常な状態です。"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.check.outputs.enabled == 'true'
+
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        if: steps.check.outputs.enabled == 'true'
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        if: steps.check.outputs.enabled == 'true'
+        # モノレポ: package-lock.json はルートにあるので、ルートで全ワークスペースを入れる。
+        working-directory: .
+        run: npm ci
+
+      - name: Install Playwright browsers
+        if: steps.check.outputs.enabled == 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E tests against the Supabase test project
+        if: steps.check.outputs.enabled == 'true'
+        run: npm run test:e2e:supabase
+
+      # トレース・スクリーンショットは取っていない(ログイン済みセッションのトークンを含むため)。
+      - name: Upload Playwright report
+        if: failure() && steps.check.outputs.enabled == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-report-supabase
+          path: apps/asa/playwright-report/
+          retention-days: 7

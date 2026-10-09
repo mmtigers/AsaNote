@@ -73,6 +73,7 @@ scripts/
   import-records.mjs  過去の記録をまとめてSupabaseへ登録する一括インポートスクリプト
                        (service role key使用。使い方はファイル冒頭のコメント参照)
 e2e/              Playwright のE2Eテスト
+e2e-supabase/     実Supabaseテストプロジェクト向けE2E(Secrets未設定なら skip。docs/e2e-supabase.md)
 docs/             仕様書(SPEC.md)・Push通知のデプロイ手順(push-notifications-setup.md)
 ```
 
