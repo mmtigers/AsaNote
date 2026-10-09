@@ -68,4 +68,13 @@ describe("ServiceWorkerRegister", () => {
     expect(postMessage).not.toHaveBeenCalled();
     getEntries.mockRestore();
   });
+
+  it("onRegistered が返した解除用の関数を、アンマウント時に呼ぶ", () => {
+    const stop = vi.fn();
+    const { unmount } = render(<ServiceWorkerRegister onRegistered={() => stop} />);
+
+    expect(stop).not.toHaveBeenCalled();
+    unmount();
+    expect(stop).toHaveBeenCalledTimes(1);
+  });
 });

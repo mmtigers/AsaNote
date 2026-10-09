@@ -571,7 +571,8 @@ IDはクライアントで生成するUUIDをそのままクラウドでも使�
 
 ### 7.3 pull（`pullFromCloud`）
 
-- **呼ばれるタイミング**: 起動時（ログイン済みの場合）、新規ログイン（`SIGNED_IN`）直後、グループ参加後、グループ脱退後。トークン更新等では呼ばない。**これ以外（アプリのバックグラウンドからの復帰、定期実行、Realtime）では呼ばれない**ため、パートナーの新規記録は次の起動まで見えない可能性がある。**要確認 Q9**
+- **呼ばれるタイミング**: 起動時（ログイン済みの場合）、新規ログイン（`SIGNED_IN`）直後、グループ参加後、グループ脱退後、**アプリが前面に戻ったとき**（#125、下記）。トークン更新等では呼ばない。定期実行と Realtime は使わない。
+- **前面に戻ったときの取り込み**（#125）: `visibilitychange` で `visible` になったとき、ログイン済み（ローカルのセッションがある）・オンラインで、**前回の取り込みから5分以上**空いていれば `pullFromCloud` を呼ぶ。前回の取り込み時刻はメモリ上だけで持つ（起動し直せば起動時の取り込みが走る）。上記の既存の取り込みも時刻を更新するため、直後に二重で取り込まない。実行中は無視し、失敗してもエラー表示は出さずログのみ。リスナーは `registerSyncListeners` が張り、クリーンアップで解除する（共通部分は `packages/core/src/pullOnResume.ts`）。
 - `records` を `record_date, id` の安定した順序で `PULL_PAGE_SIZE`（500）件ずつ全ページ取得する。PostgRESTは1リクエストの行数上限を黙って切り捨てるため、ページング無しだと取得漏れの行を「見えなくなった」と誤判定して消してしまう（#55）。**途中のページが失敗したら、反映も「見えなくなった行の削除」も行わない**。
 - 取得した行は `synced` として保存する。ただし、`pending` の行と、削除キューにあるIDは上書き・復活させない。
 - クラウド（RLS）から見えなくなった `synced` 行はローカルから削除する（グループ脱退、他端末での削除など）。`pending` は自分の未送信変更のため対象外。
@@ -833,7 +834,7 @@ npm run test:e2e       # Playwright（dev サーバーを自動起動）
 
 - **記録の一意性はアプリ側のみ**: DBに `(user_id, record_date, child_id)` の一意制約が無く、2端末でオフライン中に同じ日を作ると2件になる（§7.5）。
 - **競合は順序依存**: 後から同期した側が残る（§7.4）。
-- **パートナーの記録の反映タイミング**: pull は起動時・ログイン・グループ参加/脱退時のみ（§7.3）。Q9 → [#125](https://github.com/mmtigers/AsaNote/issues/125)
+- **パートナーの記録の反映タイミング**: pull は起動時・ログイン・グループ参加/脱退時に加え、前面に戻ったとき（前回から5分以上空いていれば）に行う。定期取得と Realtime は無く、起動したまま前面に居続ける間は反映されない（§7.3）。Q9（解決済み）→ [#125](https://github.com/mmtigers/AsaNote/issues/125)
 - **子ども一覧はオンライン必須**: オフラインで起動して子ども一覧を取得できないと、複数の子どもがいる家庭でも記録が `childId: null` で保存される。Q8 → [#126](https://github.com/mmtigers/AsaNote/issues/126)
 - **タイムライン/エクスポートで子どもを識別しにくい**: カードに子ども名が出ない。エクスポートは子どもで分けられない。Q14 → [#127](https://github.com/mmtigers/AsaNote/issues/127)
 - **グループは1ユーザー1つ**。3人以上の運用は未検証。最後のメンバーが脱退したグループ・招待コードは残る。子どもの作成者が脱退すると、相手からは（RLSの条件が成り立たず）その子どもが見えなくなる。Q10 → [#128](https://github.com/mmtigers/AsaNote/issues/128)
@@ -882,7 +883,7 @@ npm run test:e2e       # Playwright（dev サーバーを自動起動）
 | Q6 | (解消) `send-reminders` と `notify-partner` を、専用の合言葉(`CRON_SECRET` / `PARTNER_NOTIFY_SECRET`)で確かめるようにした。非推奨の `SUPABASE_SERVICE_ROLE_KEY` との一致は、正しい鍵でも 401 になったため使わない | §4.6, §6.7 | `supabase/functions/*/index.ts`, `docs/push-notifications-setup.md` |
 | Q7 | `manifest` の `theme_color` / `background_color`（`#f6f3ec`）と、`layout.tsx` の `themeColor`・CSSの背景（`#fff5f6`）が不一致 | §13.2 | `public/manifest.webmanifest`, `src/app/layout.tsx`, `globals.css` |
 | Q8 | 子ども一覧の取得に失敗（オフライン起動など）すると「子どもなし」扱いになり、複数の子どもがいても `childId: null` で保存される。許容か | §3.1.7 | `src/lib/db/children.ts`, `src/lib/db/useAuthedList.ts` |
-| Q9 | パートナーの新規記録が反映されるのは、起動時・ログイン・グループ参加/脱退時のみ。復帰時の取得や定期取得は不要か | §7.3 | `src/lib/auth/AuthProvider.tsx`, `src/app/group/useGroupAdmin.ts` |
+| Q9（解決済み #125） | 前面に戻ったとき、前回の取り込みから5分以上空いていれば `pullFromCloud` を呼ぶようにした。定期取得と Realtime は使わない | §7.3 | `src/lib/db/sync.ts`, `packages/core/src/pullOnResume.ts` |
 | Q10 | 最後のメンバーが脱退したグループ・招待コードの後始末が無い。子どもの作成者が脱退すると相手から子どもが見えなくなる | §13.2 | `supabase/schema.sql`（`children` / `group_members` ポリシー） |
 | Q11 | 招待コード（8文字×32種）にアプリ側の試行回数制限が無い。Supabase側のレート制限に任せる想定か | §6.4 | `src/lib/db/groups.ts`, `schema.sql` |
 | Q12 | 本番URL、対応ブラウザ・OSの公式な範囲（ホスティング先は Vercel と確認済み） | §8.1, §12 | `docs/push-notifications-setup.md`、PRのVercelプレビュー |

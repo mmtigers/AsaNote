@@ -5,9 +5,9 @@ import { CACHE_STATIC_URLS_MESSAGE, collectStaticAssetPaths } from "../staticAss
 
 /**
  * Service Worker(/sw.js)を登録する。登録のあとにアプリ固有の処理(同期のリスナー登録など)が要るなら
- * `onRegistered` で渡す(モジュールレベルの安定した関数にすること)。
+ * `onRegistered` で渡す(モジュールレベルの安定した関数にすること)。解除用の関数を返せば、アンマウント時に呼ぶ。
  */
-export function ServiceWorkerRegister({ onRegistered }: { onRegistered?: () => void }) {
+export function ServiceWorkerRegister({ onRegistered }: { onRegistered?: () => void | (() => void) }) {
   useEffect(() => {
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker
@@ -24,7 +24,7 @@ export function ServiceWorkerRegister({ onRegistered }: { onRegistered?: () => v
         });
     }
 
-    onRegistered?.();
+    return onRegistered?.();
   }, [onRegistered]);
 
   return null;
