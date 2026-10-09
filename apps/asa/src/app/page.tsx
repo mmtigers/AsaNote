@@ -168,7 +168,7 @@ export default function HomePage() {
     action();
   }
 
-  function startRecording(entryPoint: "home_start_button" | "push_reminder", dateOffsetDays: number) {
+  function startRecording(entryPoint: "home_start_button" | "in_app_reminder", dateOffsetDays: number) {
     track(
       "record_flow_started",
       { entry_point: entryPoint, is_edit: false, date_offset_days: dateOffsetDays },
@@ -182,7 +182,7 @@ export default function HomePage() {
   // 使わず0を直接渡す。
   function handleReminderStartRecording() {
     changeDate(todayValue);
-    startRecording("push_reminder", 0);
+    startRecording("in_app_reminder", 0);
   }
 
   // すでにその日の記録がある状態から「記録を編集する」を押したときの起点
