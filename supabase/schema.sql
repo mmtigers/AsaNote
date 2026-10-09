@@ -520,6 +520,10 @@ group by day, entry_point
 order by day, entry_point;
 
 -- 記録フローの各ステップ到達数の日別集計(離脱率の算出用)。
+-- 現行アプリの記録フローは1画面で、record_step_viewedは step = 'form' しか送らない。
+-- reached_result / reached_reason は旧フロー(複数画面)の過去データ用に残している
+-- (新しいデータでは常に0)。現行の到達数は reached_form を見ること。
+-- create or replace view は列の追加だけ許すため、新しい列は末尾に足している。
 create or replace view analytics_step_funnel_daily as
 select
   (client_ts at time zone 'Asia/Tokyo')::date as day,
@@ -528,7 +532,8 @@ select
   count(*) filter (where event_name = 'record_outcome_selected') as outcome_selected,
   count(*) filter (where event_name = 'record_step_viewed' and properties ->> 'step' = 'reason') as reached_reason,
   count(*) filter (where event_name = 'record_saved') as saved,
-  count(*) filter (where event_name = 'record_flow_paused') as paused
+  count(*) filter (where event_name = 'record_flow_paused') as paused,
+  count(*) filter (where event_name = 'record_step_viewed' and properties ->> 'step' = 'form') as reached_form
 from analytics_events
 group by day
 order by day;

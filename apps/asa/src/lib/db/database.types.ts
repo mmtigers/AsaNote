@@ -317,6 +317,7 @@ export type Database = {
           flow_started: number | null
           outcome_selected: number | null
           paused: number | null
+          reached_form: number | null
           reached_reason: number | null
           reached_result: number | null
           saved: number | null
