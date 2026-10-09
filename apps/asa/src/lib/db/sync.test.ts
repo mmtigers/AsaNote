@@ -1,14 +1,15 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearLocalData, localDb, type LocalRecord } from "./localDb";
-import { PULL_PAGE_SIZE, pullFromCloud, syncPendingChanges } from "./sync";
+import { PULL_PAGE_SIZE, pullFromCloud, registerSyncListeners, syncPendingChanges } from "./sync";
 
 const authGetUser = vi.fn();
+const authGetSession = vi.fn();
 const fromMock = vi.fn();
 const reportSyncOutcome = vi.fn();
 
 vi.mock("@note/core/supabase/client", () => ({
   getSupabaseClient: () => ({
-    auth: { getUser: authGetUser },
+    auth: { getUser: authGetUser, getSession: authGetSession },
     from: fromMock,
   }),
 }));
@@ -90,6 +91,7 @@ function mockRecordsTable(overrides: { upsert?: unknown; select?: SelectImpl; de
 beforeEach(async () => {
   await clearLocalData();
   authGetUser.mockReset();
+  authGetSession.mockReset().mockResolvedValue({ data: { session: { user: { id: "user-1" } } } });
   fromMock.mockReset();
   reportSyncOutcome.mockReset();
   setOnline(true);
@@ -232,6 +234,51 @@ describe("syncPendingChanges", () => {
 
     expect(upsert).toHaveBeenCalledTimes(1);
     expect((await localDb.records.get("r1"))?.syncStatus).toBe("synced");
+  });
+});
+
+describe("前面に戻ったときの取り込み(#125)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-09T09:00:00+09:00"));
+    mockRecordsTable();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  async function resume() {
+    document.dispatchEvent(new Event("visibilitychange"));
+    await vi.waitFor(() => expect(authGetSession).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+
+  it("通常の pullFromCloud のあと5分未満なら取り込まず、5分以上なら取り込む", async () => {
+    const stop = registerSyncListeners();
+    await pullFromCloud();
+    fromMock.mockClear();
+
+    vi.setSystemTime(Date.now() + 4 * 60 * 1000);
+    document.dispatchEvent(new Event("visibilitychange"));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(authGetSession).not.toHaveBeenCalled();
+    expect(fromMock).not.toHaveBeenCalled();
+
+    vi.setSystemTime(Date.now() + 2 * 60 * 1000);
+    await resume();
+    expect(fromMock).toHaveBeenCalledWith("records");
+    stop?.();
+  });
+
+  it("リスナーを解除すると、取り込まない", async () => {
+    const stop = registerSyncListeners();
+    stop?.();
+
+    vi.setSystemTime(Date.now() + 10 * 60 * 1000);
+    document.dispatchEvent(new Event("visibilitychange"));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(authGetSession).not.toHaveBeenCalled();
+    expect(fromMock).not.toHaveBeenCalled();
   });
 });
 

@@ -1,3 +1,4 @@
+import { createResumePuller } from "@note/core/pullOnResume";
 import { getSupabaseClient } from "@note/core/supabase/client";
 import type { Outcome } from "@/constants/choices";
 import type { SchoolRecord } from "@/types/models";
@@ -145,7 +146,7 @@ export async function syncPendingChanges() {
   }
 }
 
-// クラウド→ローカルの取り込み(ログイン直後・起動時・グループ参加/脱退後に実行)。他端末
+// クラウド→ローカルの取り込み(ログイン直後・起動時・グループ参加/脱退後・前面に戻ったとき(5分以上空いていれば)に実行)。他端末
 // (パートナーの端末)で記録したデータや、この端末のIndexedDBが空になった場合(再インストール等)の
 // 復元に使う。ローカルにまだ送信していない変更(syncStatus: "pending")がある行は、
 // クラウドの古い値で上書きしないようスキップする。
@@ -155,11 +156,22 @@ export async function syncPendingChanges() {
 //
 // 取得はPULL_PAGE_SIZE件ずつの全ページ取得で、途中のページが失敗した場合はローカルへの反映も
 // 「見えなくなった行の削除」も行わない(部分的な結果で削除判定すると取得漏れ行が消えるため)。
+// 前面に戻ったときの取り込み(#125)。前回の取り込み時刻は、起動時・ログイン時などの pullFromCloud も更新する。
+// ログイン済みかはローカルのセッションで見る(getUser はサーバーへ問い合わせるため、復帰のたびには使わない)。
+const resumePuller = createResumePuller({
+  pull: () => pullFromCloud(),
+  isSignedIn: async () => {
+    const { data } = await getSupabaseClient().auth.getSession();
+    return data.session !== null;
+  },
+});
+
 export async function pullFromCloud() {
   if (pulling) return;
   if (typeof navigator !== "undefined" && !navigator.onLine) return;
 
   pulling = true;
+  resumePuller.markPulled();
   let hadWork = false;
   let hadError = false;
   try {
@@ -216,14 +228,22 @@ export async function pullFromCloud() {
   }
 }
 
-// 起動時とオンライン復帰時に同期をトリガーする。オフライン中の変更をキャッシュに残したまま
+// 起動時とオンライン復帰時に同期をトリガーし、前面に戻ったときは(5分以上空いていれば)取り込む。オフライン中の変更をキャッシュに残したまま
 // バックグラウンドで送信するため、UI側の待ち時間は発生しない。
 export function registerSyncListeners() {
   if (typeof window === "undefined") return;
 
-  window.addEventListener("online", () => {
+  const onOnline = () => {
     void syncPendingChanges();
-  });
+  };
+  window.addEventListener("online", onOnline);
+  const stopResumePull = resumePuller.register();
 
   void syncPendingChanges();
+
+  // StrictMode や再マウントで二重に張らないよう、呼び出し側(ServiceWorkerRegister)がクリーンアップで解除する。
+  return () => {
+    window.removeEventListener("online", onOnline);
+    stopResumePull();
+  };
 }
