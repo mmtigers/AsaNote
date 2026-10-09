@@ -11,6 +11,15 @@ export interface ReleaseNote {
 // version も同じ値に上げる(CIの release-notes-check が検査する)。
 export const releases: ReleaseNote[] = [
   {
+    version: "0.3.5",
+    date: "2026-10-09",
+    title: "初めて開いた直後でも、オフラインで使えるようにしました",
+    summary: "アプリを初めて開いた直後に電波が切れても、画面が崩れにくくなりました。",
+    details: [
+      "初めて開いたときに読み込んだ画面のデータを、端末にしっかり保存するようにしました(以前は、端末の空き容量が少ないなどで一時的な保存が消えると、オフラインで画面が崩れることがありました)",
+    ],
+  },
+  {
     version: "0.3.4",
     date: "2026-10-09",
     title: "子どもごとの記録を、見分けやすくしました",
