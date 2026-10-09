@@ -7,8 +7,8 @@ import {
   savePushSubscription,
   saveNotificationSettings,
 } from "@/lib/db/notificationSettings";
-import { isPushSupported, requestPushSubscription } from "@/lib/push";
-import { runAction } from "@note/core/group/runAction";
+import { isPushSupported, requestPushSubscription, restorePushSubscription } from "@/lib/push";
+import { runAction, runSilently } from "@note/core/group/runAction";
 
 // 共有設定画面の「通知」まわりの状態と操作(#3-2)。use*Adminフック群と同じ形に揃え、
 // 画面(page.tsx)は表示の組み立てだけを持つ。
@@ -23,6 +23,19 @@ export interface NotificationSettingsAdmin {
   setEnabled: (value: boolean) => Promise<void>;
   setNotifyPartnerRecord: (value: boolean) => Promise<void>;
   reload: () => Promise<void>;
+}
+
+// ログアウトで解除された購読を、この端末へ戻す(#174)。許可の確認は出さず、ブラウザの許可が
+// すでにgrantedで、この端末に購読が無いときだけ作り直してサーバーへ登録する
+// (判定はrestorePushSubscription。すでに購読があれば何もしないので、購読は増えない)。
+// ユーザーの操作ではないので、失敗してもエラーは出さずログに残すのみ。
+async function restorePushIfNeeded(userId: string) {
+  const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
+  if (!vapidPublicKey) return;
+  await runSilently(async () => {
+    const keys = await restorePushSubscription(vapidPublicKey);
+    if (keys) await savePushSubscription(userId, keys);
+  });
 }
 
 export function useNotificationSettings(
@@ -52,6 +65,11 @@ export function useNotificationSettings(
       setReminderTimeState(result.value.reminderTime);
       setEnabledState(result.value.enabled);
       setNotifyPartnerRecordState(result.value.notifyPartnerRecord);
+      // ログアウトで解除された購読を、ログインした本人の設定がONなら戻す(#174)。
+      // 画面の表示は待たせない。
+      if (result.value.enabled || result.value.notifyPartnerRecord) {
+        void restorePushIfNeeded(userId);
+      }
     }
     setLoading(false);
   }, [userId, onError]);

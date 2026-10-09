@@ -53,6 +53,25 @@ export async function requestPushSubscription(vapidPublicKey: string): Promise<P
   return toSubscriptionKeys(subscription);
 }
 
+// ログアウトで解除された購読を、許可の確認なしで作り直す(#174)。ブラウザの通知の許可が
+// すでに"granted"で、この端末に購読が無いときだけ新しく作り、そのキーを返す。
+// 許可が"default"/"denied"のとき、すでに購読があるとき、非対応のときはnull
+// (勝手に許可の確認を出さない。購読を増やさない)。
+export async function restorePushSubscription(vapidPublicKey: string): Promise<PushSubscriptionKeys | null> {
+  if (!isPushSupported()) return null;
+  if (Notification.permission !== "granted") return null;
+
+  const registration = await navigator.serviceWorker.ready;
+  const existing = await registration.pushManager.getSubscription();
+  if (existing) return null;
+
+  const subscription = await registration.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: urlBase64ToUint8Array(vapidPublicKey) as BufferSource,
+  });
+  return toSubscriptionKeys(subscription);
+}
+
 // この端末の既存の購読を解除する(あれば)。呼び出し元がサーバー側の行も
 // 削除する必要がある(このファイルはブラウザ側の状態のみを扱う)。
 export async function unsubscribeCurrentDevice(): Promise<string | null> {
