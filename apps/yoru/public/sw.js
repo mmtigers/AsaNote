@@ -84,6 +84,33 @@ self.addEventListener("fetch", (event) => {
   );
 });
 
+// 初回訪問で、Service Worker が有効になる前にページが読み込んだ JS/CSS を、ページからの依頼でキャッシュする(#133)。
+// そうしないと、HTTP キャッシュが消えた端末で、初回の直後にオフラインで開いたときに画面が崩れる。
+// 依頼されたパスのうち、同じオリジンの /_next/static/ のものだけを、未キャッシュの分だけ取得する。
+self.addEventListener("message", (event) => {
+  const data = event.data;
+  if (!data || data.type !== "CACHE_STATIC_URLS" || !Array.isArray(data.paths)) return;
+  const paths = data.paths
+    .filter((path) => typeof path === "string" && path.startsWith("/_next/static/"))
+    .slice(0, 200);
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) =>
+      Promise.all(
+        paths.map((path) =>
+          cache.match(path).then((cached) => {
+            if (cached) return;
+            return fetch(path)
+              .then((response) => {
+                if (response.ok) return cache.put(path, response);
+              })
+              .catch(() => {});
+          })
+        )
+      )
+    )
+  );
+});
+
 // 未入力日のリマインドPush通知。送信側(supabase/functions/send-reminders)は
 // { title, body, url } のJSONを送る。ペイロードが読めない場合は最低限の表示にフォールバックする。
 self.addEventListener("push", (event) => {
