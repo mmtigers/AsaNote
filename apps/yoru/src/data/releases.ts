@@ -11,6 +11,15 @@ export interface ReleaseNote {
 // version も同じ値に上げる(CIの release-notes-check が検査する)。
 export const releases: ReleaseNote[] = [
   {
+    version: "0.3.3",
+    date: "2026-10-09",
+    title: "共有設定で、押してもエラーになるボタンを出さないようにしました",
+    summary: "お子さまの名前の変更と削除は、登録した人だけができます。ほかの人の画面には、そのボタンを出しません。",
+    details: [
+      "パートナーが登録したお子さまには、「名前を変える」「削除」を表示しません(以前は表示されて、押すとエラーになっていました)",
+    ],
+  },
+  {
     version: "0.3.2",
     date: "2026-10-09",
     title: "オフラインでも、子どもが複数いる記録を分けられるようにしました",
