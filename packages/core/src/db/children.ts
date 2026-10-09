@@ -16,6 +16,62 @@ export async function getChildren(): Promise<Child[]> {
   return (data ?? []) as Child[];
 }
 
+// 子ども一覧の最後に取得できた結果を端末に覚えておく(#126)。子どもが複数いる家庭で、
+// オフライン起動などで一覧を取得できないと、一覧が空になり、記録が子ども未分類
+// (childId: null)で保存されてしまうため。取得に失敗したときだけ、これを使う。
+// 子どもはあさノート・よるノートで共通の表なので、キーはアプリ名を含めない。
+// 別のユーザーの一覧を使わないよう、ユーザーIDごとに分け、ログアウトで消す。
+const CHILDREN_CACHE_PREFIX = "note:childrenCache:";
+
+function readChildrenCache(userId: string): Child[] | null {
+  try {
+    const raw = window.localStorage.getItem(CHILDREN_CACHE_PREFIX + userId);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as Child[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeChildrenCache(userId: string, children: Child[]): void {
+  try {
+    window.localStorage.setItem(CHILDREN_CACHE_PREFIX + userId, JSON.stringify(children));
+  } catch {
+    // 書けない環境ではあきらめる(キャッシュが無いだけで、通常の動作は変わらない)
+  }
+}
+
+/** 端末に覚えている子ども一覧を消す。ログアウト時に呼ぶ(共有端末で次の人に見せないため)。 */
+export function clearChildrenCache(): void {
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const key = window.localStorage.key(i);
+      if (key?.startsWith(CHILDREN_CACHE_PREFIX)) keys.push(key);
+    }
+    keys.forEach((key) => window.localStorage.removeItem(key));
+  } catch {
+    // 消せない環境では何もしない
+  }
+}
+
+// 一覧フック用: 取得できれば結果を覚え、失敗したときは覚えている一覧を返す(無ければ例外のまま)。
+async function getChildrenWithCache(): Promise<Child[]> {
+  const supabase = getSupabaseClient();
+  // getSession はローカルに保存された認証情報を読むだけで、オフラインでも失敗しない。
+  const userId = (await supabase.auth.getSession()).data.session?.user.id;
+  try {
+    const children = await getChildren();
+    if (userId) writeChildrenCache(userId, children);
+    return children;
+  } catch (error) {
+    const cached = userId ? readChildrenCache(userId) : null;
+    if (cached) return cached;
+    throw error;
+  }
+}
+
 export async function createChild(name: string): Promise<Child> {
   const trimmed = name.trim();
   if (!trimmed) throw new Error("名前を入力してください");
@@ -69,7 +125,7 @@ export async function deleteChild(id: string): Promise<void> {
 // 「子ども0人」と解釈されると記録の絞り込みが誤るため、「まだ分からない」と同じ扱いにする
 // (src/app/page.tsx の editChildIdOverride はこの性質への同期的な回避策)。
 export function useChildren(): Child[] | null {
-  return useAuthedList(getChildren, { whenSignedOut: "null" });
+  return useAuthedList(getChildrenWithCache, { whenSignedOut: "null" });
 }
 
 // 選択中の子どもIDを、実際に存在する子ども一覧に照らして解決する。子どもが0〜1人の

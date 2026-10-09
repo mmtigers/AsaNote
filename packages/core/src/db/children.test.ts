@@ -1,13 +1,18 @@
+import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Child } from "../types/group";
-import { createChild, deleteChild, getChildren, resolveEffectiveChildId, updateChild } from "./children";
+import { createChild, deleteChild, getChildren, resolveEffectiveChildId, updateChild, useChildren, clearChildrenCache } from "./children";
+
+const { useAuthMock } = vi.hoisted(() => ({ useAuthMock: vi.fn() }));
+vi.mock("../auth", () => ({ useAuth: useAuthMock }));
 
 const authGetUser = vi.fn();
+const authGetSession = vi.fn();
 const fromMock = vi.fn();
 
 vi.mock("../supabase/client", () => ({
   getSupabaseClient: () => ({
-    auth: { getUser: authGetUser },
+    auth: { getUser: authGetUser, getSession: authGetSession },
     from: fromMock,
   }),
 }));
@@ -31,6 +36,8 @@ function makeQueryBuilder(result: { data?: unknown; error?: unknown }) {
 
 beforeEach(() => {
   authGetUser.mockReset();
+  authGetSession.mockReset();
+  window.localStorage.clear();
   fromMock.mockReset();
   authGetUser.mockResolvedValue({ data: { user: { id: "user-1" } } });
 });
@@ -162,5 +169,63 @@ describe("deleteChild", () => {
   it("Supabase のエラーはそのまま投げる", async () => {
     fromMock.mockReturnValue(makeQueryBuilder({ data: null, error: new Error("rls denied") }));
     await expect(deleteChild("c1")).rejects.toThrow("rls denied");
+  });
+});
+
+describe("useChildren の端末キャッシュ(#126)", () => {
+  const hana: Child = { id: "c1", name: "はな", created_by: "user-1", created_at: "x" };
+  const taro: Child = { id: "c2", name: "たろう", created_by: "user-1", created_at: "y" };
+
+  beforeEach(() => {
+    const session = { user: { id: "user-1" } };
+    useAuthMock.mockReturnValue({ session, loading: false });
+    authGetSession.mockResolvedValue({ data: { session } });
+  });
+
+  it("取得できたら一覧を返し、端末に覚える", async () => {
+    fromMock.mockReturnValue(makeQueryBuilder({ data: [hana, taro], error: null }));
+
+    const { result } = renderHook(() => useChildren());
+
+    await waitFor(() => expect(result.current).toEqual([hana, taro]));
+    expect(JSON.parse(window.localStorage.getItem("note:childrenCache:user-1") ?? "null")).toEqual([hana, taro]);
+  });
+
+  it("取得に失敗したら、覚えている一覧を返す(子どもが複数の家庭で未分類にしない)", async () => {
+    window.localStorage.setItem("note:childrenCache:user-1", JSON.stringify([hana, taro]));
+    fromMock.mockReturnValue(makeQueryBuilder({ data: null, error: new Error("offline") }));
+
+    const { result } = renderHook(() => useChildren());
+
+    await waitFor(() => expect(result.current).toEqual([hana, taro]));
+  });
+
+  it("取得に失敗し、覚えている一覧も無ければ空配列", async () => {
+    fromMock.mockReturnValue(makeQueryBuilder({ data: null, error: new Error("offline") }));
+
+    const { result } = renderHook(() => useChildren());
+
+    await waitFor(() => expect(result.current).toEqual([]));
+  });
+
+  it("別のユーザーの覚えている一覧は使わない", async () => {
+    window.localStorage.setItem("note:childrenCache:other-user", JSON.stringify([hana, taro]));
+    fromMock.mockReturnValue(makeQueryBuilder({ data: null, error: new Error("offline") }));
+
+    const { result } = renderHook(() => useChildren());
+
+    await waitFor(() => expect(result.current).toEqual([]));
+  });
+
+  it("clearChildrenCache で覚えている一覧を消す", () => {
+    window.localStorage.setItem("note:childrenCache:user-1", JSON.stringify([hana]));
+    window.localStorage.setItem("note:childrenCache:user-2", JSON.stringify([taro]));
+    window.localStorage.setItem("unrelated", "keep");
+
+    clearChildrenCache();
+
+    expect(window.localStorage.getItem("note:childrenCache:user-1")).toBeNull();
+    expect(window.localStorage.getItem("note:childrenCache:user-2")).toBeNull();
+    expect(window.localStorage.getItem("unrelated")).toBe("keep");
   });
 });
