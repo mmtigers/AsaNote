@@ -352,12 +352,13 @@ ON/OFFと時刻の設定。仕様は §4。
 
 Supabase Edge Function `send-reminders`（`supabase/functions/send-reminders/index.ts`）を、`pg_cron` が**毎分**呼ぶ（`supabase/cron-reminders.sql`）。
 
-1. 現在のJST時刻（HH:MM）が `reminder_time` と一致し `enabled = true` のユーザーを探す（分単位の完全一致）。
+1. `enabled = true` のユーザーのうち、現在のJST時刻が `reminder_time` ちょうどから**15分未満**（設定時刻の0〜14分後。`REMINDER_CATCHUP_WINDOW_MINUTES`）で、**今日（JST）まだ送っていない**（`reminder_deliveries` に今日の行が無い）ユーザーを探す（`selectDueReminderUserIds`）。cron や関数の実行が1分欠けても、次の分以降に取り戻すため（#130）。**日付をまたぐ取り戻しはしない**（23:55設定が翌0:03に届くことはない）。
 2. そのうち、今日（JST）に結果入りの記録が、**本人にも同じグループの誰にも1件も無い**ユーザーだけを対象にする（夫婦のどちらかが記録済みなら、もう一方には送らない。アプリ内の表示と同じ。子どもは区別しない。`selectReminderTargets`）。
 3. 対象ユーザーの**全購読**へ送る。内容: タイトル「あさノート」、本文「今日の記録がまだのようです」、遷移先 `/`。
-4. 送信が 410 / 404（購読の失効）なら、その購読行を削除する。それ以外の失敗は警告ログのみで購読は残す。
+4. 送る前に `reminder_deliveries(user_id, sent_on)` へ「今日送信済み」の行を入れる。主キー衝突で既にあれば何もしない（同時に走った実行同士や、窓の中の次の分の実行で二重送信しない）。行を入れられたユーザーだけに送る。
+5. 送信が 410 / 404（購読の失効）なら、その購読行を削除する。それ以外の失敗は警告ログのみで購読は残す。購読があるのに**1件も届かなかった**ユーザーは、行を消して次の分に再試行する（窓の間だけ）。購読が1件も無いユーザーは行を残す。
 
-分単位の一致のため、該当の1分間に実行が失敗・欠落するとその日は届かない（再送しない）。
+制約: 窓（15分）を超えて止まっていた場合や、日付をまたぐ場合は、その日は届かない。記録済みで除外されたユーザーには行を作らない。`reminder_deliveries` の古い行は自動では消さない（1ユーザー1日1行の小さな表）。
 
 ### 4.4 Push: パートナーのきろく追加
 
@@ -414,6 +415,7 @@ Supabase Edge Function `send-reminders`（`supabase/functions/send-reminders/ind
 | `group_invites` | `code` unique、`expires_at`（既定=作成+24時間）、`used_at` / `used_by`（1回限り）。索引 `group_id` | 招待コード（§6.4） |
 | `children` | `id`, `created_by`(FK、削除で連鎖), `name` 1〜50文字(`CHECK`), `created_at`。索引 `created_by` | 子ども。グループ内で共有 |
 | `push_subscriptions` | `user_id`, `endpoint` **unique**, `p256dh`, `auth_key`。索引 `user_id` | Push購読。1ユーザーが複数端末を持てる |
+| `reminder_deliveries` | `(user_id, sent_on)` PK, `created_at` | 未入力リマインドの送信済み記録（ユーザー×JSTの日付。§4.3）。Edge Function（service role）専用 |
 | `notification_settings` | `user_id` PK, `reminder_time`(time, 既定 21:00), `enabled`(既定 true), `notify_partner_record`(既定 false), `updated_at` | 通知設定。ユーザー1人につき1行 |
 | `analytics_events` | `user_id`, `record_id`, `event_name`, `properties`(jsonb), `client_ts`, `created_at`。索引 `user_id` / `record_id` | 記録フローの計測（§11）。書き込み専用 |
 
@@ -471,6 +473,7 @@ stateDiagram-v2
 | `children` | 作成者本人＋同じグループのメンバー | 作成者本人のみ | 作成者本人のみ | 作成者本人のみ |
 | `push_subscriptions` | 本人のみ | 本人のみ | 本人のみ | 本人のみ |
 | `notification_settings` | 本人のみ | 本人のみ | 本人のみ | 本人のみ |
+| `reminder_deliveries` | なし（service roleのみ） | なし | なし | なし |
 | `analytics_events` | **なし**（読み取り不可） | 本人のみ | なし | なし |
 
 - 「同じグループのメンバー」は、`group_members` を自己結合して「自分と記録者が同じグループにいる」ことで判定する。
@@ -839,7 +842,7 @@ npm run test:e2e       # Playwright（dev サーバーを自動起動）
 - **タイムライン/エクスポートで子どもを識別しにくい**: カードに子ども名が出ない。エクスポートは子どもで分けられない。Q14 → [#127](https://github.com/mmtigers/AsaNote/issues/127)
 - **グループは1ユーザー1つ**。3人以上の運用は未検証。最後のメンバーが脱退したグループ・招待コードは残る。子どもの作成者が脱退したときは、その人が作成した子どもの所有が、同じグループに残る最古参加のメンバーへ移る（§3.5。最後の1人の脱退では移らず、作成者のまま）。Q10 → [#128](https://github.com/mmtigers/AsaNote/issues/128)
 - **招待コードの総当たり耐性**: アプリ側の試行制限なし。Q11 → [#129](https://github.com/mmtigers/AsaNote/issues/129)
-- **Pushのリマインドは分単位の完全一致**: その分に実行が欠けるとその日は届かない（§4.3）。 → [#130](https://github.com/mmtigers/AsaNote/issues/130)
+- **Pushのリマインドの取り戻しは設定時刻から15分まで**: 窓内の欠落は次の分以降で取り戻す。窓を超える停止や、日付をまたぐ場合は届かない（§4.3）。失敗の検知は手動（`push-notifications-setup.md` の「cronの失敗検知」）。 → [#130](https://github.com/mmtigers/AsaNote/issues/130)
 - **IndexedDB書き込み失敗の専用UIなし**（§3.1.7）。 → [#132](https://github.com/mmtigers/AsaNote/issues/132)
 - **初回訪問直後のオフライン起動**: 未検証（§7.7）。Q15 → [#133](https://github.com/mmtigers/AsaNote/issues/133)
 - **表示の不統一**: タイムライン/CSVの起床時刻は代表値で出る（Q1）。印刷のタイトルに `.csv` が付く（Q2）。 → [#135](https://github.com/mmtigers/AsaNote/issues/135)

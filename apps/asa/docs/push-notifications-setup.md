@@ -146,6 +146,21 @@ JWT 検証を通すために残す。
 - pg_cronやトリガーからの呼び出し結果は、SQL Editorで`select status_code, content, created from net._http_response order by created desc limit 5;`
   を実行すると確認できる(200なら正常、401は合言葉(`CRON_SECRET` / `PARTNER_NOTIFY_SECRET`)の不一致、404はPROJECT_REFの誤り)。
   このテーブルの記録は、既定で数時間(6時間ほど)で消えるので、確認は、呼び出しの直後に行う。
+- **cronの失敗検知(リマインド)**: `send-reminders` は設定時刻から15分以内なら取り戻すため、1〜数分の欠落は
+  自動で補われる。それでも届かない日は、SQL Editorで次を実行して原因を切り分ける(自動の監視・アラートは入れていない)。
+  ```sql
+  -- 直近の呼び出し結果(200以外。status_codeがnullならタイムアウト/接続失敗)
+  select status_code, error_msg, timed_out, created from net._http_response
+  where status_code is distinct from 200 order by created desc limit 20;
+  -- cron自体の実行結果(failedが並ぶならジョブ側の問題)
+  select status, return_message, start_time from cron.job_run_details
+  where jobid = (select jobid from cron.job where jobname = 'send-reminders')
+  order by start_time desc limit 20;
+  -- 今日の送信済み記録(行が無ければ、まだ送っていないか、記録済みで対象外)
+  select * from reminder_deliveries where sent_on = (now() at time zone 'Asia/Tokyo')::date;
+  ```
+  `net._http_response` は数時間で消えるため、気づいたらすぐ確認する。`reminder_deliveries` は `schema.sql` の
+  自動適用に含まれるが、**関数の再デプロイは手動**(`npx supabase functions deploy send-reminders`)。
 - 500で、ログに`Vapid public key must be a URL safe Base 64 (without "=")`と出る場合は、
   `VAPID_PUBLIC_KEY`の値が不正(末尾の`=`・引用符・空白の混入、秘密鍵との取り違え)。
   `npx supabase secrets set VAPID_PUBLIC_KEY=...`で入れ直す。Vercelの
