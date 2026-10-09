@@ -181,7 +181,7 @@ flowchart TD
 2. バックグラウンドでSupabaseへの同期を試みる（§7）。
 3. 「💐 保存しました」を約1.8秒表示し、ホームへ戻る（下書きはホーム到達時に消える）。
 
-保存時、旧フォーム由来のフィールド（起床タグ・きっかけ・対応タグ・同行者・引き渡し先）と体調（`conditionScale`）は、既存記録が持っていればそのまま書き戻す（消さない）。新規記録では空/nullになる。
+保存時、旧フォーム由来のフィールド（起床タグ・きっかけ・対応タグ・同行者・引き渡し先）は、既存記録が持っていればそのまま書き戻す（消さない）。新規記録では空/nullになる。
 
 #### 3.1.4 下書き
 
@@ -396,7 +396,7 @@ Supabase Edge Function `send-reminders`（`supabase/functions/send-reminders/ind
 | `userId` | `user_id` | uuid, not null, FK `auth.users`（削除で連鎖） | 記録者。未同期のうちはクライアント側で未設定（＝自分の記録として扱う） |
 | `childId` | `child_id` | uuid, null可, FK `children`（`on delete set null`） | 対象の子ども。子どもが0〜1人の家庭では常に null |
 | `createdAt` / `updatedAt` | `created_at` / `updated_at` | timestamptz | **クライアントが設定する**（DBの既定値 `now()` は使われない）。`updatedAt` は同日複数件のときの選択と表示順に使う |
-| `conditionScale` | `condition_scale` | smallint, null可, `CHECK` 1〜5 | 体調（5段階）。型・保存・同期は残るが入力UIは無く、新しい記録では常に null（過去の入力値は保持）。**要確認 Q4** |
+| （アプリでは扱わない） | `condition_scale` | smallint, null可, `CHECK` 1〜5 | 旧「体調（5段階）」の列。アプリ側の型・保存・同期・入力UIは #137 で削除済み。DB列だけ残り、同期は取り込まず（pullは無視）、送らない（upsertに含めないので既存の値は上書きされず保持される）。列は #114 の旧フィールド整理で削除する予定（Q4） |
 | `wakeTags` / `triggerTags` / `responseTags` | `wake_tags` / `trigger_tags` / `response_tags` | text[], not null | 旧フォーム（〜v1）のタグ。入力不可、表示・エクスポートのためだけに保持 |
 | `companion` / `handoff` | `companion` / `handoff` | text, null可 | 旧フォームの同行者・引き渡し先。同上 |
 | `syncStatus` | （サーバーに無い） | `"pending"` \| `"synced"` | ローカル専用。§5.4 |
@@ -822,7 +822,7 @@ npm run test:e2e       # Playwright（dev サーバーを自動起動）
 | 子どもが0〜1人の家庭への「子ども」概念の表示 | 入力を増やさないため。記録は常に未分類 |
 | エクスポート内容のサーバー送信、メールアドレスの出力 | 個人情報を外へ出さない（§6.5） |
 | パスワード認証 | マジックリンクで十分、入力の手間を避ける（推定） |
-| 体調（`conditionScale`）の入力 | 入力項目としては不要と判断し、UIを外した（型・保存・同期は残す） |
+| 体調（`conditionScale`）の入力 | 入力項目としては不要と判断し、UI・型・保存・同期のコードを削除した（#137）。DB列 `condition_scale` は残る（§5.1） |
 | ピンチ拡大 | §12 |
 | 計測のオフラインキュー | 記録データ本体と違い、失っても影響が小さいため |
 | CSP | Next.jsのインラインscript等との調整が必要なため見送り（§6.7） |
@@ -844,7 +844,7 @@ npm run test:e2e       # Playwright（dev サーバーを自動起動）
 - **未来日の記録が可能**。Q19 → [#134](https://github.com/mmtigers/AsaNote/issues/134)
 - **表示の不統一**: タイムライン/CSVの起床時刻は代表値で出る（Q1）。印刷のタイトルに `.csv` が付く（Q2）。 → [#135](https://github.com/mmtigers/AsaNote/issues/135)
 - **計測**: 段階別ビューが旧ステップ名のまま（Q3）。`entry_point` の名称と実態が違う（Q17）。 → [#136](https://github.com/mmtigers/AsaNote/issues/136)
-- **死蔵コード**: `ConditionScalePicker`（Q4 → [#137](https://github.com/mmtigers/AsaNote/issues/137)）、`unsubscribeCurrentDevice`（Q5 → [#131](https://github.com/mmtigers/AsaNote/issues/131)）。
+- **死蔵コード**: （解消済み）`ConditionScalePicker`（Q4 → [#137](https://github.com/mmtigers/AsaNote/issues/137)）、`unsubscribeCurrentDevice`（Q5 → [#131](https://github.com/mmtigers/AsaNote/issues/131)）。
 - **テーマ色の不一致**: `manifest` の `theme_color`（`#f6f3ec`）と layout の `themeColor`・CSSの背景（`#fff5f6`）が異なる。Q7 → [#137](https://github.com/mmtigers/AsaNote/issues/137)
 
 ## 14. 用語集
@@ -877,7 +877,7 @@ npm run test:e2e       # Playwright（dev サーバーを自動起動）
 | Q1 | タイムラインの「06:59起床」表示とCSVの起床時刻が、区分名ではなく代表値のまま出る。出発時刻はCSV・日記文とも区分名。意図した差か | §3.2, §3.4 | `src/app/timeline/page.tsx`, `src/app/export/selectEntries.ts` |
 | Q2 | `buildExportFilename` が `.csv` 付きの名前を返し、印刷時の `document.title`（PDF保存名の候補）にも `.csv` が付く | §3.4 | `src/app/export/page.tsx`, `selectEntries.ts`, 同テスト |
 | Q3 | （解決済み）`analytics_step_funnel_daily` に `reached_form` を追加した（旧列は過去データ用に残す）。 | §11.3 | `supabase/schema.sql` |
-| Q4 | 体調（`conditionScale`）の入力UIが無く、`ConditionScalePicker` は未使用。復活させるか、列・型ごと整理するか | §5.1 | `src/app/_home/ConditionScalePicker.tsx` |
+| Q4（解決済み #137） | 体調（`conditionScale`）は入力しない方針とし、`ConditionScalePicker` と型・保存・同期のコードを削除した。DB列 `condition_scale` は本番DBの変更になるため今回は残し、#114 の旧フィールド整理で削除する | §5.1 | `supabase/schema.sql`, `src/lib/db/sync.ts` |
 | Q5（解消済み #131） | ログアウト時にPush購読（ブラウザ側とサーバー側 `push_subscriptions`）を解除するようにした | §3.6, §6.6 | `src/lib/push.ts`, `src/components/AuthStatus.tsx` |
 | Q6 | (解消) `send-reminders` と `notify-partner` を、専用の合言葉(`CRON_SECRET` / `PARTNER_NOTIFY_SECRET`)で確かめるようにした。非推奨の `SUPABASE_SERVICE_ROLE_KEY` との一致は、正しい鍵でも 401 になったため使わない | §4.6, §6.7 | `supabase/functions/*/index.ts`, `docs/push-notifications-setup.md` |
 | Q7 | `manifest` の `theme_color` / `background_color`（`#f6f3ec`）と、`layout.tsx` の `themeColor`・CSSの背景（`#fff5f6`）が不一致 | §13.2 | `public/manifest.webmanifest`, `src/app/layout.tsx`, `globals.css` |
