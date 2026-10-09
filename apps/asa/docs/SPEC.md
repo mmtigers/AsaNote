@@ -145,15 +145,15 @@ flowchart TD
 月カレンダー:
 
 - ◀▶で月を移動できる（選択日は変わらない）。表示月が今月でなければ「今日」ボタンで今日へ戻る。
-- 日付セルをタップすると選択（accent色で塗りつぶし）。**未来日も選べて記録できる**（制限なし。意図は **要確認 Q19**）。
+- 日付セルをタップすると選択（accent色で塗りつぶし）。**今日より後の日付は選べない**（薄く表示し、`disabled`。未来日は傾向・リマインド・Push が「今日」基準のため記録の対象外。#134）。今日と過去日は選べる。「今日」はローカル（JST）の日付（`toDateInputValue(new Date())`）。
 - 記録のある日は結果ごとの淡色とドットで示す（スムーズ=accent / 行き渋り=amber / 行かなかった=calm）。パートナーの記録も含め、同じ日に複数あれば更新が新しい方を使う。子どもは選択中の子に一致する記録のみ（`useRecordStatusForMonth`）。
 - 日曜と祝日は赤、土曜は青で日付・曜日見出しを表示する（選択中のセルは塗りつぶし色を優先し、色分けしない）。祝日は `@holiday-jp/holiday_jp` の同梱データで判定する（通信不要。`src/lib/holidays.ts`）。祝日名はセルの `title` / `aria-label` に入る。
 
 記録ボタン（選択日に**自分の**記録があり結果が入っていれば要約カード、無ければ開始ボタン）:
 
-- 開始ボタン: 「📝 今日の様子を記録する」（過去日・未来日は「この日の様子を記録する」）。
+- 開始ボタン: 「📝 今日の様子を記録する」（過去日は「この日の様子を記録する」）。
 - 要約カード: 結果の絵文字とラベル、理由（「・」区切り、1行に切り詰め）、「✏️ 記録を編集する」。パートナーの記録はここには出ない（カレンダーの色と完了バッジにのみ反映）。
-- ボタン上で左右にスワイプ（50px以上かつ横方向優位）すると日付が前後に動く。左→翌日、右→前日。スワイプ直後の合成クリックでボタンが誤作動しないよう一度だけ抑止する。
+- ボタン上で左右にスワイプ（50px以上かつ横方向優位）すると日付が前後に動く。左→翌日、右→前日。今日より先へは進まない（今日でスワイプしても動かない）。スワイプ直後の合成クリックでボタンが誤作動しないよう一度だけ抑止する。
 - 読み込み中（その日の記録をIndexedDBから取得するまで）はスケルトンを出す。
 
 #### 3.1.2 フォーム状態（入力する）
@@ -841,7 +841,6 @@ npm run test:e2e       # Playwright（dev サーバーを自動起動）
 - **Pushのリマインドは分単位の完全一致**: その分に実行が欠けるとその日は届かない（§4.3）。 → [#130](https://github.com/mmtigers/AsaNote/issues/130)
 - **IndexedDB書き込み失敗の専用UIなし**（§3.1.7）。 → [#132](https://github.com/mmtigers/AsaNote/issues/132)
 - **初回訪問直後のオフライン起動**: 未検証（§7.7）。Q15 → [#133](https://github.com/mmtigers/AsaNote/issues/133)
-- **未来日の記録が可能**。Q19 → [#134](https://github.com/mmtigers/AsaNote/issues/134)
 - **表示の不統一**: タイムライン/CSVの起床時刻は代表値で出る（Q1）。印刷のタイトルに `.csv` が付く（Q2）。 → [#135](https://github.com/mmtigers/AsaNote/issues/135)
 - **計測**: 段階別ビューの旧ステップ名（Q3）と `entry_point` の名称（Q17）は解決済み。 → [#136](https://github.com/mmtigers/AsaNote/issues/136)
 - **死蔵コード**: （解消済み）`ConditionScalePicker`（Q4 → [#137](https://github.com/mmtigers/AsaNote/issues/137)）、`unsubscribeCurrentDevice`（Q5 → [#131](https://github.com/mmtigers/AsaNote/issues/131)）。
@@ -892,5 +891,5 @@ npm run test:e2e       # Playwright（dev サーバーを自動起動）
 | Q16（解消済み #131） | ログアウトで、IndexedDBに加え、`localStorage` の下書き・選択中の子ども・リマインドを閉じた日付も消すようにした | §3.6, §5.3, §6.6 | `src/lib/db/localDb.ts`, `src/components/AuthStatus.tsx` |
 | Q17 | （解決済み）`entry_point` を `push_reminder` から `in_app_reminder` に改名した（過去データはビューで読み替え）。Push通知のタップの計測は行わない。 | §11.2 | `src/app/page.tsx`, `supabase/schema.sql` |
 | Q18 | Google Fonts を外部から取得（CSSの `@import`）。プライバシー・オフライン時の見た目の方針 | §6.5, §12 | `src/app/globals.css`, `public/sw.js` |
-| Q19 | ホームのカレンダーは未来日も選べて記録できる。意図か | §3.1.1 | `src/components/MonthCalendar.tsx`, `src/app/page.tsx` |
+| Q19（解決済み #134） | ホームのカレンダーで未来日を選べて記録できた。オーナーの判断で「未来日の記録は許可しない」とし、カレンダーで選択不可にした。URLの `?date=` で未来日（や日付として読めない値）を指定した場合は今日に丸め、編集リンクとしては扱わない（記録フォームを自動で開かない）。端末にある未来日の保存済み記録は消さない（タイムラインには出る） | §3.1.1 | `src/components/MonthCalendar.tsx`, `src/app/page.tsx` |
 

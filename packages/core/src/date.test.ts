@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { WEEKDAYS, addDays, diffInDays, formatDateLabel, formatDateShort, parseDateInputValue, parseTimeToMinutes, toDateInputValue, toMonthOf } from "./date";
+import { WEEKDAYS, addDays, clampToToday, diffInDays, formatDateLabel, formatDateShort, isFutureDate, parseDateInputValue, parseTimeToMinutes, toDateInputValue, toMonthOf } from "./date";
 
 describe("parseDateInputValue", () => {
   it("常にローカルタイムゾーンの0時として解釈する(UTC解釈による1日ズレを防ぐ)", () => {
@@ -94,5 +94,35 @@ describe("parseTimeToMinutes", () => {
     expect(parseTimeToMinutes("6時30分")).toBeNull();
     expect(parseTimeToMinutes("25:00")).toBeNull();
     expect(parseTimeToMinutes("06:70")).toBeNull();
+  });
+});
+
+describe("isFutureDate / clampToToday (#134)", () => {
+  it("今日より後だけ未来日。今日と過去日は未来日ではない", () => {
+    expect(isFutureDate("2026-10-10", "2026-10-09")).toBe(true);
+    expect(isFutureDate("2026-10-09", "2026-10-09")).toBe(false);
+    expect(isFutureDate("2026-10-08", "2026-10-09")).toBe(false);
+  });
+
+  it("月・年の境目でも前後を正しく比べる(ゼロ埋めの文字列比較)", () => {
+    expect(isFutureDate("2027-01-01", "2026-12-31")).toBe(true);
+    expect(isFutureDate("2026-12-31", "2027-01-01")).toBe(false);
+    expect(isFutureDate("2026-10-01", "2026-09-30")).toBe(true);
+  });
+
+  it("今日はローカル日付で決まる。日付が変わる瞬間の前後で、その日の日付が今日になる", () => {
+    const beforeMidnight = toDateInputValue(new Date(2026, 9, 9, 23, 59, 59));
+    const afterMidnight = toDateInputValue(new Date(2026, 9, 10, 0, 0, 0));
+    expect(beforeMidnight).toBe("2026-10-09");
+    expect(isFutureDate("2026-10-10", beforeMidnight)).toBe(true);
+    expect(isFutureDate("2026-10-10", afterMidnight)).toBe(false);
+  });
+
+  it("clampToToday: 未来日は今日に、過去日と今日はそのまま、読めない値は今日にする", () => {
+    expect(clampToToday("2099-01-01", "2026-10-09")).toBe("2026-10-09");
+    expect(clampToToday("2026-10-09", "2026-10-09")).toBe("2026-10-09");
+    expect(clampToToday("2026-09-01", "2026-10-09")).toBe("2026-09-01");
+    expect(clampToToday("abc", "2026-10-09")).toBe("2026-10-09");
+    expect(clampToToday("2026-9-1", "2026-10-09")).toBe("2026-10-09");
   });
 });
