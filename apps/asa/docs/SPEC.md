@@ -791,7 +791,7 @@ npm run test:e2e       # Playwright（dev サーバーを自動起動）
 |---|---|
 | `analytics_record_flow_sessions` | 他のビューの土台。`record_id` × セッション（`started`/`resumed` で開始、`saved`/`paused` で終了）に再構成し、所要秒数等を算出 |
 | `analytics_flow_duration_daily` | 主指標。**新規記録・中断なしで完走**したセッションの所要秒数を、日別・`entry_point`別に平均/中央値/p90で集計 |
-| `analytics_step_funnel_daily` | 各ステップ到達数の日別集計（離脱率用）。**`step = 'result'` / `'reason'` を数える定義のまま**で、フローが1画面になった現行アプリは `form` しか送らないため、`reached_result` / `reached_reason` は新しいデータでは常に0になる。**要確認 Q3** |
+| `analytics_step_funnel_daily` | 各ステップ到達数の日別集計（離脱率用）。フローが1画面になった現行アプリは `step = 'form'` しか送らないため、旧フロー用の `reached_result` / `reached_reason` は新しいデータでは常に0になる（過去データ用に残している）。現行の到達数は `reached_form` |
 | `analytics_pause_resume_daily` | 離脱理由別の件数と、うち再開を伴った件数（上記の理由で再開はほぼ0になる想定） |
 
 ## 12. 非機能要件
@@ -876,7 +876,7 @@ npm run test:e2e       # Playwright（dev サーバーを自動起動）
 |---|---|---|---|
 | Q1 | タイムラインの「06:59起床」表示とCSVの起床時刻が、区分名ではなく代表値のまま出る。出発時刻はCSV・日記文とも区分名。意図した差か | §3.2, §3.4 | `src/app/timeline/page.tsx`, `src/app/export/selectEntries.ts` |
 | Q2 | `buildExportFilename` が `.csv` 付きの名前を返し、印刷時の `document.title`（PDF保存名の候補）にも `.csv` が付く | §3.4 | `src/app/export/page.tsx`, `selectEntries.ts`, 同テスト |
-| Q3 | `analytics_step_funnel_daily` が旧ステップ名（`result` / `reason`）を数えるため、フロー1画面化後は到達数が常に0。ビューを更新するか | §11.3 | `supabase/schema.sql` |
+| Q3 | （解決済み）`analytics_step_funnel_daily` に `reached_form` を追加した（旧列は過去データ用に残す）。 | §11.3 | `supabase/schema.sql` |
 | Q4 | 体調（`conditionScale`）の入力UIが無く、`ConditionScalePicker` は未使用。復活させるか、列・型ごと整理するか | §5.1 | `src/app/_home/ConditionScalePicker.tsx` |
 | Q5（解消済み #131） | ログアウト時にPush購読（ブラウザ側とサーバー側 `push_subscriptions`）を解除するようにした | §3.6, §6.6 | `src/lib/push.ts`, `src/components/AuthStatus.tsx` |
 | Q6 | (解消) `send-reminders` と `notify-partner` を、専用の合言葉(`CRON_SECRET` / `PARTNER_NOTIFY_SECRET`)で確かめるようにした。非推奨の `SUPABASE_SERVICE_ROLE_KEY` との一致は、正しい鍵でも 401 になったため使わない | §4.6, §6.7 | `supabase/functions/*/index.ts`, `docs/push-notifications-setup.md` |
