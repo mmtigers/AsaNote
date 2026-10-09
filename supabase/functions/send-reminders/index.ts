@@ -9,11 +9,14 @@
 // 生成方法・デプロイ手順は docs/push-notifications-setup.md を参照。
 //
 // 処理の流れ:
-//   1. 現在時刻をJSTのHH:MMに丸め、notification_settings.reminder_timeが一致し
-//      enabled=trueのユーザーを探す(pg_cronを毎分実行にしているため分単位の一致でよい)。
+//   1. enabled=trueのユーザーのうち、現在のJST時刻が reminder_time 以降で、直近
+//      REMINDER_CATCHUP_WINDOW_MINUTES(15)分以内、かつ今日まだ送っていない(reminder_deliveries
+//      に今日の行が無い)ユーザーを探す。cron/関数が1分欠けても、次の分以降で取り戻すため(#130)。
 //   2. 「今日(JST)」の記録にoutcomeが入っていれば、本人または同じグループの誰かでも、何もしない
 //      (アプリ内リマインダーRecordReminderNoticeと同じ「未入力なら知らせる」方針)。
-//   3. 未入力なら、そのユーザーのpush_subscriptions全件へ通知を送る。
+//   3. 未入力なら、reminder_deliveries に「今日送信済み」の行を入れて(主キー衝突で二重送信を防ぐ。
+//      入れられた=自分が担当したユーザーだけが送る)、そのユーザーのpush_subscriptions全件へ通知を送る。
+//      購読があるのに1件も送れなかったユーザーは、行を消して次の分に再試行させる。
 //      送信に失敗した購読(410 Gone等、失効した購読)はその場で削除する。
 import { createClient } from "npm:@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
@@ -22,7 +25,9 @@ import {
   jstDateNow,
   jstTimeNow,
   reminderPayload,
+  selectDueReminderUserIds,
   selectReminderTargets,
+  selectUsersToRelease,
   sendToSubscriptions,
   type GroupMembership,
   type PushSubscriptionRow,
@@ -60,18 +65,31 @@ Deno.serve(async (req) => {
   const currentTime = jstTimeNow(now);
   const today = jstDateNow(now);
 
-  const { data: dueSettings, error: settingsError } = await supabase
+  const { data: enabledSettings, error: settingsError } = await supabase
     .from("notification_settings")
-    .select("user_id")
-    .eq("enabled", true)
-    .eq("reminder_time", `${currentTime}:00`);
+    .select("user_id, reminder_time")
+    .eq("enabled", true);
 
   if (settingsError) {
     console.error("notification_settingsの取得に失敗しました:", settingsError);
     return new Response("failed to load notification_settings", { status: 500 });
   }
 
-  const dueUserIds = (dueSettings ?? []).map((row) => row.user_id as string);
+  const { data: sentToday, error: sentError } = await supabase
+    .from("reminder_deliveries")
+    .select("user_id")
+    .eq("sent_on", today);
+
+  if (sentError) {
+    console.error("reminder_deliveriesの取得に失敗しました:", sentError);
+    return new Response("failed to load reminder_deliveries", { status: 500 });
+  }
+
+  const dueUserIds = selectDueReminderUserIds(
+    (enabledSettings ?? []) as { user_id: string; reminder_time: string }[],
+    now,
+    (sentToday ?? []).map((row) => row.user_id as string)
+  );
   if (dueUserIds.length === 0) {
     return new Response(JSON.stringify({ checked: 0, sent: 0 }), {
       headers: { "content-type": "application/json" },
@@ -111,14 +129,34 @@ Deno.serve(async (req) => {
     return new Response("failed to load records", { status: 500 });
   }
 
-  const targetUserIds = selectReminderTargets(
+  const candidateUserIds = selectReminderTargets(
     dueUserIds,
     (todaysRecords ?? []).map((row) => row.user_id as string),
     memberships
   );
 
-  if (targetUserIds.length === 0) {
+  if (candidateUserIds.length === 0) {
     return new Response(JSON.stringify({ checked: dueUserIds.length, sent: 0 }), {
+      headers: { "content-type": "application/json" },
+    });
+  }
+
+  // 「今日送信済み」の印を先に付け、付けられた(=他の実行に先を越されなかった)ユーザーだけに送る。
+  // 既存の行は ignoreDuplicates でスキップされ、返ってくるのは新規に入れた行だけ。
+  const { data: claimed, error: claimError } = await supabase
+    .from("reminder_deliveries")
+    .upsert(
+      candidateUserIds.map((user_id) => ({ user_id, sent_on: today })),
+      { onConflict: "user_id,sent_on", ignoreDuplicates: true }
+    )
+    .select("user_id");
+  if (claimError) {
+    console.error("reminder_deliveriesへの記録に失敗しました:", claimError);
+    return new Response("failed to record reminder_deliveries", { status: 500 });
+  }
+  const targetUserIds = (claimed ?? []).map((row) => row.user_id as string);
+  if (targetUserIds.length === 0) {
+    return new Response(JSON.stringify({ checked: dueUserIds.length, targeted: 0, sent: 0 }), {
       headers: { "content-type": "application/json" },
     });
   }
@@ -130,14 +168,29 @@ Deno.serve(async (req) => {
 
   if (subscriptionsError) {
     console.error("push_subscriptionsの取得に失敗しました:", subscriptionsError);
+    // 印だけ残ると今日は届かなくなるので、外して次の分に再試行させる。
+    await supabase.from("reminder_deliveries").delete().eq("sent_on", today).in("user_id", targetUserIds);
     return new Response("failed to load push_subscriptions", { status: 500 });
   }
 
+  const subscriptionRows = (subscriptions ?? []) as (PushSubscriptionRow & { user_id: string })[];
+  const idByEndpoint = new Map(subscriptionRows.map((row) => [row.endpoint, row.id]));
+  const sentSubscriptionIds: string[] = [];
   const { sent, staleSubscriptionIds } = await sendToSubscriptions(
-    (subscription, payload) => webpush.sendNotification(subscription, payload),
-    (subscriptions ?? []) as PushSubscriptionRow[],
+    async (subscription, payload) => {
+      await webpush.sendNotification(subscription, payload);
+      const id = idByEndpoint.get(subscription.endpoint);
+      if (id) sentSubscriptionIds.push(id);
+    },
+    subscriptionRows,
     reminderPayload()
   );
+
+  // 購読があるのに1件も届かなかったユーザー(一時的な通信エラー等)は、印を外して次の分に再試行する。
+  const releaseUserIds = selectUsersToRelease(subscriptionRows, sentSubscriptionIds);
+  if (releaseUserIds.length > 0) {
+    await supabase.from("reminder_deliveries").delete().eq("sent_on", today).in("user_id", releaseUserIds);
+  }
 
   if (staleSubscriptionIds.length > 0) {
     await supabase.from("push_subscriptions").delete().in("id", staleSubscriptionIds);
