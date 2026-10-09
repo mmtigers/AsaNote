@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { matchesChildFilter } from "@note/core/childFilter";
 import { ChildSwitcher } from "@note/core/components/ChildSwitcher";
 import { MonthCalendar } from "@/components/MonthCalendar";
 import { SkeletonList } from "@note/core/components/Skeleton";
@@ -182,8 +183,14 @@ export default function StatsPage() {
   const [filterChildId, setFilterChildId] = useState<string | null>(null);
   const todayValue = useMemo(() => toDateInputValue(new Date()), []);
   const [displayMonth, setDisplayMonth] = useState(() => toMonthOf(todayValue));
+  // 子どもが複数いるときだけ、詳細シートの記録に子ども名を出す。未分類の記録があるときだけ「未分類」の絞り込みを出す(#127)。
+  const childNames = useMemo(
+    () => new Map<string, string>(children && children.length > 1 ? children.map((c) => [c.id, c.name]) : []),
+    [children]
+  );
+  const hasUnassigned = useMemo(() => records?.some((r) => !r.childId) ?? false, [records]);
   const filtered = useMemo(
-    () => records?.filter((r) => filterChildId === null || r.childId === filterChildId),
+    () => records?.filter((r) => matchesChildFilter(r.childId, filterChildId)),
     [records, filterChildId]
   );
 
@@ -223,7 +230,10 @@ export default function StatsPage() {
       </header>
 
       {childList.length >= 2 && (
-        <ChildSwitcher childList={childList} selectedId={filterChildId} onSelect={setFilterChildId} allowAll />
+        <ChildSwitcher childList={childList} selectedId={filterChildId} onSelect={setFilterChildId}
+          allowAll
+          allowUnassigned={hasUnassigned}
+        />
       )}
 
       {!summary ? (
@@ -382,6 +392,7 @@ export default function StatsPage() {
           currentUserId={session?.user.id ?? null}
           authLoading={authLoading}
           emailMap={emailMap}
+          childNames={childNames}
           onClose={() => setDetail(null)}
         />
       )}
