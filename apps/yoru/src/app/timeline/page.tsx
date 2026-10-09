@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { matchesChildFilter } from "@note/core/childFilter";
 import { ChildSwitcher } from "@note/core/components/ChildSwitcher";
 import { ConfirmDialog } from "@note/core/components/ConfirmDialog";
 import { Skeleton } from "@note/core/components/Skeleton";
@@ -73,8 +74,10 @@ export default function TimelinePage() {
   const childList = useMemo(() => children ?? [], [children]);
   const childNames = useMemo(() => new Map(childList.map((c) => [c.id, c.name])), [childList]);
   const memberEmails = useMemo(() => buildMemberEmailMap(members), [members]);
+  // 未分類の記録があるときだけ「未分類」の絞り込みを出す(#127)。
+  const hasUnassigned = useMemo(() => (records ?? []).some((r) => !r.childId), [records]);
   const visible = useMemo(
-    () => (records ?? []).filter((r) => !filterChildId || r.childId === filterChildId),
+    () => (records ?? []).filter((r) => matchesChildFilter(r.childId, filterChildId)),
     [records, filterChildId]
   );
 
@@ -88,7 +91,10 @@ export default function TimelinePage() {
       </div>
 
       {childList.length >= 2 && (
-        <ChildSwitcher childList={childList} selectedId={filterChildId} onSelect={setFilterChildId} allowAll />
+        <ChildSwitcher childList={childList} selectedId={filterChildId} onSelect={setFilterChildId}
+          allowAll
+          allowUnassigned={hasUnassigned}
+        />
       )}
 
       {records === undefined || authLoading ? (
