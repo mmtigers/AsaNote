@@ -158,6 +158,17 @@ describe("syncPendingChanges", () => {
     expect(upsert).toHaveBeenCalledWith([expect.objectContaining({ id: "r1", child_id: null })]);
   });
 
+  it("condition_scale列は送信しない(サーバーの既存値をnullで上書きして消さない #137)", async () => {
+    await localDb.records.add(makeLocalRecord({ id: "r1" }));
+    const upsert = vi.fn().mockResolvedValue({ error: null });
+    mockRecordsTable({ upsert });
+
+    await syncPendingChanges();
+
+    const [rows] = upsert.mock.calls[0] as [Record<string, unknown>[]];
+    expect(rows[0]).not.toHaveProperty("condition_scale");
+  });
+
   it("一括upsertが失敗した場合、1件ずつ再試行し、失敗した行だけpendingのまま残し、失敗を報告する", async () => {
     await localDb.records.add(makeLocalRecord({ id: "ok" }));
     await localDb.records.add(makeLocalRecord({ id: "ng" }));
@@ -237,6 +248,21 @@ describe("pullFromCloud", () => {
     await pullFromCloud();
 
     expect((await localDb.records.get("r1"))?.memo).toBe("ローカル未送信の変更");
+  });
+
+  it("サーバーに残るcondition_scale列があっても取り込め、ローカルには持ち込まない(#137)", async () => {
+    mockRecordsTable({
+      select: vi.fn().mockResolvedValue({
+        data: [makeCloudRow({ id: "r-cond", condition_scale: 3 })],
+        error: null,
+      }),
+    });
+
+    await pullFromCloud();
+
+    const saved = await localDb.records.get("r-cond");
+    expect(saved?.id).toBe("r-cond");
+    expect(saved).not.toHaveProperty("conditionScale");
   });
 
   it("Postgres の time 列が HH:MM:SS で返っても HH:MM へ正規化する(#61)", async () => {

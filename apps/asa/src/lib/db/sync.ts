@@ -15,6 +15,9 @@ let pulling = false;
 export const PULL_PAGE_SIZE = 500;
 
 // user_idはRLSのINSERT/UPDATEポリシーが要求するため必須で付与する。
+// records.condition_scale 列はサーバーに残るが(#137、列の削除は #114 で行う)、アプリは
+// もう扱わない。upsertのペイロードに含めない(=ON CONFLICT DO UPDATEの対象外になる)ことで、
+// 過去に入力された値をnullで上書きして消さないようにしている。
 function toRecordRow(record: LocalRecord, userId: string) {
   return {
     id: record.id,
@@ -30,7 +33,6 @@ function toRecordRow(record: LocalRecord, userId: string) {
     companion: record.companion,
     handoff: record.handoff,
     memo: record.memo,
-    condition_scale: record.conditionScale ?? null,
     child_id: record.childId ?? null,
     created_at: record.createdAt,
     updated_at: record.updatedAt,
@@ -68,7 +70,6 @@ function fromRecordRow(row: CloudRecordRow): LocalRecord {
     companion: row.companion,
     handoff: row.handoff,
     memo: row.memo,
-    conditionScale: row.condition_scale,
     userId: row.user_id,
     childId: row.child_id,
     createdAt: row.created_at,
