@@ -16,7 +16,6 @@ export interface RecordFormInput {
   companion: string | null;
   handoff: string | null;
   memo: string | null;
-  conditionScale?: number | null;
   userId?: string | null;
   childId?: string | null;
 }
