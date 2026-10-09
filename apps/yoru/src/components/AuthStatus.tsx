@@ -12,6 +12,7 @@ import { clearDraft } from "@/app/_home/draftStorage";
 import { usePendingSyncCount } from "@/lib/db/queries";
 import { countUnsyncedChanges } from "@/lib/db/records";
 import { syncPendingChanges } from "@/lib/db/sync";
+import { clearChildrenCache } from "@note/core/db/children";
 import { getSupabaseClient } from "@note/core/supabase/client";
 
 // ホーム画面のヘッダーに置く、ログイン状態の表示。
@@ -46,6 +47,7 @@ export function AuthStatus() {
       clearDraft();
       setSelectedChildId(null);
       clearReminderDismissal();
+      clearChildrenCache();
     }
   }
 
