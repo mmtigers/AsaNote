@@ -1,6 +1,6 @@
 {
   "name": "asa-note",
-  "version": "0.4.19",
+  "version": "0.4.21",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -11,6 +11,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
+    "test:e2e:supabase": "playwright test -c playwright.supabase.config.ts",
     "db:types": "bash scripts/gen-db-types.sh"
   },
   "dependencies": {
