@@ -65,6 +65,7 @@ export default function HomePage() {
       }
       cameFromEditLink.current = true;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- マウント時一度きりの初期化(todayValueはマウント時に確定する値)
   }, []);
 
   const children = useChildren();
