@@ -487,7 +487,12 @@ select
   min(client_ts) filter (where event_name in ('record_flow_started', 'record_flow_resumed')) as started_at,
   max(client_ts) filter (where event_name in ('record_saved', 'record_flow_paused')) as ended_at,
   bool_or(event_name = 'record_flow_resumed') as is_resume,
-  max(properties ->> 'entry_point') filter (where event_name = 'record_flow_started') as entry_point,
+  -- 旧名 'push_reminder'(実際はアプリ内リマインド経由)は 'in_app_reminder' として読み替える
+  -- (analytics_eventsの元データは書き換えない。列の型はtext・位置は変えない)。
+  case max(properties ->> 'entry_point') filter (where event_name = 'record_flow_started')
+    when 'push_reminder' then 'in_app_reminder'
+    else max(properties ->> 'entry_point') filter (where event_name = 'record_flow_started')
+  end as entry_point,
   coalesce(
     max(properties ->> 'is_edit') filter (where event_name = 'record_flow_started'),
     max(properties ->> 'is_edit') filter (where event_name = 'record_saved')
