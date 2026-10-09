@@ -259,6 +259,68 @@ $$;
 
 grant execute on function get_group_members() to authenticated;
 
+-- 空グループと、期限切れで未使用の招待コードの掃除(Issue #128)。
+-- 最後のメンバーが脱退しても groups 行と有効期限内の招待コードが残るため、定期的に消す。
+--
+-- 消してよい根拠(外部キーを全て確認済み):
+--   groups(id) を参照する外部キーは group_members.group_id と group_invites.group_id の
+--   2つだけで、どちらも on delete cascade。records / children / notification_settings /
+--   push_subscriptions などには group_id 列が無く、グループ削除で記録・子ども・通知設定が
+--   消えたり孤立したりすることはない(children は created_by、records は user_id で所有される)。
+--   空グループ(group_members が0行)を消して連鎖して消えるのは、そのグループの group_invites だけ。
+--
+-- 使用済みの招待コード(used_at あり)の履歴は、グループが残る限り消さない。
+-- 実行できるのは service_role / pg_cron(postgres)のみ。匿名・一般ユーザーには公開しない。
+create or replace function cleanup_empty_groups_and_invites()
+returns table (deleted_invites integer, deleted_groups integer)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_invites integer;
+  v_groups integer;
+begin
+  -- 先に期限切れ・未使用の招待コードを消す(使用済みは残す)。
+  delete from group_invites
+  where used_at is null
+    and expires_at < now();
+  get diagnostics v_invites = row_count;
+
+  -- メンバーが1人もいないグループだけを消す。メンバーがいるグループには触れない。
+  -- create_group() は groups と group_members を同一トランザクションで追加するため、
+  -- 作成直後の途中状態(メンバー0人)を、ここから見ることはない。
+  delete from groups g
+  where not exists (
+    select 1 from group_members gm where gm.group_id = g.id
+  );
+  get diagnostics v_groups = row_count;
+
+  return query select v_invites, v_groups;
+end;
+$$;
+
+-- Supabase は新しい関数に anon / authenticated / service_role への実行権を自動で付けるため、
+-- public からの revoke だけでは足りず、明示的に外す。ロールが無い環境(CI の素のPostgres)でも
+-- 失敗しないよう、存在するロールだけを対象にする。
+revoke all on function cleanup_empty_groups_and_invites() from public;
+
+do $$
+declare
+  v_role text;
+begin
+  foreach v_role in array array['anon', 'authenticated'] loop
+    if exists (select 1 from pg_roles where rolname = v_role) then
+      execute format('revoke all on function cleanup_empty_groups_and_invites() from %I', v_role);
+    end if;
+  end loop;
+
+  if exists (select 1 from pg_roles where rolname = 'service_role') then
+    grant execute on function cleanup_empty_groups_and_invites() to service_role;
+  end if;
+end
+$$;
+
 -- 複数の子どもがいる家庭向け。groups同様「作成者 + 同じグループのメンバー」が
 -- 閲覧できる共有リストとして扱う(id はrecords.child_idから参照する)。
 create table if not exists children (

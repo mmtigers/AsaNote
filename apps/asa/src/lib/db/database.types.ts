@@ -326,6 +326,13 @@ export type Database = {
       }
     }
     Functions: {
+      cleanup_empty_groups_and_invites: {
+        Args: never
+        Returns: {
+          deleted_groups: number
+          deleted_invites: number
+        }[]
+      }
       create_group: {
         Args: never
         Returns: {
