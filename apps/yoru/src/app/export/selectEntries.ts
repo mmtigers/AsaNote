@@ -2,12 +2,13 @@ import { milestoneDisplay } from "@/lib/timeBands";
 import { DINNER_OPTIONS, EFFECT_OPTIONS, MILESTONES, OUTCOME_OPTIONS } from "@/constants/choices";
 import { parseDateInputValue, WEEKDAYS } from "@note/core/date";
 import type { LocalRecord } from "@/lib/db/localDb";
+import { matchesChildFilter } from "@note/core/childFilter";
 import { isOwnRecord } from "@note/core/ownership";
 
 interface SelectEntriesOptions {
   startDate: string;
   endDate: string;
-  // null は「すべての子ども」。
+  // null は「すべての子ども」、UNASSIGNED_FILTER は子ども未分類の記録だけ(#127)。
   childId: string | null;
   includePartner: boolean;
   currentUserId: string | null | undefined;
@@ -22,7 +23,7 @@ export function selectExportEntries<T extends LocalRecord>(
 ): T[] {
   return records
     .filter((r) => r.outcome && r.recordDate >= startDate && r.recordDate <= endDate)
-    .filter((r) => childId === null || r.childId === childId)
+    .filter((r) => matchesChildFilter(r.childId, childId))
     .filter((r) => includePartner || isOwnRecord(r, currentUserId, authLoading))
     .sort((a, b) => a.recordDate.localeCompare(b.recordDate) || a.updatedAt.localeCompare(b.updatedAt));
 }
