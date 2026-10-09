@@ -270,6 +270,24 @@ export type Database = {
           },
         ]
       }
+      reminder_deliveries: {
+        Row: {
+          created_at: string
+          sent_on: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          sent_on: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          sent_on?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       analytics_flow_duration_daily: {

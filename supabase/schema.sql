@@ -332,6 +332,74 @@ create table if not exists children (
 
 create index if not exists idx_children_created_by on children(created_by);
 
+-- 子どもの作成者がグループを脱退したとき、その子どもの所有(created_by)を、同じグループに
+-- 残る別のメンバーへ移す(Issue #128)。移さないと、children の SELECT が「作成者 または 作成者と
+-- 同じグループのメンバー」のため、残ったメンバーから子どもが見えなくなり、編集・削除もできなくなる。
+--
+-- 移す先: そのグループで最も早く参加したメンバー(joined_at が最も古い人。同時刻は user_id 順)。
+-- 脱退する本人は除く。
+-- 何もしない場合: 残るメンバーがいない(最後の1人の脱退)/ 脱退する人が子どもを作っていない。
+--   グループに属さない人の子どもには、この関数は触れない(group_members の行の削除が起点のため)。
+-- 脱退の経路(クライアントの直接 delete / アカウント削除による連鎖 / SQL)を問わず動くよう、
+-- group_members の before delete トリガーにしている(クライアントの変更は不要)。
+-- 同じグループの複数人が同時に脱退しても、互いに「脱退する人」へ移し合わないよう、groups の行を
+-- ロックして順番に処理する(for no key update は招待・参加の外部キー確認とは衝突しない)。
+-- 関連する外部キー: children.created_by は auth.users(id) への on delete cascade(not null)。
+-- records.child_id は on delete set null。この関数は created_by を更新するだけで、children の行は
+-- 消さないため、records.child_id には影響しない。
+create or replace function transfer_children_on_group_leave()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_new_owner uuid;
+begin
+  perform 1 from groups where id = old.group_id for no key update;
+
+  select gm.user_id into v_new_owner
+  from group_members gm
+  where gm.group_id = old.group_id
+    and gm.user_id <> old.user_id
+  order by gm.joined_at asc, gm.user_id asc
+  limit 1;
+
+  if v_new_owner is null then
+    return old;
+  end if;
+
+  update children
+  set created_by = v_new_owner
+  where created_by = old.user_id;
+
+  return old;
+end;
+$$;
+
+-- トリガー専用の関数。anon / authenticated などから直接呼べる状態にしない。
+-- ロールが無い環境(CI の素のPostgres)でも失敗しないよう、存在するロールだけを対象にする。
+revoke all on function transfer_children_on_group_leave() from public;
+
+do $$
+declare
+  v_role text;
+begin
+  foreach v_role in array array['anon', 'authenticated'] loop
+    if exists (select 1 from pg_roles where rolname = v_role) then
+      execute format('revoke all on function transfer_children_on_group_leave() from %I', v_role);
+    end if;
+  end loop;
+end
+$$;
+
+drop trigger if exists trg_transfer_children_on_group_leave on group_members;
+
+create trigger trg_transfer_children_on_group_leave
+  before delete on group_members
+  for each row
+  execute function transfer_children_on_group_leave();
+
 -- 子どもが1人だけ(childrenが0〜1件)の家庭では入力を増やさないため、
 -- 記録フォーム側からは常にnullのまま保存する。子どもを削除した場合も記録自体は
 -- 残したいため、on delete set nullで「未分類」に戻す(記録を巻き込んで消さない)。
@@ -495,6 +563,40 @@ create policy "notification_settings are deletable by owner"
   on notification_settings for delete
   to authenticated
   using (auth.uid() = user_id);
+
+-- 未入力日のリマインドPushの送信済み記録(#130)。send-reminders は設定時刻を過ぎて直近N分以内の
+-- ユーザーを対象にする(cron/関数の1分の欠けを取り戻す)ため、同じ日に二重送信しないよう、
+-- 「ユーザー × JSTの日付」ごとに1行を残す。主キーの衝突で、同時実行された関数同士も二重に送らない。
+-- Edge Function(service role)だけが読み書きする。RLSを有効にしてポリシーを一切作らず、
+-- authenticated / anon からは読めも書けもしない(analytics_eventsの集計ビューと同じ「サーバー専用」の扱い)。
+create table if not exists reminder_deliveries (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  sent_on date not null,
+  created_at timestamptz not null default now(),
+  primary key (user_id, sent_on)
+);
+
+alter table reminder_deliveries enable row level security;
+
+-- Supabase は新しいテーブルに anon / authenticated への権限を自動で付けるため、明示的に外す。
+-- ロールが無い環境(CI の素のPostgres)でも失敗しないよう、存在するロールだけを対象にする。
+revoke all on table reminder_deliveries from public;
+
+do $$
+declare
+  v_role text;
+begin
+  foreach v_role in array array['anon', 'authenticated'] loop
+    if exists (select 1 from pg_roles where rolname = v_role) then
+      execute format('revoke all on table reminder_deliveries from %I', v_role);
+    end if;
+  end loop;
+
+  if exists (select 1 from pg_roles where rolname = 'service_role') then
+    grant select, insert, delete on table reminder_deliveries to service_role;
+  end if;
+end
+$$;
 
 -- 記録フローの計測イベント(所要時間・離脱率の分析用)。書き込み専用ログとして扱い、
 -- クライアントからの読み取りは許可しない(集計はダッシュボード等からservice role/
