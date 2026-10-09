@@ -644,6 +644,7 @@ DBに一意制約が無く、2端末でオフライン中に同じ日を新規�
 | `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | Edge Functionには自動注入 | Edge Functionのservice role接続 |
 | `SUPABASE_DB_URL` | GitHubリポジトリのシークレット | `db-deploy.yml` |
 | `SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` | 実行時の環境変数（手元） | `scripts/import-records.mjs` |
+| `E2E_SUPABASE_URL` / `E2E_SUPABASE_ANON_KEY` / `E2E_USER_A_EMAIL` / `E2E_USER_A_PASSWORD` / `E2E_USER_B_EMAIL` / `E2E_USER_B_PASSWORD`（任意で `E2E_PRODUCTION_SUPABASE_URL`） | GitHubリポジトリのシークレット（ローカルは環境変数） | 実Supabaseの**テスト専用プロジェクト**向けE2E（`e2e-supabase.yml`、`docs/e2e-supabase.md`）。**本番の値は入れない**（service role keyも不要） |
 
 ### 8.5 Supabase Auth の設定
 
@@ -717,8 +718,9 @@ supabase/
 public/                   sw.js, manifest.webmanifest, icons/, apple-touch-icon.png
 scripts/                  gen-db-types.sh, import-records.mjs(更新履歴の検査 check-release-notes.mjs はルートの scripts/)
 e2e/record-flow.spec.ts   Playwright E2E
-docs/                     SPEC.md（本書）, push-notifications-setup.md
-.github/                  workflows/ci.yml, workflows/db-deploy.yml, dependabot.yml
+e2e-supabase/           実Supabaseテストプロジェクト向けE2E（spec・接続先ガード config.ts）。設定は playwright.supabase.config.ts
+docs/                     SPEC.md（本書）, push-notifications-setup.md, e2e-supabase.md
+.github/                  workflows/ci.yml, workflows/e2e-supabase.yml, workflows/db-deploy.yml, dependabot.yml
 ```
 
 - `supabase/functions/` はDeno向けで、このNode/Next.jsプロジェクトの `tsc` と ESLint の対象外（`tsconfig.json` の `exclude` と `eslint.config.mjs` の `globalIgnores`）。純粋ロジック（`_shared/pushLogic.ts`）だけ切り出してあり、Vitestで検証する。
@@ -734,12 +736,14 @@ npm run test           # Vitest（ユニット）
 npm run test:coverage  # カバレッジ付き（CIと同じ。閾値なし）
 npm run build          # 型チェック込みの本番ビルド
 npm run test:e2e       # Playwright（dev サーバーを自動起動）
+npm run test:e2e:supabase  # 実Supabaseテストプロジェクト向けE2E（Secrets/環境変数が無ければ skip。docs/e2e-supabase.md）
 ```
 
 ### 10.2 テストの方針
 
 - **ユニット（Vitest）**: `src/**/*.test.{ts,tsx}` と `supabase/functions/**/*.test.ts`。環境は jsdom、IndexedDBは `fake-indexeddb`（`vitest.setup.ts`）。フォームの状態遷移、日付処理、同期、エクスポート抽出、グループ操作、集計、Pushの純粋ロジックなど主要ロジックにはテストが付随する。カバレッジは計測・可視化が目的で、閾値による失敗は設けていない。
-- **E2E（Playwright）**: `e2e/record-flow.spec.ts`。**ログイン不要の範囲のみ**（Supabaseはダミー値）。(1) 記録の入力→保存→ホームとタイムラインへの反映→編集リンク、(2) フォームの途中で下部ナビの「記録する」を押すと最初の画面に戻る。グループ・ログインを伴うE2Eは未整備。chromiumのみ。
+- **E2E（Playwright）**: `e2e/record-flow.spec.ts`。**ログイン不要の範囲のみ**（Supabaseはダミー値）。(1) 記録の入力→保存→ホームとタイムラインへの反映→編集リンク、(2) フォームの途中で下部ナビの「記録する」を押すと最初の画面に戻る。chromiumのみ。
+- **E2E（実Supabaseテストプロジェクト）: 準備済み・Secrets設定待ち**（#117）。`e2e-supabase/group-flow.spec.ts`＋`playwright.supabase.config.ts`（通常のE2Eとは別設定・別ポート）。グループ作成→招待コード発行→別ユーザーで参加→脱退を、認証経路とRLS（未ログイン・グループ外・脱退後からは見えない/書けない、使用済みコードの再利用不可）の検証込みで確かめる。`E2E_SUPABASE_URL` / `E2E_SUPABASE_ANON_KEY` / `E2E_USER_{A,B}_{EMAIL,PASSWORD}` が揃っているときだけ実行され、未設定なら自動で skip（CIも成功のまま）。**本番Supabaseには接続しない**: 接続先が本番URLと一致する・anon keyにservice role keyを渡した・テストユーザーのメールが `asanote-e2e-` 始まりでない場合は、skipではなく中止（`e2e-supabase/config.ts`、単体テスト付き）。テストプロジェクトの用意手順・後始末は `docs/e2e-supabase.md`。**実プロジェクトでの実行は未検証**。Supabaseのモック案は採らない（#47）。
 - `src/lib/ci-workflow.test.ts` が `ci.yml` のアクション参照のSHA固定を検査する。
 
 ### 10.3 CIジョブ（`.github/workflows/ci.yml`）
@@ -754,6 +758,7 @@ npm run test:e2e       # Playwright（dev サーバーを自動起動）
 | `release-notes-check` | ルートの `scripts/check-release-notes.mjs`（テスト: `src/lib/releaseNotesCheck.test.ts`）。判定条件と例外は本書冒頭の更新ルール |
 
 - 本番への反映は別のワークフロー（`db-deploy.yml`、§8.2）。
+- 実Supabaseテストプロジェクト向けE2Eは**別ワークフロー** `.github/workflows/e2e-supabase.yml`（上のジョブ表には含まれない）。Secrets未設定・forkのPRでは判定ステップだけ走って成功で終わる（`pull_request_target` は使わない）。同じテストユーザーを共有するため同時実行は1つ。本番や通常CIの結果には影響しない。
 - Dependabot（`.github/dependabot.yml`）: npmとGitHub Actionsを週次（月曜9:00 JST）で確認。npmのminor/patchは1本のグループPRにまとめ、メジャーは個別PR。ただし `eslint` と `typescript` のメジャーは無視（`eslint-config-next` 配下のプラグインや `typescript-eslint` が未対応のため。理由は同ファイルのコメント）。`vitest` 5 と `@types/node` は更新済みで無視対象ではない。
 - Actionsはコミットで固定し、Dependabotが追随する（Supabase CLIの `with.version` は対象外のため手動で上げる）。
 
