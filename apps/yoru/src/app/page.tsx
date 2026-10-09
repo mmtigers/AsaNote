@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Skeleton } from "@note/core/components/Skeleton";
 import { useAuth } from "@/lib/auth/AuthProvider";
-import { addDays, diffInDays, toDateInputValue, toMonthOf } from "@note/core/date";
+import { addDays, diffInDays, isFutureDate, toDateInputValue, toMonthOf } from "@note/core/date";
 import { resolveEffectiveChildId, useChildren } from "@/lib/db/children";
 import { localDb } from "@/lib/db/localDb";
 import { discardUnsavedPhotos } from "@/lib/db/photos";
@@ -85,7 +85,8 @@ export default function RecordPage() {
     const params = new URLSearchParams(window.location.search);
     const draft = loadDraft();
     const linkDate = params.get("date");
-    const date = linkDate && /^\d{4}-\d{2}-\d{2}$/.test(linkDate) ? linkDate : null;
+    // 未来日の?date=は記録の対象外(#134)。編集リンクとして扱わず、通常のホーム(今日)を出す。
+    const date = linkDate && /^\d{4}-\d{2}-\d{2}$/.test(linkDate) && !isFutureDate(linkDate, now) ? linkDate : null;
 
     window.history.replaceState({ ...(window.history.state ?? {}), appStep: "home" }, "");
     setToday(now);
@@ -100,7 +101,12 @@ export default function RecordPage() {
       return;
     }
 
-    if (draft) {
+    // 未来日の下書きは復元しない(#134)。使い捨ての下書きなので破棄し、追加済みの写真も残さない。
+    // 端末に既にある保存済みの記録(未来日を含む)は消さない。
+    if (draft && isFutureDate(draft.form.recordDate, now)) {
+      void discardUnsavedPhotos(draft.form.id, new Set(draft.initialPhotoIds));
+      clearDraft();
+    } else if (draft) {
       initialPhotoIdsRef.current = draft.initialPhotoIds;
       savedRef.current = false;
       setSelectedDate(draft.form.recordDate);

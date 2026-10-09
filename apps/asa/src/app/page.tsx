@@ -17,7 +17,7 @@ import { useStepNavigation } from "./_home/useStepNavigation";
 import { useRecordForm } from "./_home/useRecordForm";
 import { useDraftPersistence } from "./_home/useDraftPersistence";
 import type { Step } from "./_home/types";
-import { addDays, diffInDays, formatDateLabel, toDateInputValue, toMonthOf } from "@note/core/date";
+import { addDays, clampToToday, diffInDays, isFutureDate, formatDateLabel, toDateInputValue, toMonthOf } from "@note/core/date";
 import { useRecordFlowResetListener } from "@/lib/recordFlowReset";
 import { track } from "@/lib/analytics";
 
@@ -53,8 +53,12 @@ export default function HomePage() {
     const requestedDate = params.get("date");
     const requestedChildId = params.get("childId");
     if (requestedDate) {
+      // 未来日(や読めない値)は記録の対象外なので今日に丸める(#134)。この場合は「その日の記録を
+      // 編集する」リンクとして成り立たないため、記録フォームは自動で開かず、通常のホームを出す。
+      const clampedDate = clampToToday(requestedDate, todayValue);
       // eslint-disable-next-line react-hooks/set-state-in-effect -- URLの初期パラメータをstateへ反映する、マウント時一度きりの初期化
-      changeDate(requestedDate);
+      changeDate(clampedDate);
+      if (clampedDate !== requestedDate) return;
       if (requestedChildId) {
         setEditChildIdOverride(requestedChildId);
         setSelectedChildId(requestedChildId);
@@ -157,7 +161,9 @@ export default function HomePage() {
     const dy = e.clientY - start.y;
     if (Math.abs(dx) >= SWIPE_THRESHOLD && Math.abs(dx) > Math.abs(dy)) {
       suppressClickRef.current = true;
-      changeDate(addDays(date, dx < 0 ? 1 : -1));
+      const next = addDays(date, dx < 0 ? 1 : -1);
+      // 今日より先へは進めない(#134)。
+      if (!isFutureDate(next, todayValue)) changeDate(next);
     }
   }
   function handleRecordClick(action: () => void) {
