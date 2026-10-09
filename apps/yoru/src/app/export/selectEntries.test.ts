@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { UNASSIGNED_FILTER } from "@note/core/childFilter";
 import type { LocalRecord } from "@/lib/db/localDb";
 import { buildCsvContent, buildCsvFilename, buildExportFilename, selectExportEntries } from "./selectEntries";
 
@@ -42,6 +43,12 @@ describe("selectExportEntries", () => {
       { ...BASE, childId: "c1" }
     );
     expect(out.map((r) => r.id)).toEqual(["a", "b"]);
+  });
+
+  it("UNASSIGNED_FILTER なら子ども未分類の記録だけを出す(#127)", () => {
+    const records = [rec({ id: "c1", childId: "c1" }), rec({ id: "none", childId: null })];
+    expect(selectExportEntries(records, { ...BASE, childId: UNASSIGNED_FILTER }).map((r) => r.id)).toEqual(["none"]);
+    expect(selectExportEntries(records, { ...BASE, childId: "c1" }).map((r) => r.id)).toEqual(["c1"]);
   });
 
   it("パートナーの記録は includePartner=false で除外する", () => {
