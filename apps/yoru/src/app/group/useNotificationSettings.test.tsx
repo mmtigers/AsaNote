@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   saveNotificationSettings: vi.fn(),
   savePushSubscription: vi.fn(),
   requestPushSubscription: vi.fn(),
+  restorePushSubscription: vi.fn(),
 }));
 
 vi.mock("@/lib/db/notificationSettings", () => ({
@@ -18,6 +19,7 @@ vi.mock("@/lib/db/notificationSettings", () => ({
 vi.mock("@/lib/push", () => ({
   isPushSupported: () => true,
   requestPushSubscription: mocks.requestPushSubscription,
+  restorePushSubscription: mocks.restorePushSubscription,
 }));
 
 import { useNotificationSettings } from "./useNotificationSettings";
@@ -31,6 +33,7 @@ beforeEach(() => {
   mocks.saveNotificationSettings.mockResolvedValue(undefined);
   mocks.savePushSubscription.mockResolvedValue(undefined);
   mocks.requestPushSubscription.mockResolvedValue(KEYS);
+  mocks.restorePushSubscription.mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -120,5 +123,55 @@ describe("useNotificationSettings", () => {
     await act(() => hook.result.current.setNotifyPartnerRecord(true));
     expect(mocks.saveNotificationSettings).not.toHaveBeenCalled();
     expect(hook.result.current.notifyPartnerRecord).toBe(false);
+  });
+
+  describe("購読の復元(#174)", () => {
+    const ON = { reminderTime: "20:30", enabled: true, notifyPartnerRecord: false };
+
+    it("設定がONで、復元すべき購読が返れば、許可を求めずにサーバーへ登録する", async () => {
+      mocks.fetchNotificationSettings.mockResolvedValue(ON);
+      mocks.restorePushSubscription.mockResolvedValue(KEYS);
+      await setup();
+      await waitFor(() => expect(mocks.savePushSubscription).toHaveBeenCalledWith("u1", KEYS));
+      expect(mocks.restorePushSubscription).toHaveBeenCalledWith("vapid-key");
+      expect(mocks.requestPushSubscription).not.toHaveBeenCalled();
+    });
+
+    it("パートナー通知だけがONでも復元する", async () => {
+      mocks.fetchNotificationSettings.mockResolvedValue({ ...ON, enabled: false, notifyPartnerRecord: true });
+      mocks.restorePushSubscription.mockResolvedValue(KEYS);
+      await setup();
+      await waitFor(() => expect(mocks.savePushSubscription).toHaveBeenCalledWith("u1", KEYS));
+    });
+
+    it("復元すべき購読が無ければ(許可なし・すでに購読あり)、何も登録しない", async () => {
+      mocks.fetchNotificationSettings.mockResolvedValue(ON);
+      mocks.restorePushSubscription.mockResolvedValue(null);
+      await setup();
+      await waitFor(() => expect(mocks.restorePushSubscription).toHaveBeenCalled());
+      expect(mocks.savePushSubscription).not.toHaveBeenCalled();
+    });
+
+    it("設定が両方OFFなら、復元を試みない", async () => {
+      await setup();
+      expect(mocks.restorePushSubscription).not.toHaveBeenCalled();
+      expect(mocks.savePushSubscription).not.toHaveBeenCalled();
+    });
+
+    it("VAPID公開鍵が未設定なら、復元を試みない", async () => {
+      vi.stubEnv("NEXT_PUBLIC_VAPID_PUBLIC_KEY", "");
+      mocks.fetchNotificationSettings.mockResolvedValue(ON);
+      await setup();
+      expect(mocks.restorePushSubscription).not.toHaveBeenCalled();
+    });
+
+    it("復元に失敗してもエラーは出さない(ユーザー操作ではないため)", async () => {
+      mocks.fetchNotificationSettings.mockResolvedValue(ON);
+      mocks.restorePushSubscription.mockRejectedValue(new Error("push down"));
+      const { onError, hook } = await setup();
+      await waitFor(() => expect(mocks.restorePushSubscription).toHaveBeenCalled());
+      expect(onError).not.toHaveBeenCalledWith(expect.any(String));
+      expect(hook.result.current.enabled).toBe(true);
+    });
   });
 });
