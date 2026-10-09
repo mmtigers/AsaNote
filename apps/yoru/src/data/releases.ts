@@ -11,6 +11,15 @@ export interface ReleaseNote {
 // version も同じ値に上げる(CIの release-notes-check が検査する)。
 export const releases: ReleaseNote[] = [
   {
+    version: "0.3.8",
+    date: "2026-10-09",
+    title: "エクスポートで、未分類の記録だけを出せるようにしました",
+    summary: "エクスポート画面の子どもの切り替えに「未分類」を追加しました。",
+    details: [
+      "子どもに割り当てていない記録があるときだけ、「未分類」を選べます。印刷/PDFの見出しにも「未分類」と出ます",
+    ],
+  },
+  {
     version: "0.3.6",
     date: "2026-10-09",
     title: "ログインし直したとき、通知を自動で戻すようにしました",

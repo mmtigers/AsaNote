@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { UNASSIGNED_FILTER } from "@note/core/childFilter";
 import { ChildSwitcher } from "@note/core/components/ChildSwitcher";
 import { OUTCOME_OPTIONS } from "@/constants/choices";
 import { useAuth } from "@/lib/auth/AuthProvider";
@@ -66,6 +67,8 @@ export default function ExportPage() {
   const [childId, setChildId] = useState<string | null>(null);
   const [includePartner, setIncludePartner] = useState(true);
   const [includePhotos, setIncludePhotos] = useState(false);
+  // 未分類の記録があるときだけ「未分類」を選べるようにする(#127)。
+  const hasUnassigned = records?.some((r) => !r.childId) ?? false;
 
   const entries = useMemo(
     () =>
@@ -99,7 +102,7 @@ export default function ExportPage() {
     downloadCsv(buildCsvFilename(startDate, endDate), content);
   }
 
-  const printTitleChild = childId ? childNames.get(childId) : null;
+  const printTitleChild = childId === UNASSIGNED_FILTER ? "未分類" : childId ? childNames.get(childId) : null;
 
   function entryHeading(record: LocalRecord) {
     const outcome = OUTCOME_OPTIONS.find((o) => o.value === record.outcome);
@@ -121,7 +124,13 @@ export default function ExportPage() {
 
       <section className="flex flex-col gap-3 rounded-2xl bg-[var(--surface-2)] p-4 print:hidden">
         {childList.length >= 2 && (
-          <ChildSwitcher childList={childList} selectedId={childId} onSelect={setChildId} allowAll />
+          <ChildSwitcher
+            childList={childList}
+            selectedId={childId}
+            onSelect={setChildId}
+            allowAll
+            allowUnassigned={hasUnassigned}
+          />
         )}
         <div className="flex items-center gap-2.5">
           <label className="w-16 flex-none text-xs text-[var(--sub)]" htmlFor="export-start">

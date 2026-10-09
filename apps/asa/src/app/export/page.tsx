@@ -2,10 +2,13 @@
 
 import Link from "next/link";
 import { useMemo, useState, type ChangeEvent } from "react";
+import { UNASSIGNED_FILTER } from "@note/core/childFilter";
+import { ChildSwitcher } from "@note/core/components/ChildSwitcher";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { addDays, formatDateLabel, toDateInputValue } from "@note/core/date";
 import { useGroupMembers } from "@note/core/db/groups";
 import { isOwnRecord } from "@note/core/ownership";
+import { useChildren } from "@/lib/db/children";
 import { useRecordsTimeline } from "@/lib/db/queries";
 import { buildDiaryText } from "@/lib/recordPreview";
 import { buildCsvContent, buildCsvFilename, buildExportFilename, downloadCsv, selectExportEntries } from "./selectEntries";
@@ -17,12 +20,22 @@ export default function ExportPage() {
   const { session, loading: authLoading } = useAuth();
   const records = useRecordsTimeline();
   const members = useGroupMembers();
+  const children = useChildren();
   const hasPartner = (members?.length ?? 0) > 1;
+  // 子どもが2人以上のときだけ、子どもの絞り込みと子ども名の出力を有効にする(#127)。
+  const childList = useMemo(() => children ?? [], [children]);
+  const multiChild = childList.length >= 2;
+  const childNames = useMemo(() => new Map(childList.map((c) => [c.id, c.name])), [childList]);
 
   const today = useMemo(() => toDateInputValue(new Date()), []);
   const [startDate, setStartDate] = useState(() => addDays(today, -30));
   const [endDate, setEndDate] = useState(today);
   const [includePartner, setIncludePartner] = useState(true);
+  const [selectedChild, setSelectedChild] = useState<string | null>(null);
+  // 子どもが1人以下になったら、選択が残っていても「すべて」として扱う。
+  const childFilter = multiChild ? selectedChild : null;
+  // 未分類の記録があるときだけ「未分類」を選べるようにする。
+  const hasUnassigned = records?.some((r) => !r.childId) ?? false;
 
   const entries = useMemo(() => {
     if (!records) return [];
@@ -30,10 +43,11 @@ export default function ExportPage() {
       startDate,
       endDate,
       includePartner,
+      childFilter,
       currentUserId: session?.user.id,
       authLoading,
     });
-  }, [records, startDate, endDate, includePartner, session?.user.id, authLoading]);
+  }, [records, startDate, endDate, includePartner, childFilter, session?.user.id, authLoading]);
 
   // 印刷ダイアログの「PDFとして保存」はdocument.titleをファイル名の候補にするため、
   // このページを開いている間だけ期間入りのファイル名に差し替える(#2-2)。
@@ -56,9 +70,13 @@ export default function ExportPage() {
 
   // CSVは印刷/PDF保存とは別に、Excel等で並び替え・集計しやすい列形式で出力する(#4-2)。
   function handleDownloadCsv() {
-    const content = buildCsvContent(entries, session?.user.id, authLoading);
+    const content = buildCsvContent(entries, session?.user.id, authLoading, multiChild ? childNames : undefined);
     downloadCsv(buildCsvFilename(startDate, endDate), content);
   }
+
+  // 印刷の見出しには、子どもを選んだときだけその名前を出す(よるノートと同じ。ファイル名には含めない)。
+  // 「すべて」のときは、記録ごとに子ども名を出して見分けられるようにする。
+  const printTitleChild = childFilter === UNASSIGNED_FILTER ? "未分類" : childFilter ? childNames.get(childFilter) : null;
 
   return (
     <main className="mx-auto flex max-w-md flex-col gap-4 px-4 pt-6 pb-10 print:max-w-none print:gap-3 print:p-0">
@@ -73,6 +91,15 @@ export default function ExportPage() {
       </header>
 
       <section className="flex flex-col gap-3 rounded-2xl bg-[var(--surface-2)] p-4 print:hidden">
+        {multiChild && (
+          <ChildSwitcher
+            childList={childList}
+            selectedId={childFilter}
+            onSelect={setSelectedChild}
+            allowAll
+            allowUnassigned={hasUnassigned}
+          />
+        )}
         <div className="flex items-center gap-2.5">
           <label className="w-16 flex-none text-xs text-[var(--sub)]" htmlFor="export-start">
             開始日
@@ -130,7 +157,7 @@ export default function ExportPage() {
       </section>
 
       <h2 className="hidden text-base font-bold print:block">
-        登校の記録({formatDateLabel(startDate)}〜{formatDateLabel(endDate)})
+        登校の記録{printTitleChild ? `(${printTitleChild})` : ""}({formatDateLabel(startDate)}〜{formatDateLabel(endDate)})
       </h2>
 
       {entries.length === 0 ? (
@@ -141,6 +168,7 @@ export default function ExportPage() {
         <ul className="flex flex-col gap-3 print:gap-2">
           {entries.map((record) => {
             const own = isOwnRecord(record, session?.user.id, authLoading);
+            const childName = multiChild && !printTitleChild && record.childId ? childNames.get(record.childId) : null;
             return (
               <li
                 key={record.id}
@@ -148,6 +176,7 @@ export default function ExportPage() {
               >
                 <p className="text-sm font-bold">
                   {formatDateLabel(record.recordDate)}
+                  {childName && <span className="ml-2">{childName}</span>}
                   {!own && <span className="ml-2 text-xs font-normal text-[var(--sub)]">(パートナーの記録)</span>}
                 </p>
                 <p className="mt-1 text-sm leading-relaxed">{buildDiaryText(record)}</p>
