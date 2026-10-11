@@ -667,6 +667,89 @@ create policy "client_errors are insertable by anyone for themselves"
   to anon, authenticated
   with check (user_id is null or auth.uid() = user_id);
 
+-- 匿名(anon)からの insert は anon キーが公開値のため、第三者が REST で連投できる。1行の大きさは上の
+-- check 制約で縛っているが、件数は縛れていなかったため、総行数の上限を設ける(#216)。上限に達すると
+-- insert は失敗する(クライアントは fire-and-forget のため、画面には影響しない)。古い行は
+-- cleanup_old_logs()(下)が定期的に消すので、通常は上限に達しない。上限=20,000行(1行は最大でも約10KBで、
+-- 実際はほぼ1KB前後)。RLS で anon は client_errors を読めないため、件数は security definer で数える。
+create or replace function client_errors_enforce_cap()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if (select count(*) from client_errors) >= 20000 then
+    raise exception 'client_errors is full (cap: 20000 rows)' using errcode = '54000';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists client_errors_enforce_cap on client_errors;
+create trigger client_errors_enforce_cap
+  before insert on client_errors
+  for each row execute function client_errors_enforce_cap();
+
+-- 古いログの掃除(#199・#216)。保管期間: client_errors は 90 日、reminder_deliveries は 7 日
+-- (send-reminders が使うのは当日の行だけで、残りは調査用)。analytics_events は計測データの扱いが
+-- 未決定のため、自動では消さない。cleanup_empty_groups_and_invites() と同じ方式で、実行できるのは
+-- service_role と pg_cron(postgres)だけ。定期実行の登録(supabase/cron-cleanup-logs.sql)は手動。
+create or replace function cleanup_old_logs()
+returns table (deleted_client_errors integer, deleted_reminder_deliveries integer)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_errors integer;
+  v_deliveries integer;
+begin
+  delete from client_errors
+  where created_at < now() - interval '90 days';
+  get diagnostics v_errors = row_count;
+
+  delete from reminder_deliveries
+  where sent_on < (now() at time zone 'Asia/Tokyo')::date - 7;
+  get diagnostics v_deliveries = row_count;
+
+  return query select v_errors, v_deliveries;
+end;
+$$;
+revoke all on function cleanup_old_logs() from public;
+
+-- client_errors の確認用ビュー(直近7日を、画面・種類・文言ごとに集計)。analytics_* ビューと同じく
+-- anon / authenticated へは grant しない(ダッシュボードの SQL Editor / service role 専用)。
+create or replace view client_errors_summary_7d as
+select
+  app,
+  source,
+  message,
+  count(*) as occurrences,
+  min(created_at) as first_seen,
+  max(created_at) as last_seen
+from client_errors
+where created_at >= now() - interval '7 days'
+group by app, source, message
+order by occurrences desc, last_seen desc;
+
+do $$
+declare
+  v_role text;
+begin
+  foreach v_role in array array['anon', 'authenticated'] loop
+    if exists (select 1 from pg_roles where rolname = v_role) then
+      execute format('revoke all on function cleanup_old_logs() from %I', v_role);
+      execute format('revoke all on table client_errors_summary_7d from %I', v_role);
+    end if;
+  end loop;
+
+  if exists (select 1 from pg_roles where rolname = 'service_role') then
+    grant execute on function cleanup_old_logs() to service_role;
+  end if;
+end
+$$;
+
 -- 以下、analytics_eventsの集計用ビュー。analytics_events自体がSELECTを一切許可しない
 -- 書き込み専用ログである(#計測)のと同じ理由で、これらのビューもauthenticated/anon
 -- へは意図的にgrantしない。ビューはマイグレーション実行ロール(RLSをバイパスする)の
