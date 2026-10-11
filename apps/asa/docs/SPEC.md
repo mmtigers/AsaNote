@@ -418,6 +418,7 @@ Supabase Edge Function `send-reminders`（`supabase/functions/send-reminders/ind
 | `reminder_deliveries` | `(user_id, sent_on)` PK, `created_at` | 未入力リマインドの送信済み記録（ユーザー×JSTの日付。§4.3）。Edge Function（service role）専用 |
 | `notification_settings` | `user_id` PK, `reminder_time`(time, 既定 21:00), `enabled`(既定 true), `notify_partner_record`(既定 false), `updated_at` | 通知設定。ユーザー1人につき1行 |
 | `analytics_events` | `user_id`, `record_id`, `event_name`, `properties`(jsonb), `client_ts`, `created_at`。索引 `user_id` / `record_id` | 記録フローの計測（§11）。書き込み専用 |
+| `client_errors` | `user_id`(null可), `app`, `source`, `message`, `stack`, `path`, `user_agent`, `app_version`, `client_ts`, `created_at`。索引 `created_at` | ブラウザ側の想定外エラーの記録（§11.3）。書き込み専用。あさノート・よるノート共用 |
 
 `Group` / `GroupInvite` / `Child` / `GroupMemberProfile` の型は `src/types/models.ts`。
 
@@ -475,6 +476,7 @@ stateDiagram-v2
 | `notification_settings` | 本人のみ | 本人のみ | 本人のみ | 本人のみ |
 | `reminder_deliveries` | なし（service roleのみ） | なし | なし | なし |
 | `analytics_events` | **なし**（読み取り不可） | 本人のみ | なし | なし |
+| `client_errors` | **なし**（読み取り不可） | 未ログイン(anon)も可。`user_id` は null か本人のみ | なし | なし |
 
 - 「同じグループのメンバー」は、`group_members` を自己結合して「自分と記録者が同じグループにいる」ことで判定する。
 - `groups` の SELECT に「作成者本人」を含めるのは、作成直後（まだ `group_members` に自分を入れる前）の `insert ... returning` で行を読み返せるようにするため（RLSは `returning` にもSELECTポリシーを適用する）。
@@ -902,3 +904,11 @@ npm run test:e2e:supabase  # 実Supabaseテストプロジェクト向けE2E（S
 | Q18 | Google Fonts を外部から取得（CSSの `@import`）。プライバシー・オフライン時の見た目の方針 | §6.5, §12 | `src/app/globals.css`, `public/sw.js` |
 | Q19（解決済み #134） | ホームのカレンダーで未来日を選べて記録できた。オーナーの判断で「未来日の記録は許可しない」とし、カレンダーで選択不可にした。URLの `?date=` で未来日（や日付として読めない値）を指定した場合は今日に丸め、編集リンクとしては扱わない（記録フォームを自動で開かない）。端末にある未来日の保存済み記録は消さない（タイムラインには出る） | §3.1.1 | `src/components/MonthCalendar.tsx`, `src/app/page.tsx` |
 
+### 11.3 ブラウザ側エラーの記録
+
+`console.error` は端末にしか残らないため、想定外のエラーは `client_errors` にも送り、あとから原因を追えるようにする（`packages/core/src/clientErrors.ts` の `reportClientError()`）。
+
+- 送る契機: `error.tsx` / `global-error.tsx`（`source=error-boundary`）、`window` の `error`（`window-error`）、`unhandledrejection`（`unhandled-rejection`）。後 two は `ClientErrorReporter` がルートレイアウトで拾う。
+- 送る内容: エラーの文言・スタック・画面のパス（クエリ除く）・UA・アプリの版・ログイン中ならユーザーID。**記録の内容（メモ・タグ等）は送らない**。
+- fire-and-forget。送信失敗は `console.warn` に留める。1ページ読み込みあたり10件まで、同じエラーは1回のみ。
+- 確認はSupabaseダッシュボードのSQL Editor／service roleから（`select * from client_errors order by created_at desc`）。
