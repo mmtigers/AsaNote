@@ -3,7 +3,7 @@
 // このリポジトリの vitest 既定環境は jsdom だが、jsdom では import.meta.url が
 // file: URL にならず fileURLToPath が落ちる。ファイルを読むだけの検査なので
 // このファイルだけ node 環境に切り替える。
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
@@ -114,6 +114,26 @@ describe("本番DBへの反映ワークフローの concurrency(#203)", () => {
   it("どちらも途中で打ち切らない(cancel-in-progress: false)", () => {
     for (const name of ["db-deploy.yml", "db-deploy-yoru.yml"]) {
       expect(readFileSync(`${WORKFLOWS_DIR}${name}`, "utf8")).toMatch(/cancel-in-progress:\s*false/);
+    }
+  });
+});
+
+describe("PR テンプレート(#205)", () => {
+  // CI が強制しないルール(SPEC の更新・手動デプロイなど)を、PR を出すときに思い出せるようにする。
+  const ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
+  const template = readFileSync(`${ROOT}.github/pull_request_template.md`, "utf8");
+
+  it("CI が強制しないルールのチェック項目を含む", () => {
+    for (const keyword of ["SPEC.md", "db:types", "手動", "releases.ts", "release-note"]) {
+      expect(template).toContain(keyword);
+    }
+  });
+
+  it("参照している docs のパスが実在する(リンク切れを防ぐ)", () => {
+    const paths = [...template.matchAll(/`((?:apps\/asa\/)?docs\/[\w.-]+\.md)`/g)].map((m) => m[1] ?? "");
+    expect(paths.length).toBeGreaterThan(0);
+    for (const path of paths) {
+      expect(existsSync(`${ROOT}${path}`), path).toBe(true);
     }
   });
 });

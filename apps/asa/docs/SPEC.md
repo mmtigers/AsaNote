@@ -20,7 +20,7 @@ CIが強制するもの（`.github/workflows/ci.yml` の `release-notes-check`�
 | `releases.ts` 先頭・`package.json`・`package-lock.json` の version が不一致 | 常に失敗（例外指定でも確認される） |
 | PRに `no-release-note` ラベル、またはPR本文・タイトル・コミットメッセージに `[skip release-note]` | 更新履歴の追加チェックのみ省略（依存更新・内部リファクタ等） |
 
-CIが強制しないもの（レビューで担保する）:
+CIが強制しないもの（レビューで担保する。PRを出すときの確認項目は `.github/pull_request_template.md` にチェックリストとして置いてある）:
 
 - **本書の更新はCIの対象外**。挙動・スキーマ・運用手順を変えるPRは、同じPRで本書も更新する。ユーザー向けの変更なら `releases.ts` と version（`package.json` / `package-lock.json`）も同じPRで更新する。
 - `docs/`・`README.md`・`supabase/`・`scripts/`・`e2e/` のみの変更は `release-notes-check` の対象外（更新履歴は不要）。
