@@ -137,3 +137,25 @@ describe("PR テンプレート(#205)", () => {
     }
   });
 });
+
+describe("Actions の分数を減らす構成(#209)", () => {
+  // Actions は1ジョブごとに1分単位で切り上げて課金する(無料枠は月2,000分)。
+  // 数秒で終わる「判定だけ」のジョブを別ジョブに戻すと、1回の実行ごとに無駄な1分が積み上がる。
+  const appCi = readFileSync(`${WORKFLOWS_DIR}_app-ci.yml`, "utf8");
+
+  it("更新履歴の検査は別ジョブではなく、lint-build-test の step になっている", () => {
+    expect(appCi).not.toMatch(/^ {2}release-notes-check:/m);
+    expect(appCi).toContain("- name: Release notes check");
+  });
+
+  it("更新履歴の検査は、BASE との差分を見るため全履歴を取り、依存の導入より前に走る", () => {
+    expect(appCi).toMatch(/fetch-depth:\s*0/);
+    expect(appCi.indexOf("- name: Release notes check")).toBeGreaterThan(0);
+    expect(appCi.indexOf("- name: Release notes check")).toBeLessThan(appCi.indexOf("- name: Install dependencies"));
+  });
+
+  it("実Supabase E2E は、リポジトリ変数が有効でなければジョブごと起動しない(step で飛ばすだけでは課金される)", () => {
+    const e2e = readFileSync(`${WORKFLOWS_DIR}e2e-supabase.yml`, "utf8");
+    expect(e2e).toMatch(/^ {4}if: \$\{\{ vars\.E2E_SUPABASE_ENABLED == 'true' \}\}$/m);
+  });
+});
