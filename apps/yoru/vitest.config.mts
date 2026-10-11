@@ -10,7 +10,7 @@ export default defineConfig({
     // (テストが充実してきた段階で導入を再検討する)。
     coverage: {
       provider: "v8",
-      reporter: ["text", "html"],
+      reporter: ["text", "html", "json-summary"],
       include: ["src/**/*.{ts,tsx}"],
       exclude: ["src/**/*.test.{ts,tsx}"],
     },
