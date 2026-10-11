@@ -72,7 +72,17 @@ jobs:
           done
           if [ -n "$missing" ]; then
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::実SupabaseのE2Eをスキップします(未設定のSecrets:$missing)。fork のPR、または準備前は正常な状態です。"
+            # skip でも成功(緑)で終わるため、一覧では「実行された」ように見える(#198)。
+            # warning と job summary で「実DB E2E は未実行」と明示する。
+            echo "::warning::実SupabaseのE2Eは実行されていません(未設定のSecrets:$missing)。fork のPRまたは準備前は設計どおりの動作ですが、この緑は実DBでの検証を意味しません。"
+            {
+              echo "## ⚠️ 実Supabase E2E は未実行(skip)"
+              echo
+              echo "未設定の Secrets:$missing"
+              echo
+              echo "このジョブの緑は、グループ作成・招待参加・脱退・RLS を実DBで確かめたことを意味しません。"
+              echo "準備手順: apps/asa/docs/e2e-supabase.md"
+            } >> "$GITHUB_STEP_SUMMARY"
           else
             echo "enabled=true" >> "$GITHUB_OUTPUT"
           fi

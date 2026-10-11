@@ -765,7 +765,7 @@ npm run test:e2e:supabase  # 実Supabaseテストプロジェクト向けE2E（S
 | `release-notes-check` | ルートの `scripts/check-release-notes.mjs`（テスト: `src/lib/releaseNotesCheck.test.ts`）。判定条件と例外は本書冒頭の更新ルール |
 
 - 本番への反映は別のワークフロー（`db-deploy.yml`、§8.2）。
-- 実Supabaseテストプロジェクト向けE2Eは**別ワークフロー** `.github/workflows/e2e-supabase.yml`（上のジョブ表には含まれない）。Secrets未設定・forkのPRでは判定ステップだけ走って成功で終わる（`pull_request_target` は使わない）。同じテストユーザーを共有するため同時実行は1つ。本番や通常CIの結果には影響しない。
+- 実Supabaseテストプロジェクト向けE2Eは**別ワークフロー** `.github/workflows/e2e-supabase.yml`（上のジョブ表には含まれない）。Secrets未設定・forkのPRでは判定ステップだけ走り、`::warning::` と job summary に「未実行」を出して成功で終わる(緑でも実DBでは検証されていない、#198)（`pull_request_target` は使わない）。同じテストユーザーを共有するため同時実行は1つ。本番や通常CIの結果には影響しない。
 - Dependabot（`.github/dependabot.yml`）: npmとGitHub Actionsを週次（月曜9:00 JST）で確認。npmのminor/patchは1本のグループPRにまとめ、メジャーは個別PR。ただし `eslint` と `typescript` のメジャーは無視（`eslint-config-next` 配下のプラグインや `typescript-eslint` が未対応のため。理由は同ファイルのコメント）。`vitest` 5 と `@types/node` は更新済みで無視対象ではない。
 - Actionsはコミットで固定し、Dependabotが追随する（Supabase CLIの `with.version` は対象外のため手動で上げる）。
 
