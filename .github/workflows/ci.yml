@@ -77,12 +77,16 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # ON_ERROR_STOP が無いと psql -f は SQL エラーでも終了コード 0 になり、壊れた schema.sql が
+      # このCIを通ってしまう(#196)。ON_ERROR_STOP で、文法エラーや存在しない参照をここで落とす。
+      # あわせて、再適用してもエラーにならない(べき等)ことも確かめる(よるノートの CI と同じ形)。
       - name: Apply schema to scratch database
         env:
           PGPASSWORD: postgres
         run: |
-          psql -h localhost -U postgres -d postgres -f supabase/ci/auth-stub.sql
-          psql -h localhost -U postgres -d postgres -f supabase/schema.sql
+          for f in supabase/ci/auth-stub.sql supabase/schema.sql supabase/schema.sql; do
+            psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 -f "$f"
+          done
 
       # Issue #60: version: latest は CLI の破壊的変更で CI が突然落ちうるため固定する
       # (2026-09-16 時点の最新。Dependabot は setup-cli の with.version までは更新しないため、
