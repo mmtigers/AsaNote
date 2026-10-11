@@ -1,0 +1,85 @@
+name: DB 型ずれの検査(共通)
+
+# あさノート(ci.yml)とよるノート(ci-yoru.yml)から呼ばれる、Supabase の型ずれの検査(#206)。
+# 素のPostgresへ SQL を順に適用し、`supabase gen types` の結果が、コミット済みの型定義と一致するか確かめる。
+# 以前は両方の CI に同じジョブが複製され、Supabase CLI の版も2か所に書かれていた(手で上げる前提)。
+# 版はここの1か所だけ。違いは入力(適用する SQL・型定義のパス)だけにしてある。
+
+on:
+  workflow_call:
+    inputs:
+      sql-files:
+        description: 順に適用する SQL ファイル(空白区切り。べき等の確認のため、schema.sql は2回並べる)
+        type: string
+        required: true
+      types-file:
+        description: コミット済みの型定義のパス(例 apps/asa/src/lib/db/database.types.ts)
+        type: string
+        required: true
+      app:
+        description: 型の再生成(npm run db:types)を実行するアプリのディレクトリ(エラーメッセージ用)
+        type: string
+        required: true
+      schema-file:
+        description: 型の元になる schema.sql のパス(エラーメッセージ用)
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  db-types-check:
+    name: Supabase type drift check
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # ON_ERROR_STOP が無いと psql -f は SQL エラーでも終了コード 0 になり、壊れた schema.sql が
+      # この CI を通ってしまう(#196)。ON_ERROR_STOP で、文法エラーや存在しない参照をここで落とす。
+      # あわせて、再適用してもエラーにならない(べき等)ことも確かめる。
+      - name: Apply schema to scratch database
+        env:
+          PGPASSWORD: postgres
+          SQL_FILES: ${{ inputs.sql-files }}
+        run: |
+          for f in $SQL_FILES; do
+            psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 -f "$f"
+          done
+
+      # Issue #60: version: latest は CLI の破壊的変更で CI が突然落ちうるため固定する
+      # (2026-09-16 時点の最新。Dependabot は setup-cli の with.version までは更新しないため、
+      #  型生成が古びたら**ここ1か所だけ**手で上げること)。
+      # なお `supabase/setup-cli@v1` のような `v1`/`v3` は**タグではなくブランチ**で、
+      # push のたびに中身が変わる(タグより更に可変)。そのため SHA で固定している。
+      # 下の SHA は #84 で v1.7.1 から更新した、タグ v3.0.0 の時点のもの。
+      - uses: supabase/setup-cli@45a513f8c64c0bc8e0e3dfe572b5c95be85f6359 # v3.0.1
+        with:
+          version: 2.117.0
+
+      - name: Generate types
+        run: supabase gen types typescript --db-url postgresql://postgres:postgres@localhost:5432/postgres > /tmp/database.types.ts
+
+      - name: Check for type drift
+        env:
+          TYPES_FILE: ${{ inputs.types-file }}
+          APP: ${{ inputs.app }}
+          SCHEMA_FILE: ${{ inputs.schema-file }}
+        run: |
+          if ! diff -u "$TYPES_FILE" /tmp/database.types.ts; then
+            echo "::error::$SCHEMA_FILE の変更が $TYPES_FILE へ反映されていません。'npm run db:types'(要Docker。$APP で実行)で再生成し、差分をコミットしてください。"
+            exit 1
+          fi

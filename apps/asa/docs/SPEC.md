@@ -763,7 +763,7 @@ npm run test:e2e:supabase  # 実Supabaseテストプロジェクト向けE2E（S
 |---|---|
 | `lint-build-test` | `npm ci` → `npm audit --audit-level=high --omit=dev`（本番依存のみ） → `lint` → `next typegen` → `tsc --noEmit` → `test:coverage`（`coverage-report` 成果物を14日保存） → `build`（ダミーのSupabase環境変数） |
 | `e2e-test` | chromiumを入れて `npm run test:e2e`。失敗時のみ `playwright-report` を7日保存 |
-| `db-types-check` | `postgres:16` に `auth-stub.sql` と `schema.sql`（べき等性の確認のため2回）を `ON_ERROR_STOP=1` で適用し（SQLエラーがあればここで落ちる）、固定版のSupabase CLI（2.117.0）で `supabase gen types` した結果が `src/lib/db/database.types.ts` と一致するか検査。ずれたら `npm run db:types`（要Docker）で再生成を促す |
+| `db-types-check`（再利用ワークフロー `_db-types-check.yml`。よるノートの CI と共用。Supabase CLI の版はここ1か所） | `postgres:16` に `auth-stub.sql` と `schema.sql`（べき等性の確認のため2回）を `ON_ERROR_STOP=1` で適用し（SQLエラーがあればここで落ちる）、固定版のSupabase CLI（2.117.0）で `supabase gen types` した結果が `src/lib/db/database.types.ts` と一致するか検査。ずれたら `npm run db:types`（要Docker）で再生成を促す |
 
 - 更新履歴の検査（Release notes check。ルートの `scripts/check-release-notes.mjs`、テスト: `src/lib/releaseNotesCheck.test.ts`。判定条件と例外は本書冒頭の更新ルール）は、`lint-build-test` の**先頭の step**（依存の導入より前）として走る。以前は別ジョブだったが、数秒で終わるのに1ジョブ＝最低1分で課金されるため統合した（#209。Actions の無料枠は月2,000分で、ジョブごとに1分単位で切り上げて数える）。
 - 本番への反映は別のワークフロー（`db-deploy.yml`、§8.2）。

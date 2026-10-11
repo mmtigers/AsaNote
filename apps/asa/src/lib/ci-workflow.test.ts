@@ -159,3 +159,40 @@ describe("Actions の分数を減らす構成(#209)", () => {
     expect(e2e).toMatch(/^ {4}if: \$\{\{ vars\.E2E_SUPABASE_ENABLED == 'true' \}\}$/m);
   });
 });
+
+describe("バージョンの散在を防ぐ(#206)", () => {
+  const ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
+
+  it("Node の版は .nvmrc の1か所にあり、全ワークフローの setup-node がそれを読む", () => {
+    expect(readFileSync(`${ROOT}.nvmrc`, "utf8").trim()).toMatch(/^\d+$/);
+    for (const [name, yaml] of workflows()) {
+      // 版を直書き(node-version: 22)すると、.nvmrc を上げたときに取り残される。
+      expect(yaml, name).not.toMatch(/node-version:\s*\d/);
+      if (yaml.includes("actions/setup-node@")) {
+        expect(yaml, name).toContain("node-version-file: .nvmrc");
+      }
+    }
+  });
+
+  it("Supabase CLI(setup-cli)は、再利用ワークフロー _db-types-check.yml の1か所だけで使う", () => {
+    const users = workflows().filter(([, yaml]) => yaml.includes("supabase/setup-cli@"));
+    expect(users.map(([name]) => name)).toEqual(["_db-types-check.yml"]);
+    // 版は固定する(latest は CLI の破壊的変更で CI が突然落ちうる。#60)。
+    expect(users[0]?.[1]).toMatch(/version:\s*\d+\.\d+\.\d+/);
+  });
+
+  it("あさノート・よるノートの CI は、型ずれの検査を再利用ワークフローから呼ぶ", () => {
+    for (const name of ["ci.yml", "ci-yoru.yml"]) {
+      const yaml = readFileSync(`${WORKFLOWS_DIR}${name}`, "utf8");
+      expect(yaml, name).toContain("uses: ./.github/workflows/_db-types-check.yml");
+      expect(yaml, name).not.toContain("supabase gen types");
+    }
+  });
+
+  it("Playwright の範囲が、あさノート・よるノートでそろっている", () => {
+    const range = (app: string) =>
+      (JSON.parse(readFileSync(`${ROOT}apps/${app}/package.json`, "utf8")) as { devDependencies: Record<string, string> })
+        .devDependencies["@playwright/test"];
+    expect(range("yoru")).toBe(range("asa"));
+  });
+});
