@@ -1,13 +1,20 @@
 name: CI (core)
 
 # packages/core(あさノート・よるノートの共通コード)の lint・型検査・テスト。
-# core を取り込む各アプリ側の確認は、ci.yml / ci-yoru.yml が同じ push・PR で別に行う。
+# core を取り込む各アプリ側の確認は、ci.yml / ci-yoru.yml が同じ PR で別に行う。
 
 on:
-  push:
-    branches: [main, master]
+  # main への push では走らせない(マージ前の PR の CI で済ませる。#225)。
   pull_request:
     branches: [main, master]
+    # Issue #225: 無料枠(月2,000分)を守るため、core・ルートの設定・CI の定義に関わる変更だけ走らせる。
+    paths:
+      - "packages/core/**"
+      - "scripts/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".nvmrc"
+      - ".github/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

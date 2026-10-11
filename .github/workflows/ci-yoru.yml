@@ -5,12 +5,25 @@ name: CI (yorunote)
 # _app-ci.yml にあり、ここにはよるノート固有のもの(E2E・型ずれの検査)だけを置く。
 
 on:
-  push:
-    branches: [main, master]
+  # main への push では走らせない(マージ前の PR の CI で済ませる。#225)。
   pull_request:
     branches: [main, master]
     # ラベル・PR本文による例外指定(release-notes-check)を、付けた/書き換えた直後に反映させる(あさノート用の ci.yml と同じ)。
     types: [opened, synchronize, reopened, labeled, unlabeled, edited]
+    # Issue #225: Actions の無料枠(月2,000分)を守るため、関係のない変更では走らせない。
+    # このアプリ・共通コード・DB・CI の定義・ドキュメント(docsConsistency が読む)が対象。
+    paths:
+      - "apps/yoru/**"
+      - "packages/core/**"
+      - "supabase/**"
+      - "scripts/**"
+      - "docs/**"
+      - "*.md"
+      - "package.json"
+      - "package-lock.json"
+      - ".nvmrc"
+      - ".github/**"
+
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
