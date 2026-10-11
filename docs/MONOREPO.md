@@ -26,6 +26,7 @@
 
 `check-release-notes.mjs` はルートの `scripts/` に1つだけ置き、各アプリの CI が `working-directory` をアプリにして実行する(あさノート・よるノートで共通。テストは `apps/asa/src/lib/releaseNotesCheck.test.ts`)。アプリ単位で動く(変更ファイルはアプリ相対、lock の version はルートの
 `package-lock.json` の `packages["apps/<app>"]` を見る)。
+`packages/core/src/` の変更は両アプリの画面に影響するため、どちらのアプリの検査でも「ユーザー向けの変更」として扱う(#200)。つまり core を変えたら、あさノート・よるノートの両方で更新履歴と版上げが要る。載せない変更は `[skip release-note]` / `no-release-note` で除外する。
 
 ## Vercel の設定(あさノート・本番切り替え時)
 
