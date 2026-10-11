@@ -1,12 +1,21 @@
 import { getSupabaseClient } from "./supabase/client";
 
 export type ClientErrorApp = "asa" | "yoru";
-export type ClientErrorSource = "error-boundary" | "window-error" | "unhandled-rejection";
+// sync-failure / local-db は、画面側で握りつぶして表示だけしているエラー(同期の失敗・端末DBが使えない)。
+export type ClientErrorSource =
+  | "error-boundary"
+  | "window-error"
+  | "unhandled-rejection"
+  | "sync-failure"
+  | "local-db";
+/** 調査用の付帯情報。記録の内容(メモ・タグなど)は入れない。 */
+export type ClientErrorContext = Record<string, string | number | boolean | null>;
 
 // schema.sql の client_errors の check 制約と合わせる(超えると insert が丸ごと失敗する)。
 const MAX_MESSAGE = 1000;
 const MAX_STACK = 8000;
 const MAX_USER_AGENT = 500;
+const MAX_CONTEXT = 2000;
 // 1回のページ読み込みで送る上限。無限ループするエラーでDBや回線を埋めないための歯止め。
 const MAX_REPORTS_PER_PAGE = 10;
 
@@ -21,6 +30,12 @@ function describe(error: unknown): { message: string; stack: string | null } {
     return { message: error.message || error.name, stack: error.stack ?? null };
   }
   if (typeof error === "string") return { message: error, stack: null };
+  // Supabase の PostgrestError などは Error ではないが、message と code を持つ。
+  if (typeof error === "object" && error !== null && typeof (error as { message?: unknown }).message === "string") {
+    const { message, code, details, hint } = error as { message: string; code?: unknown; details?: unknown; hint?: unknown };
+    const extra = [code, details, hint].filter((v): v is string => typeof v === "string" && v !== "");
+    return { message: [message, ...extra].join(" | "), stack: null };
+  }
   try {
     return { message: JSON.stringify(error) ?? String(error), stack: null };
   } catch {
@@ -44,7 +59,8 @@ export function reportClientError(
   app: ClientErrorApp,
   source: ClientErrorSource,
   error: unknown,
-  appVersion?: string
+  appVersion?: string,
+  context?: ClientErrorContext
 ): void {
   try {
     const { message, stack } = describe(error);
@@ -54,7 +70,14 @@ export function reportClientError(
     reportedKeys.add(key);
 
     const supabase = getSupabaseClient();
+    const baseContext: ClientErrorContext = {
+      online: typeof navigator !== "undefined" ? navigator.onLine : null,
+      standalone: typeof window !== "undefined" && typeof window.matchMedia === "function" ? window.matchMedia("(display-mode: standalone)").matches : null,
+      ...context,
+    };
+    const contextJson = JSON.stringify(baseContext);
     const row = {
+      context: contextJson.length <= MAX_CONTEXT ? baseContext : null,
       app,
       source,
       message: truncate(message, MAX_MESSAGE),

@@ -91,4 +91,21 @@ describe("reportClientError", () => {
     expect(() => reportClientError("asa", "window-error", new Error("b"))).not.toThrow();
     await flush();
   });
+
+  it("付帯情報(context)にオンライン状態と呼び出し側の値を入れる", async () => {
+    reportClientError("asa", "sync-failure", new Error("sync"), "1.0.0", { phase: "push-records-bulk", count: 3 });
+    await flush();
+
+    const row = insertMock.mock.calls[0]?.[0];
+    expect(row?.source).toBe("sync-failure");
+    expect(row?.context).toEqual(expect.objectContaining({ phase: "push-records-bulk", count: 3 }));
+    expect(row?.context).toHaveProperty("online");
+  });
+
+  it("Error でないオブジェクト(PostgrestError など)も message と code を残す", async () => {
+    reportClientError("yoru", "sync-failure", { message: "permission denied", code: "42501", details: "", hint: "check RLS" });
+    await flush();
+
+    expect(insertMock.mock.calls[0]?.[0]?.message).toBe("permission denied | 42501 | check RLS");
+  });
 });

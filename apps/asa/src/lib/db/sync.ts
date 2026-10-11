@@ -1,10 +1,18 @@
+import { reportClientError } from "@note/core/clientErrors";
 import { createResumePuller } from "@note/core/pullOnResume";
 import { getSupabaseClient } from "@note/core/supabase/client";
 import type { Outcome } from "@/constants/choices";
 import type { SchoolRecord } from "@/types/models";
 import type { Database } from "./database.types";
+import { releases } from "@/data/releases";
 import { localDb, type LocalRecord } from "./localDb";
 import { reportSyncOutcome } from "./syncStatus";
+
+// 画面には「同期に失敗しています」としか出ないので、原因(Supabaseのエラー内容)は client_errors へ送る。
+// 記録の中身は送らず、どの段階で何件失敗したかだけを付ける。
+function reportSyncFailure(phase: string, error: unknown, count?: number) {
+  reportClientError("asa", "sync-failure", error, releases[0]?.version, { phase, count: count ?? null });
+}
 
 let syncing = false;
 let pulling = false;
@@ -111,10 +119,12 @@ export async function syncPendingChanges() {
         // 一括upsertは1件でもエラーになると全体が失敗するため、失敗時のみ1件ずつ
         // 再試行し、問題のない他のレコードまで巻き込まれないようにする。
         console.warn(`records一括同期に失敗しました(${pendingRecords.length}件)。1件ずつ再試行します:`, error);
+        reportSyncFailure("push-records-bulk", error, pendingRecords.length);
         for (const record of pendingRecords) {
           const { error: rowError } = await supabase.from("records").upsert(toRecordRow(record, userId));
           if (rowError) {
             console.warn(`record同期に失敗しました(id=${record.id}):`, rowError);
+            reportSyncFailure("push-record", rowError);
             hadError = true;
           } else {
             await localDb.records.update(record.id, { syncStatus: "synced" });
@@ -131,6 +141,7 @@ export async function syncPendingChanges() {
 
       if (error) {
         console.warn(`records削除の同期に失敗しました(${ids.length}件):`, error);
+        reportSyncFailure("push-deletes", error, ids.length);
         hadError = true;
       } else {
         await localDb.pendingRecordDeletes.bulkDelete(ids);
@@ -138,6 +149,7 @@ export async function syncPendingChanges() {
     }
   } catch (error) {
     console.warn("Supabaseへの同期をスキップしました:", error);
+    reportSyncFailure("push-unexpected", error);
     hadWork = true;
     hadError = true;
   } finally {
@@ -191,6 +203,7 @@ export async function pullFromCloud() {
         .range(from, from + PULL_PAGE_SIZE - 1);
       if (error) {
         console.warn(`recordsのpullに失敗しました(offset=${from}):`, error);
+        reportSyncFailure("pull-page", error);
         hadError = true;
         return;
       }
@@ -220,6 +233,7 @@ export async function pullFromCloud() {
     }
   } catch (error) {
     console.warn("Supabaseからの取り込みをスキップしました:", error);
+    reportSyncFailure("pull-unexpected", error);
     hadWork = true;
     hadError = true;
   } finally {

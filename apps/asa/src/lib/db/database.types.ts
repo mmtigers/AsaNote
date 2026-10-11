@@ -65,6 +65,7 @@ export type Database = {
           app: string
           app_version: string | null
           client_ts: string
+          context: Json | null
           created_at: string
           id: string
           message: string
@@ -78,6 +79,7 @@ export type Database = {
           app: string
           app_version?: string | null
           client_ts: string
+          context?: Json | null
           created_at?: string
           id?: string
           message: string
@@ -91,6 +93,7 @@ export type Database = {
           app?: string
           app_version?: string | null
           client_ts?: string
+          context?: Json | null
           created_at?: string
           id?: string
           message?: string

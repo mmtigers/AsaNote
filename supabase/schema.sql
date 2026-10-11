@@ -635,7 +635,7 @@ create table if not exists client_errors (
   id uuid primary key default uuid_generate_v4(),
   user_id uuid references auth.users(id) on delete set null,
   app text not null check (app in ('asa', 'yoru')),
-  source text not null check (source in ('error-boundary', 'window-error', 'unhandled-rejection')),
+  source text not null,
   message text not null check (char_length(message) <= 1000),
   stack text check (char_length(stack) <= 8000),
   path text check (char_length(path) <= 500),
@@ -644,6 +644,17 @@ create table if not exists client_errors (
   client_ts timestamptz not null,
   created_at timestamptz not null default now()
 );
+
+-- 後から足した列と制約(create table if not exists は既存テーブルを変えないため、ここで冪等に足す)。
+-- source: 捕まえたエラーに加え、握りつぶされる同期失敗(sync-failure)と端末DB不可(local-db)も記録する。
+-- context: 調査用の付帯情報(オンライン状態・同期待ち件数など)。記録の内容は入れない。
+alter table client_errors add column if not exists context jsonb;
+alter table client_errors drop constraint if exists client_errors_context_check;
+alter table client_errors add constraint client_errors_context_check
+  check (char_length(context::text) <= 2000);
+alter table client_errors drop constraint if exists client_errors_source_check;
+alter table client_errors add constraint client_errors_source_check
+  check (source in ('error-boundary', 'window-error', 'unhandled-rejection', 'sync-failure', 'local-db'));
 
 create index if not exists idx_client_errors_created_at on client_errors(created_at desc);
 
