@@ -57,3 +57,24 @@ export async function clearLocalData(): Promise<void> {
     await Promise.all(localDb.tables.map((table) => table.clear()));
   });
 }
+
+export type LocalDbHealth = { ok: true } | { ok: false; name: string; message: string };
+
+const OPEN_TIMEOUT_MS = 8000;
+
+// 端末のIndexedDBが使えるかを確かめる。使えない端末では、一覧や記録ボタンが何も起きないように
+// 見えるだけで原因が分からないため、失敗(または一定時間応答なし)を画面に出すのに使う。
+export async function checkLocalDb(): Promise<LocalDbHealth> {
+  try {
+    await Promise.race([
+      localDb.open().then(() => localDb.records.count()),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(Object.assign(new Error("端末のデータベースが応答しません"), { name: "Timeout" })), OPEN_TIMEOUT_MS)
+      ),
+    ]);
+    return { ok: true };
+  } catch (e) {
+    const err = e as { name?: string; message?: string };
+    return { ok: false, name: err?.name ?? "UnknownError", message: err?.message ?? String(e) };
+  }
+}
