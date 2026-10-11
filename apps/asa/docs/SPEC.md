@@ -528,7 +528,7 @@ stateDiagram-v2
 
 ### 6.7 その他の防御
 
-- セキュリティヘッダ（`next.config.ts`）: `X-Content-Type-Options: nosniff`、`X-Frame-Options: DENY`、`Referrer-Policy: strict-origin-when-cross-origin`、`Permissions-Policy`（camera / microphone / geolocation を無効）。CSP は付けていない（Next.jsのインラインscript等との調整が必要なため）。
+- セキュリティヘッダ（`next.config.ts`）: `X-Content-Type-Options: nosniff`、`X-Frame-Options: DENY`、`Referrer-Policy: strict-origin-when-cross-origin`、`Permissions-Policy`（camera / microphone / geolocation を無効）。CSP は `Content-Security-Policy-Report-Only`（**違反を報告するだけでブロックしない**）で配っている（#197）。方針はよるノートと共用の `packages/core/src/csp.ts`（nonce なしの静的な方式。接続先は Supabase、フォントは Google Fonts だけ許可し、`object-src 'none'`・`base-uri` / `form-action` は自分のみ）。違反はブラウザの開発者ツールのコンソールに出る。通常の操作で違反が出ないことを E2E（`e2e/csp.spec.ts`）で確認してあり、実運用で違反が出ないことを確かめてから、`next.config.ts` のキーを `Content-Security-Policy` に変えて強制する（`e2e/csp.spec.ts` の `ENFORCED` も合わせて変える）。
 - Edge Function: `send-reminders` は cron 専用の合言葉（`x-cron-secret` = `CRON_SECRET`）、`notify-partner` はトリガー専用の合言葉（`x-notify-secret` = `PARTNER_NOTIFY_SECRET`）を要求する（どちらも `isAuthorizedSecret`）。Supabase の JWT 検証は公開の anon キーでも通してしまうため、関数側で確かめる。`SUPABASE_SERVICE_ROLE_KEY` は非推奨で、値がダッシュボードの鍵と同じとは限らないため、どちらの関数でも使わない。
 - CI: GitHub Actions はコミットSHAで固定（テストで固定。`src/lib/ci-workflow.test.ts`）、ワークフローは最小権限（`contents: read`）、`npm audit --omit=dev` で本番依存の脆弱性を検査（§10）。
 
@@ -751,7 +751,7 @@ npm run test:e2e:supabase  # 実Supabaseテストプロジェクト向けE2E（S
 ### 10.2 テストの方針
 
 - **ユニット（Vitest）**: `src/**/*.test.{ts,tsx}` と `supabase/functions/**/*.test.ts`。環境は jsdom、IndexedDBは `fake-indexeddb`（`vitest.setup.ts`）。フォームの状態遷移、日付処理、同期、エクスポート抽出、グループ操作、集計、Pushの純粋ロジックなど主要ロジックにはテストが付随する。カバレッジは計測・可視化が目的で、閾値による失敗は設けていない。
-- **E2E（Playwright）**: `e2e/record-flow.spec.ts`。**ログイン不要の範囲のみ**（Supabaseはダミー値）。(1) 記録の入力→保存→ホームとタイムラインへの反映→編集リンク、(2) フォームの途中で下部ナビの「記録する」を押すと最初の画面に戻る。chromiumのみ。
+- **E2E（Playwright）**: `e2e/record-flow.spec.ts`（記録の流れ）と `e2e/csp.spec.ts`（CSPのヘッダと、通常の操作・全ページで違反が出ないこと。#197）。**ログイン不要の範囲のみ**（Supabaseはダミー値）。(1) 記録の入力→保存→ホームとタイムラインへの反映→編集リンク、(2) フォームの途中で下部ナビの「記録する」を押すと最初の画面に戻る。chromiumのみ。
 - **E2E（実Supabaseテストプロジェクト）: 準備済み・Secrets設定待ち**（#117）。`e2e-supabase/group-flow.spec.ts`＋`playwright.supabase.config.ts`（通常のE2Eとは別設定・別ポート）。グループ作成→招待コード発行→別ユーザーで参加→脱退を、認証経路とRLS（未ログイン・グループ外・脱退後からは見えない/書けない、使用済みコードの再利用不可）の検証込みで確かめる。`E2E_SUPABASE_URL` / `E2E_SUPABASE_ANON_KEY` / `E2E_USER_{A,B}_{EMAIL,PASSWORD}` が揃っているときだけ実行され、未設定なら自動で skip（CIも成功のまま）。**本番Supabaseには接続しない**: 接続先が本番URLと一致する・anon keyにservice role keyを渡した・テストユーザーのメールが `asanote-e2e-` 始まりでない場合は、skipではなく中止（`e2e-supabase/config.ts`、単体テスト付き）。テストプロジェクトの用意手順・後始末は `docs/e2e-supabase.md`。**実プロジェクトでの実行は未検証**。Supabaseのモック案は採らない（#47）。
 - `src/lib/ci-workflow.test.ts` が `ci.yml` のアクション参照のSHA固定を検査する。
 
@@ -851,7 +851,7 @@ npm run test:e2e:supabase  # 実Supabaseテストプロジェクト向けE2E（S
 | 体調（`conditionScale`）の入力 | 入力項目としては不要と判断し、UI・型・保存・同期のコードを削除した（#137）。DB列 `condition_scale` は残る（§5.1） |
 | ピンチ拡大 | §12 |
 | 計測のオフラインキュー | 記録データ本体と違い、失っても影響が小さいため |
-| CSP | Next.jsのインラインscript等との調整が必要なため見送り（§6.7） |
+| CSP | Report-Only で導入済み（§6.7）。強制への切り替えは、実運用で違反が出ないことを確かめてから |
 
 ### 13.2 既知の制約・未解決事項
 

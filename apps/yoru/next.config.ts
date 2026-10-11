@@ -1,8 +1,8 @@
 import type { NextConfig } from "next";
-import { buildContentSecurityPolicy } from "./src/lib/csp";
+import { buildContentSecurityPolicy } from "@note/core/csp";
 
 // Issue #62: 認証 Cookie を扱うアプリとして最低限のセキュリティヘッダを付与する。
-// CSP は静的なまま使える方式(nonce なし)にしている。理由と許可の内容は src/lib/csp.ts を参照。
+// CSP は静的なまま使える方式(nonce なし)にしている。理由と許可の内容は packages/core/src/csp.ts(あさノートと共用)を参照。
 const securityHeaders = [
   {
     key: "Content-Security-Policy",

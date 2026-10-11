@@ -1,4 +1,5 @@
-// Content-Security-Policy。next.config.ts から使う(ビルド時に1回だけ組み立てる静的なヘッダ)。
+// Content-Security-Policy。あさノート・よるノートの next.config.ts から使う(ビルド時に1回だけ組み立てる静的なヘッダ。#197)。
+// 両アプリの外部通信先は同じ(Supabase と Google Fonts)なので、1つの方針を共用する。
 //
 // nonce 方式にしない理由: nonce は毎回のリクエストで作るため、全ページを動的レンダリングにする必要がある。
 // このアプリはオフラインでも開ける静的なPWA(Service Worker が HTML をキャッシュする)なので、
