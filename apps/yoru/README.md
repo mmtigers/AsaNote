@@ -1,7 +1,7 @@
 # よるノート
 
 帰宅から就寝までの夜のようすを、子どもが寝た後にサッと記録する家族向けメモアプリ。
-[あさノート](https://github.com/mmtigers/asanote) の姉妹アプリです。仕様は [docs/SPEC.md](./docs/SPEC.md) を参照。
+[あさノート](../asa/README.md) の姉妹アプリです(同じリポジトリの `apps/asa`)。仕様は [docs/SPEC.md](./docs/SPEC.md) を参照。
 
 ## 技術スタック
 
@@ -14,7 +14,8 @@
 ## セットアップ
 
 ```bash
-npm install
+npm ci                             # リポジトリのルートで(全ワークスペースの依存を入れる)
+cd apps/yoru
 cp .env.local.example .env.local   # Supabaseの URL / anon key を設定
 npm run dev
 ```
@@ -23,8 +24,8 @@ npm run dev
 
 共通表(`groups` / `group_members` / `group_invites` / `children` と、`create_group` / `redeem_group_invite` / `get_group_members`)は
 **あさノート側の `supabase/schema.sql` が正**です。同じプロジェクトを使う限り、よるノート側での作成は不要です。
-認証は[メールのマジックリンク](https://github.com/mmtigers/asanote#認証メールのマジックリンク)で、Site URL / Redirect URLs に
-よるノートのURLも追加してください。よるノート固有の表(`evening_*`)は、このリポジトリの `supabase/schema.sql` で作ります(SPEC §7)。
+認証は[メールのマジックリンク](../asa/README.md#認証メールのマジックリンク)で、Site URL / Redirect URLs に
+よるノートのURLも追加してください。よるノート固有の表(`evening_*`)は、`apps/yoru/supabase/schema.sql`(このディレクトリの `supabase/schema.sql`)で作ります(SPEC §7)。
 
 ## コマンド
 
@@ -41,7 +42,7 @@ npm run dev
 
 ## CI
 
-PR ごとに GitHub Actions で次が走ります。
+`main` への PR ごとに GitHub Actions で次が走ります(`.github/workflows/ci-yoru.yml`。`main` への push では走らず、あさノートだけの変更でも走りません。対象のパスを絞っています、#225)。
 
 - `lint-build-test`: 更新履歴の検査(下の「Release notes check」。先頭の step)、依存の脆弱性検査(本番依存のみ)、lint、`check:schema`、型検査、単体テスト(カバレッジ)、ビルド
 - `Supabase type drift check`(あさノートと共用の再利用ワークフロー `_db-types-check.yml`): 素のPostgresへ `schema.sql` を2回適用(べき等の確認)し、生成した型が `src/lib/db/database.types.ts` と一致するか確認
@@ -70,7 +71,7 @@ PR ごとに GitHub Actions で次が走ります。
 
 ### 運用で手作業が要るもの
 
-- **`supabase/schema.sql` の変更**は、main へのマージ時に `Deploy DB schema`(`.github/workflows/db-deploy.yml`)が本番へ自動適用します。リポジトリのシークレット `SUPABASE_DB_URL`(Session pooler の接続文字列)の登録が要ります。未登録の間は失敗するので、SQL Editor で手動実行してください(何度実行しても同じ結果になる書き方です)。適用前に `check:schema` で `evening_*` 以外に触れていないことを検査します。service role キーを含む `cron-evening-reminders.sql` と `evening-partner-notify-trigger.sql` は自動適用されません。
+- **`supabase/schema.sql` の変更**は、main へのマージ時に `Deploy DB schema (yorunote)`(`.github/workflows/db-deploy-yoru.yml`。あさノートの `db-deploy.yml` とは別)が本番へ自動適用します。リポジトリのシークレット `SUPABASE_DB_URL`(Session pooler の接続文字列)の登録が要ります。未登録の間は失敗するので、SQL Editor で手動実行してください(何度実行しても同じ結果になる書き方です)。適用前に `check:schema` で `evening_*` 以外に触れていないことを検査します。service role キーを含む `cron-evening-reminders.sql` と `evening-partner-notify-trigger.sql` は自動適用されません。
 - **Edge Function**(`supabase/functions/`)も同様に、変更したら `supabase functions deploy <関数名>`(`send-evening-reminders` / `notify-evening-partner`)で再デプロイが要ります。
 - 実機での同期・共有の確認手順は [docs/device-verification.md](./docs/device-verification.md)。
 
