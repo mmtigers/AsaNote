@@ -21,17 +21,20 @@
 
 ## セットアップ
 
+モノレポのため、依存の導入はリポジトリのルートで行う(`package-lock.json` はルートに1つ)。
+
 ```bash
-npm install
+npm ci                  # リポジトリのルートで(全ワークスペースの依存を入れる)
+cd apps/asa
 cp .env.local.example .env.local
 # .env.local に Supabase の URL / anon key を設定
 # (Push通知を試す場合は NEXT_PUBLIC_VAPID_PUBLIC_KEY も。docs/push-notifications-setup.md 参照)
 npm run dev
 ```
 
-Supabase側のテーブル作成は、初回のみ [supabase/schema.sql](./supabase/schema.sql) をSQL Editorで実行する。
+Supabase側のテーブル作成は、初回のみ [supabase/schema.sql](../../supabase/schema.sql)(リポジトリのルート直下。あさノートの正) をSQL Editorで実行する。
 以降は `main` にマージされた `schema.sql` の変更を
-[.github/workflows/db-deploy.yml](./.github/workflows/db-deploy.yml) が本番へ自動適用する（#53）。
+[.github/workflows/db-deploy.yml](../../.github/workflows/db-deploy.yml) が本番へ自動適用する（#53）。
 この自動適用には、リポジトリのシークレット `SUPABASE_DB_URL`（SupabaseのSession poolerの接続文字列）が必要。
 
 ### 認証（メールのマジックリンク）
@@ -52,6 +55,9 @@ Supabase側のテーブル作成は、初回のみ [supabase/schema.sql](./supab
 
 ## ディレクトリ構成
 
+モノレポ構成。あさノートは `apps/asa/`、よるノートは `apps/yoru/`、共通コードは `packages/core/`
+(構成と方針は [docs/MONOREPO.md](../../docs/MONOREPO.md))。以下は `apps/asa/` の中身と、あさノートが使うルート直下のもの。
+
 ```
 src/
   app/            App Routerのページ・レイアウト
@@ -62,11 +68,12 @@ src/
     db/           Dexieローカルキャッシュ・オフライン同期ロジック
   constants/      記録フォームの選択肢(タグ)の唯一の情報源
   types/          SchoolRecord / Group などの型定義
-supabase/
+../../supabase/    (リポジトリのルート直下。共有DBの共通表の正)
   schema.sql      テーブル定義・RLSポリシー・SQL関数・計測ビュー(records / groups / group_members / group_invites /
                   children / push_subscriptions / notification_settings / analytics_events)
   functions/      Push通知を送るEdge Function(send-reminders / notify-partner)
   cron-reminders.sql, partner-notify-trigger.sql  Push通知のpg_cron・トリガー設定(手動適用)
+  cron-cleanup-groups.sql  空グループ・期限切れ招待コードの掃除のpg_cron設定(手動適用。docs/group-cleanup.md)
   ci/             CI(型ドリフト検査)で使うSQLスタブ
 scripts/
   gen-db-types.sh     database.types.ts の再生成スクリプト
@@ -74,7 +81,7 @@ scripts/
                        (service role key使用。使い方はファイル冒頭のコメント参照)
 e2e/              Playwright のE2Eテスト
 e2e-supabase/     実Supabaseテストプロジェクト向けE2E(Secrets未設定なら skip。docs/e2e-supabase.md)
-docs/             仕様書(SPEC.md)・Push通知のデプロイ手順(push-notifications-setup.md)
+docs/             仕様書(SPEC.md)・Push通知のデプロイ手順(push-notifications-setup.md)・実Supabase E2E の準備(e2e-supabase.md)
 ```
 
 ## オフライン同期の仕組み
