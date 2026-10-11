@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   checkReleaseNotes,
   compareVersions,
+  CORE_PREFIX,
   isUserFacingChange,
   topReleaseVersion,
 } from "../../../../scripts/check-release-notes.mjs";
@@ -28,6 +29,14 @@ describe("isUserFacingChange", () => {
     expect(isUserFacingChange("docs/SPEC.md")).toBe(false);
     expect(isUserFacingChange("src/data/releases.ts")).toBe(false);
   });
+
+  it("packages/core/src の変更も対象(テストは対象外)(#200)", () => {
+    expect(CORE_PREFIX).toBe("packages/core/src/");
+    expect(isUserFacingChange("packages/core/src/BottomNav.tsx")).toBe(true);
+    expect(isUserFacingChange("packages/core/src/clientErrors.ts")).toBe(true);
+    expect(isUserFacingChange("packages/core/src/clientErrors.test.ts")).toBe(false);
+    expect(isUserFacingChange("packages/core/package.json")).toBe(false);
+  });
 });
 
 describe("version helpers", () => {
@@ -44,6 +53,29 @@ describe("version helpers", () => {
 describe("checkReleaseNotes", () => {
   it("更新履歴とversionが揃っていれば通る", () => {
     expect(checkReleaseNotes(base).ok).toBe(true);
+  });
+
+  it("packages/core の変更だけでも、releases.ts が未更新なら失敗(#200)", () => {
+    const r = checkReleaseNotes({ ...base, changedFiles: ["packages/core/src/BottomNav.tsx"] });
+    expect(r.ok).toBe(false);
+    expect(r.errors.join("\n")).toContain("packages/core/src/BottomNav.tsx");
+  });
+
+  it("packages/core の変更でも、releases.ts と version を上げれば通る(#200)", () => {
+    const r = checkReleaseNotes({
+      ...base,
+      changedFiles: ["packages/core/src/BottomNav.tsx", "src/data/releases.ts", "package.json"],
+      releasesSource: releases("1.2.4"),
+      packageVersion: "1.2.4",
+      lockVersion: "1.2.4",
+      baseReleasesSource: releases("1.2.3"),
+    });
+    expect(r.ok).toBe(true);
+  });
+
+  it("packages/core の変更でも、[skip release-note] で例外にできる(#200)", () => {
+    const r = checkReleaseNotes({ ...base, changedFiles: ["packages/core/src/x.ts"], skipText: "[skip release-note]" });
+    expect(r.ok).toBe(true);
   });
 
   it("ユーザー向けの変更があるのに releases.ts が未更新なら失敗", () => {

@@ -16,7 +16,7 @@ CIが強制するもの（`.github/workflows/ci.yml` の `release-notes-check`�
 
 | 条件 | 結果 |
 |---|---|
-| `src/app/` `src/components/` `src/lib/` `src/constants/` `public/` に、テスト（`*.test.ts(x)`）・生成型（`database.types.ts`）以外の変更がある | `src/data/releases.ts` の更新が必須。先頭 version が変更前より新しくなければ失敗 |
+| `src/app/` `src/components/` `src/lib/` `src/constants/` `public/`、または共通パッケージ `packages/core/src/`（リポジトリルート基準。両アプリの画面に影響するため、**あさノート・よるノートの両方**の検査が対象にする）に、テスト（`*.test.ts(x)`）・生成型（`database.types.ts`）以外の変更がある | `src/data/releases.ts` の更新が必須。先頭 version が変更前より新しくなければ失敗 |
 | `releases.ts` 先頭・`package.json`・`package-lock.json` の version が不一致 | 常に失敗（例外指定でも確認される） |
 | PRに `no-release-note` ラベル、またはPR本文・タイトル・コミットメッセージに `[skip release-note]` | 更新履歴の追加チェックのみ省略（依存更新・内部リファクタ等） |
 

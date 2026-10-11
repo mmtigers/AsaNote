@@ -14,7 +14,11 @@ export const SKIP_MARKER = "[skip release-note]";
 const RELEASES_PATH = "src/data/releases.ts";
 
 // ユーザーに見える挙動・文言・選択肢に影響しうるディレクトリ。
-const WATCHED_PREFIXES = ["src/app/", "src/components/", "src/lib/", "src/constants/", "public/"];
+// 共通パッケージ(packages/core/src/)は両アプリの画面に影響するため、リポジトリルートからの相対パスで監視する(#200)。
+// どちらのアプリのチェックでも、core の変更は「そのアプリのユーザー向けの変更」として扱う
+// (=core を変えたら、あさノート・よるノートの両方で更新履歴と版上げが要る。載せない変更は例外指定を使う)。
+export const CORE_PREFIX = "packages/core/src/";
+const WATCHED_PREFIXES = ["src/app/", "src/components/", "src/lib/", "src/constants/", "public/", CORE_PREFIX];
 
 export function isUserFacingChange(file) {
   if (!WATCHED_PREFIXES.some((p) => file.startsWith(p))) return false;
@@ -127,7 +131,11 @@ function main() {
 
   const result = checkReleaseNotes({
     // --relative: アプリのルートからの相対パスで返す(他のアプリの変更は含めない)。
-    changedFiles: git("diff", "--name-only", "--relative", base, "HEAD").split("\n").filter(Boolean),
+    // core の変更はアプリ配下ではないため、ルート基準(:/)で別に取って足す(--relative はアプリ外を返さない)。
+    changedFiles: [
+      ...git("diff", "--name-only", "--relative", base, "HEAD").split("\n"),
+      ...git("diff", "--name-only", base, "HEAD", "--", `:/${CORE_PREFIX}`).split("\n"),
+    ].filter(Boolean),
     labels,
     skipText,
     releasesSource: readFileSync(RELEASES_PATH, "utf8"),
