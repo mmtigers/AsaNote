@@ -60,6 +60,48 @@ export type Database = {
         }
         Relationships: []
       }
+      client_errors: {
+        Row: {
+          app: string
+          app_version: string | null
+          client_ts: string
+          created_at: string
+          id: string
+          message: string
+          path: string | null
+          source: string
+          stack: string | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          app: string
+          app_version?: string | null
+          client_ts: string
+          created_at?: string
+          id?: string
+          message: string
+          path?: string | null
+          source: string
+          stack?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          app?: string
+          app_version?: string | null
+          client_ts?: string
+          created_at?: string
+          id?: string
+          message?: string
+          path?: string | null
+          source?: string
+          stack?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       group_invites: {
         Row: {
           code: string

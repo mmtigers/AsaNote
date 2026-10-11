@@ -1,5 +1,9 @@
 "use client"; // エラーバウンダリはClient Componentである必要がある
 
+import { useEffect } from "react";
+import { reportClientError } from "@note/core/clientErrors";
+import { releases } from "@/data/releases";
+
 // ルートレイアウト自身でエラーが起きたときの最後の砦。
 // error.tsx は同じセグメントの layout.tsx を包まないため、そこで throw された場合は
 // こちらが使われる(node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/error.md)。
@@ -18,6 +22,11 @@ export default function GlobalError({
   error: Error & { digest?: string };
   retry: () => void;
 }) {
+  useEffect(() => {
+    console.error(error);
+    reportClientError("asa", "error-boundary", error, releases[0]?.version);
+  }, [error]);
+
   return (
     <html lang="ja">
       <body

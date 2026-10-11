@@ -624,6 +624,38 @@ create policy "analytics_events are insertable by their own user"
   to authenticated
   with check (auth.uid() = user_id);
 
+-- ブラウザ側で起きた想定外のエラーの記録(後から原因を追うための書き込み専用ログ)。
+-- console.error はユーザーの端末に残るだけで開発者には届かないため、error.tsx / window の
+-- error・unhandledrejection で捕まえたものを、パッケージ共通の reportClientError()
+-- (packages/core/src/clientErrors.ts)がここへ送る。あさノート・よるノートで共用する。
+-- ログイン前や認証切れでも原因を残したいので anon からの insert も許可する(user_id は null)。
+-- analytics_events と同じく読み取りは許可せず、確認はダッシュボードのSQL Editor/service
+-- roleから行う。巨大な値で表を膨らませられないよう、長さはcheck制約で縛る。
+create table if not exists client_errors (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid references auth.users(id) on delete set null,
+  app text not null check (app in ('asa', 'yoru')),
+  source text not null check (source in ('error-boundary', 'window-error', 'unhandled-rejection')),
+  message text not null check (char_length(message) <= 1000),
+  stack text check (char_length(stack) <= 8000),
+  path text check (char_length(path) <= 500),
+  user_agent text check (char_length(user_agent) <= 500),
+  app_version text check (char_length(app_version) <= 50),
+  client_ts timestamptz not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_client_errors_created_at on client_errors(created_at desc);
+
+alter table client_errors enable row level security;
+
+drop policy if exists "client_errors are insertable by anyone for themselves" on client_errors;
+
+create policy "client_errors are insertable by anyone for themselves"
+  on client_errors for insert
+  to anon, authenticated
+  with check (user_id is null or auth.uid() = user_id);
+
 -- 以下、analytics_eventsの集計用ビュー。analytics_events自体がSELECTを一切許可しない
 -- 書き込み専用ログである(#計測)のと同じ理由で、これらのビューもauthenticated/anon
 -- へは意図的にgrantしない。ビューはマイグレーション実行ロール(RLSをバイパスする)の
