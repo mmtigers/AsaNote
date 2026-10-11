@@ -213,3 +213,31 @@ describe("カバレッジの job summary(#207)", () => {
     }
   });
 });
+
+describe("Actions の分数を守るトリガー(#225)", () => {
+  // 無料枠(月2,000分)の範囲内で運用する。main への push では走らせず(PR の CI で済ませる)、
+  // 関係のない変更では PR でも走らせない。実Supabase E2E と DB 反映は別の仕組みなので対象外。
+  const CI_WORKFLOWS = ["ci.yml", "ci-yoru.yml", "ci-core.yml"];
+  const onBlock = (yaml: string) => yaml.slice(yaml.indexOf("\non:"), yaml.indexOf("\nconcurrency:"));
+
+  it("あさノート・よるノート・core の CI は、main への push では走らせない", () => {
+    for (const name of CI_WORKFLOWS) {
+      expect(onBlock(readFileSync(`${WORKFLOWS_DIR}${name}`, "utf8")), name).not.toMatch(/^ {2}push:/m);
+    }
+  });
+
+  it("どの CI も pull_request に paths を持ち、CI の定義(.github/**)と共通コードを含む", () => {
+    for (const name of CI_WORKFLOWS) {
+      const block = onBlock(readFileSync(`${WORKFLOWS_DIR}${name}`, "utf8"));
+      expect(block, name).toMatch(/^ {4}paths:/m);
+      expect(block, name).toContain('".github/**"');
+      expect(block, name).toContain('"packages/core/**"');
+      expect(block, name).toContain('"package-lock.json"');
+    }
+  });
+
+  it("アプリの CI は自分のアプリ、core の CI は core を対象にしている", () => {
+    expect(onBlock(readFileSync(`${WORKFLOWS_DIR}ci.yml`, "utf8"))).toContain('"apps/asa/**"');
+    expect(onBlock(readFileSync(`${WORKFLOWS_DIR}ci-yoru.yml`, "utf8"))).toContain('"apps/yoru/**"');
+  });
+});
