@@ -68,3 +68,18 @@ describe(".github/workflows のアクション参照", () => {
     });
   });
 });
+
+describe("DBスキーマを適用するワークフローの psql(#196)", () => {
+  // psql -f は ON_ERROR_STOP が無いと、SQL がエラーでも終了コード 0 になる。
+  // そのまま CI が緑になり、壊れた schema.sql が本番反映の段階で初めて落ちる。
+  it.each(workflows().filter(([, yaml]) => /^[^#\n]*\bpsql\b[^\n]*\s-f\s/m.test(yaml)))(
+    "%s の psql -f は、すべて ON_ERROR_STOP=1 を付けている",
+    (_name, yaml) => {
+      const commands = yaml.split("\n").filter((line) => !line.trim().startsWith("#") && /\bpsql\b[^\n]*\s-f\s/.test(line));
+      expect(commands.length).toBeGreaterThan(0);
+      for (const line of commands) {
+        expect(line).toContain("ON_ERROR_STOP=1");
+      }
+    },
+  );
+});

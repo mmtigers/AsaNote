@@ -750,7 +750,7 @@ npm run test:e2e       # Playwright（dev サーバーを自動起動）
 |---|---|
 | `lint-build-test` | `npm ci` → `npm audit --audit-level=high --omit=dev`（本番依存のみ） → `lint` → `next typegen` → `tsc --noEmit` → `test:coverage`（`coverage-report` 成果物を14日保存） → `build`（ダミーのSupabase環境変数） |
 | `e2e-test` | chromiumを入れて `npm run test:e2e`。失敗時のみ `playwright-report` を7日保存 |
-| `db-types-check` | `postgres:16` に `auth-stub.sql` と `schema.sql` を適用し、固定版のSupabase CLI（2.117.0）で `supabase gen types` した結果が `src/lib/db/database.types.ts` と一致するか検査。ずれたら `npm run db:types`（要Docker）で再生成を促す |
+| `db-types-check` | `postgres:16` に `auth-stub.sql` と `schema.sql`（べき等性の確認のため2回）を `ON_ERROR_STOP=1` で適用し（SQLエラーがあればここで落ちる）、固定版のSupabase CLI（2.117.0）で `supabase gen types` した結果が `src/lib/db/database.types.ts` と一致するか検査。ずれたら `npm run db:types`（要Docker）で再生成を促す |
 | `release-notes-check` | ルートの `scripts/check-release-notes.mjs`（テスト: `src/lib/releaseNotesCheck.test.ts`）。判定条件と例外は本書冒頭の更新ルール |
 
 - 本番への反映は別のワークフロー（`db-deploy.yml`、§8.2）。
