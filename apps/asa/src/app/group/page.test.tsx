@@ -207,6 +207,17 @@ describe("GroupPage: お子さま", () => {
     expect(screen.queryByRole("button", { name: "保存" })).toBeNull();
   });
 
+  it("他の人が登録した子どもには、名前を変える・削除のボタンを出さない(#128)", async () => {
+    setupSignedIn({ children: [{ ...child("c1", "はなこ"), created_by: "user-partner" }, child("c2", "たろう")] });
+
+    render(<GroupPage />);
+    await waitFor(() => expect(screen.getByText("はなこ")).toBeTruthy());
+
+    // 自分が登録した「たろう」の分だけ、ボタンが出る
+    expect(screen.getAllByRole("button", { name: "名前を変える" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "削除" })).toHaveLength(1);
+  });
+
   it("キャンセルすると編集内容を捨てて元の表示に戻る", async () => {
     setupSignedIn({ children: [child("c1", "はなこ")] });
 

@@ -1,12 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-  averageBedtimeByOutcome,
-  bedtimeTrend,
   countOutcomes,
   countTags,
-  formatMinutes,
   outcomeByDate,
   outcomeByFriendPromise,
+  outcomeByBedtime,
   outcomeByHomeworkStart,
   recordsForFriendPromise,
   recordsForHomeworkStart,
@@ -61,19 +59,18 @@ describe("countOutcomes / roughRate", () => {
 });
 
 describe("outcomeByHomeworkStart", () => {
-  it("区分ごとに様子を数え、記録の無い区分と時刻未入力は省く", () => {
+  it("時間帯ごとに様子を数え、記録の無い帯と未入力は省く。旧い時刻の記録も帯に寄せる", () => {
     const buckets = outcomeByHomeworkStart([
-      rec({ times: { hwStart: "15:30" }, outcome: "calm" }),
-      rec({ times: { hwStart: "16:00" }, outcome: "rough" }),
-      rec({ times: { hwStart: "16:59" }, outcome: "storm" }),
-      rec({ times: { hwStart: "18:30" }, outcome: "storm" }),
+      rec({ times: { hwStart: "early" }, outcome: "calm" }),
+      rec({ times: { hwStart: "16:59" }, outcome: "rough" }), // 旧い時刻 → 15〜17時
+      rec({ times: { hwStart: "19:00" }, outcome: "storm" }), // 旧い時刻 → 19時以降
+      rec({ times: { hwStart: "late" }, outcome: "storm" }),
       rec({ times: {}, outcome: "storm" }),
       rec({ times: { hwStart: "bad" }, outcome: "storm" }),
     ]);
-    expect(buckets.map((b) => [b.key, b.total, b.roughRate])).toEqual([
-      ["early", 1, 0],
-      ["mid", 2, 100],
-      ["later", 1, 100],
+    expect(buckets.map((b) => [b.key, b.label, b.total, b.roughRate])).toEqual([
+      ["early", "15〜17時", 2, 50],
+      ["late", "19時以降", 2, 100],
     ]);
   });
 });
@@ -93,34 +90,19 @@ describe("outcomeByFriendPromise", () => {
   });
 });
 
-describe("消灯時刻", () => {
-  it("様子ごとの平均消灯時刻", () => {
-    const avg = averageBedtimeByOutcome([
-      rec({ times: { bed: "20:00" }, outcome: "calm" }),
-      rec({ times: { bed: "20:30" }, outcome: "calm" }),
+describe("outcomeByBedtime", () => {
+  it("消灯の時間帯ごとに様子を数える", () => {
+    const buckets = outcomeByBedtime([
+      rec({ times: { bed: "early" }, outcome: "calm" }),
+      rec({ times: { bed: "20:30" }, outcome: "calm" }), // 旧い時刻 → 20〜21時
+      rec({ times: { bed: "mid" }, outcome: "rough" }),
       rec({ times: { bed: "21:30" }, outcome: "storm" }),
       rec({ times: {}, outcome: "rough" }),
     ]);
-    expect(avg).toEqual([
-      { outcome: "calm", count: 2, averageMinutes: 20 * 60 + 15 },
-      { outcome: "storm", count: 1, averageMinutes: 21 * 60 + 30 },
-    ]);
-    expect(formatMinutes(20 * 60 + 15)).toBe("20:15");
-  });
-
-  it("推移は日付の古い順で直近limit件、同日は新しい更新を採用", () => {
-    const points = bedtimeTrend(
-      [
-        rec({ recordDate: "2026-10-03", times: { bed: "21:00" } }),
-        rec({ recordDate: "2026-10-01", times: { bed: "20:00" } }),
-        rec({ recordDate: "2026-10-02", times: { bed: "20:30" }, updatedAt: "2026-10-02T01:00:00Z" }),
-        rec({ recordDate: "2026-10-02", times: { bed: "22:00" }, updatedAt: "2026-10-02T02:00:00Z" }),
-      ],
-      2
-    );
-    expect(points.map((p) => [p.date, p.minutes])).toEqual([
-      ["2026-10-02", 22 * 60],
-      ["2026-10-03", 21 * 60],
+    expect(buckets.map((b) => [b.key, b.label, b.total, b.roughRate])).toEqual([
+      ["early", "20時より前", 1, 0],
+      ["mid", "20〜21時", 2, 50],
+      ["late", "21時以降", 1, 100],
     ]);
   });
 });
@@ -168,7 +150,7 @@ describe("詳細表示用の recordsFor*(集計の件数と一覧がずれない
     for (const b of outcomeByHomeworkStart(data)) {
       expect(recordsForHomeworkStart(data, b.key)).toHaveLength(b.total);
     }
-    expect(recordsForHomeworkStart(data, "mid").map((r) => r.recordDate)).toEqual(["2026-10-03", "2026-10-02"]);
+    expect(recordsForHomeworkStart(data, "early").map((r) => r.recordDate)).toEqual(["2026-10-03", "2026-10-02", "2026-10-01"]);
     expect(recordsForHomeworkStart(data, "unknown")).toEqual([]);
   });
 

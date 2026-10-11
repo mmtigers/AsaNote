@@ -60,6 +60,48 @@ export type Database = {
         }
         Relationships: []
       }
+      client_errors: {
+        Row: {
+          app: string
+          app_version: string | null
+          client_ts: string
+          created_at: string
+          id: string
+          message: string
+          path: string | null
+          source: string
+          stack: string | null
+          user_agent: string | null
+          user_id: string | null
+        }
+        Insert: {
+          app: string
+          app_version?: string | null
+          client_ts: string
+          created_at?: string
+          id?: string
+          message: string
+          path?: string | null
+          source: string
+          stack?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          app?: string
+          app_version?: string | null
+          client_ts?: string
+          created_at?: string
+          id?: string
+          message?: string
+          path?: string | null
+          source?: string
+          stack?: string | null
+          user_agent?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       group_invites: {
         Row: {
           code: string
@@ -270,6 +312,24 @@ export type Database = {
           },
         ]
       }
+      reminder_deliveries: {
+        Row: {
+          created_at: string
+          sent_on: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          sent_on: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          sent_on?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       analytics_flow_duration_daily: {
@@ -317,6 +377,7 @@ export type Database = {
           flow_started: number | null
           outcome_selected: number | null
           paused: number | null
+          reached_form: number | null
           reached_reason: number | null
           reached_result: number | null
           saved: number | null
@@ -325,6 +386,13 @@ export type Database = {
       }
     }
     Functions: {
+      cleanup_empty_groups_and_invites: {
+        Args: never
+        Returns: {
+          deleted_groups: number
+          deleted_invites: number
+        }[]
+      }
       create_group: {
         Args: never
         Returns: {

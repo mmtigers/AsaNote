@@ -2,6 +2,7 @@
 // 論理結合して見る。画面から切り離した純関数として置き、テストで固定する。
 import { addDays, parseTimeToMinutes } from "@note/core/date";
 import type { Outcome } from "@/constants/choices";
+import { bandsOf, toBandId } from "@/lib/timeBands";
 import type { MorningOutcome, MorningRecord } from "@/lib/db/morning";
 import type { AggregatableRecord } from "./aggregate";
 
@@ -62,27 +63,17 @@ function toBucket(key: string, label: string, pairs: NightMorningPair[]): Mornin
   };
 }
 
-// 消灯時刻の区分(分)。境界は MILESTONES.bed の候補(20:00/20:30/21:00)に合わせた。
-const BED_BUCKETS = [
-  { key: "early", label: "〜20:29", from: 0, to: 20 * 60 + 30 },
-  { key: "mid", label: "20:30台", from: 20 * 60 + 30, to: 21 * 60 },
-  { key: "late", label: "21:00台", from: 21 * 60, to: 21 * 60 + 30 },
-  { key: "later", label: "21:30〜", from: 21 * 60 + 30, to: 48 * 60 },
-] as const;
-
-// 消灯時刻 × 翌朝。消灯時刻がある夜だけが対象で、組が無い区分は省く。
+// 消灯の時間帯 × 翌朝。消灯の時間帯がある夜だけが対象で、組が無い帯は省く。
 export function morningByBedtime(pairs: NightMorningPair[]): MorningBucket[] {
   const grouped = new Map<string, NightMorningPair[]>();
   for (const p of pairs) {
-    const minutes = p.night.times.bed ? parseTimeToMinutes(p.night.times.bed) : null;
-    if (minutes === null) continue;
-    const bucket = BED_BUCKETS.find((b) => minutes >= b.from && minutes < b.to);
-    if (!bucket) continue;
-    grouped.set(bucket.key, [...(grouped.get(bucket.key) ?? []), p]);
+    const id = toBandId("bed", p.night.times.bed);
+    if (!id) continue;
+    grouped.set(id, [...(grouped.get(id) ?? []), p]);
   }
-  return BED_BUCKETS.flatMap((b) => {
-    const list = grouped.get(b.key);
-    return list ? [toBucket(b.key, b.label, list)] : [];
+  return bandsOf("bed").flatMap((b) => {
+    const list = grouped.get(b.id);
+    return list ? [toBucket(b.id, b.label, list)] : [];
   });
 }
 

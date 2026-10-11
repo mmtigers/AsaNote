@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { UNASSIGNED_FILTER } from "@note/core/childFilter";
 import {
   buildCsvContent,
   buildCsvFilename,
@@ -82,6 +83,38 @@ describe("selectExportEntries", () => {
     expect(result).toHaveLength(2);
   });
 
+  it("childFilterを省略または null にすると、子どもに関係なくすべて含める", () => {
+    const records = [makeRecord({ childId: "c1" }), makeRecord({ childId: "c2" }), makeRecord({ childId: null })];
+    const base = { startDate: "2026-09-01", endDate: "2026-09-30", includePartner: true, currentUserId: "me" };
+    expect(selectExportEntries(records, base)).toHaveLength(3);
+    expect(selectExportEntries(records, { ...base, childFilter: null })).toHaveLength(3);
+  });
+
+  it("子どもを指定すると、その子の記録だけを出す(未分類は含めない)", () => {
+    const records = [makeRecord({ childId: "c1" }), makeRecord({ childId: "c2" }), makeRecord({ childId: null })];
+    const result = selectExportEntries(records, {
+      startDate: "2026-09-01",
+      endDate: "2026-09-30",
+      includePartner: true,
+      childFilter: "c1",
+      currentUserId: "me",
+    });
+    expect(result.map((r) => r.childId)).toEqual(["c1"]);
+  });
+
+  it("UNASSIGNED_FILTER なら子ども未分類の記録だけを出す", () => {
+    const records = [makeRecord({ childId: "c1" }), makeRecord({ childId: null }), makeRecord({ childId: undefined })];
+    const result = selectExportEntries(records, {
+      startDate: "2026-09-01",
+      endDate: "2026-09-30",
+      includePartner: true,
+      childFilter: UNASSIGNED_FILTER,
+      currentUserId: "me",
+    });
+    expect(result).toHaveLength(2);
+    expect(result.every((r) => !r.childId)).toBe(true);
+  });
+
   it("日付の古い順(時系列)に並べる", () => {
     const records = [
       makeRecord({ recordDate: "2026-09-15", updatedAt: "2026-09-15T00:00:00.000Z" }),
@@ -129,14 +162,14 @@ describe("buildCsvContent", () => {
       "me"
     );
     const [header, row] = csv.split("\r\n");
-    expect(header).toBe("日付,曜日,結果,起床時刻,出発時刻,タグ,メモ,記録者");
-    expect(row).toBe("2026-09-10,木,スムーズに行けた,7時〜7時15分,8時より前,早寝早起きできた,順調でした,自分");
+    expect(header).toBe("日付,曜日,結果,起床時刻,出発時刻,タグ,メモ,記録者,子ども");
+    expect(row).toBe("2026-09-10,木,スムーズに行けた,7時〜7時15分,8時より前,早寝早起きできた,順調でした,自分,");
   });
 
   it("パートナーの記録は記録者列を「パートナー」にし、個人情報は含めない", () => {
     const csv = buildCsvContent([makeCsvRecord({ userId: "partner" })], "me");
     const [, row] = csv.split("\r\n");
-    expect(row?.endsWith(",パートナー")).toBe(true);
+    expect(row?.endsWith(",パートナー,")).toBe(true);
     expect(csv).not.toContain("partner");
   });
 
@@ -144,6 +177,33 @@ describe("buildCsvContent", () => {
     const csv = buildCsvContent([makeCsvRecord({ memo: 'A,B"C\nD' })], "me");
     const [, row] = csv.split("\r\n");
     expect(row).toContain('"A,B""C\nD"');
+  });
+
+  it("末尾の「子ども」列に子ども名を出し、未分類は空にする", () => {
+    const names = new Map([["c1", "たろう"]]);
+    const csv = buildCsvContent(
+      [makeCsvRecord({ childId: "c1" }), makeCsvRecord({ childId: null }), makeCsvRecord({ childId: "gone" })],
+      "me",
+      false,
+      names
+    );
+    const [, a, b, c] = csv.split("\r\n");
+    expect(a?.endsWith(",自分,たろう")).toBe(true);
+    expect(b?.endsWith(",自分,")).toBe(true);
+    expect(c?.endsWith(",自分,")).toBe(true);
+  });
+
+  it("子ども名にカンマ・ダブルクォートがあればエスケープする", () => {
+    const names = new Map([["c1", 'A,"B"']]);
+    const csv = buildCsvContent([makeCsvRecord({ childId: "c1" })], "me", false, names);
+    expect(csv.endsWith(',自分,"A,""B"""')).toBe(true);
+  });
+
+  it("子どもの名前を渡さなければ(1人以下の家庭)、列は出すが空にする", () => {
+    const csv = buildCsvContent([makeCsvRecord({ childId: "c1" })], "me");
+    const [header, row] = csv.split("\r\n");
+    expect(header?.endsWith(",子ども")).toBe(true);
+    expect(row?.endsWith(",自分,")).toBe(true);
   });
 
   it("複数タグは読点で連結する", () => {

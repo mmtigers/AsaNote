@@ -35,6 +35,16 @@ create table if not exists evening_records (
   updated_at timestamptz not null default now()
 );
 
+-- 節目(帰宅・宿題開始・お風呂・消灯)は、時間帯のid(early / mid / late)か、「ほか」で選んだ "HH:MM" を
+-- 保存する。旧い time 列は、入っていた時刻を変えずに text へ変換する(集計時に時刻から帯を求める)。
+-- すでに text なら何も変わらないので、何度流しても同じ結果になる。
+-- t_hw_end / t_prep は廃止した項目で、アプリは読み書きしない。
+alter table evening_records
+  alter column t_arrive type text using t_arrive::text,
+  alter column t_hw_start type text using t_hw_start::text,
+  alter column t_bath type text using t_bath::text,
+  alter column t_bed type text using t_bed::text;
+
 create index if not exists idx_evening_records_user_id on evening_records(user_id);
 create index if not exists idx_evening_records_record_date on evening_records(record_date desc);
 create index if not exists idx_evening_records_child_id on evening_records(child_id);

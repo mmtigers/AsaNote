@@ -1,5 +1,6 @@
 // 「試したこと」の前後比較。画面から切り離した純関数として置き、テストで固定する。
-import { addDays, parseTimeToMinutes } from "@note/core/date";
+import { addDays } from "@note/core/date";
+import { bandsOf, toBandId } from "@/lib/timeBands";
 import { countOutcomes, roughRate, type AggregatableRecord, type OutcomeCounts } from "@/app/stats/aggregate";
 
 export const COMPARE_WINDOW_DAYS = 14;
@@ -10,7 +11,8 @@ export interface PeriodSummary {
   total: number;
   counts: OutcomeCounts;
   roughRate: number; // 百分率。total が 0 のときは意味を持たないので呼び出し側で件数を見る
-  averageBedMinutes: number | null;
+  // 消灯の時間帯で最も多かったもの(同数なら早い帯)。消灯の入力が無い期間は null。
+  commonBed: { label: string; count: number } | null;
   bedCount: number;
 }
 
@@ -24,18 +26,25 @@ export interface RuleComparison {
 function summarize(records: AggregatableRecord[], from: string, to: string): PeriodSummary {
   const inRange = records.filter((r) => r.recordDate >= from && r.recordDate <= to);
   const { total, counts } = countOutcomes(inRange);
-  const beds = inRange.flatMap((r) => {
-    const m = r.times.bed ? parseTimeToMinutes(r.times.bed) : null;
-    return m === null ? [] : [m];
-  });
+  const bedCounts = new Map<string, number>();
+  for (const r of inRange) {
+    const id = toBandId("bed", r.times.bed);
+    if (id) bedCounts.set(id, (bedCounts.get(id) ?? 0) + 1);
+  }
+  let commonBed: PeriodSummary["commonBed"] = null;
+  for (const b of bandsOf("bed")) {
+    const count = bedCounts.get(b.id) ?? 0;
+    if (count > (commonBed?.count ?? 0)) commonBed = { label: b.label, count };
+  }
+  const bedCount = Array.from(bedCounts.values()).reduce((a, b) => a + b, 0);
   return {
     from,
     to,
     total,
     counts,
     roughRate: roughRate(counts),
-    averageBedMinutes: beds.length ? Math.round(beds.reduce((a, b) => a + b, 0) / beds.length) : null,
-    bedCount: beds.length,
+    commonBed,
+    bedCount,
   };
 }
 

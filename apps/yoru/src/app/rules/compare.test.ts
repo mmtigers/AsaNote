@@ -25,15 +25,15 @@ describe("compareAroundRule", () => {
     rec("2026-09-16", "storm"), // 前の範囲外
   ];
 
-  it("開始日の前後14日で件数・荒れ率・平均消灯を出す", () => {
+  it("開始日の前後14日で件数・荒れ率・消灯の最頻の帯を出す", () => {
     const c = compareAroundRule(records, { startedOn: "2026-10-01", endedOn: null }, "2026-10-10");
     expect(c.before.total).toBe(3);
     expect(c.before.roughRate).toBe(67);
-    expect(c.before.averageBedMinutes).toBe((22 * 60 + 22 * 60 + 30) / 2);
+    expect(c.before.commonBed).toEqual({ label: "21時以降", count: 2 });
     expect(c.before.bedCount).toBe(2);
     expect(c.after.total).toBe(2);
     expect(c.after.roughRate).toBe(50);
-    expect(c.after.averageBedMinutes).toBe(21 * 60 + 15);
+    expect(c.after.commonBed).toEqual({ label: "21時以降", count: 2 });
     expect(c.hasAfter).toBe(true);
   });
 
@@ -49,9 +49,9 @@ describe("compareAroundRule", () => {
     expect(c.after.total).toBe(0);
   });
 
-  it("記録が無い期間は消灯の平均がnull", () => {
+  it("記録が無い期間は消灯の帯がnull", () => {
     const c = compareAroundRule([], { startedOn: "2026-10-01", endedOn: null }, "2026-10-10");
-    expect(c.before.averageBedMinutes).toBeNull();
+    expect(c.before.commonBed).toBeNull();
     expect(c.after.total).toBe(0);
   });
 });

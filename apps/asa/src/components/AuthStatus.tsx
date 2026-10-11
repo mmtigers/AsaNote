@@ -12,6 +12,7 @@ import { usePendingSyncCount } from "@/lib/db/queries";
 import { setSelectedChildId } from "@/lib/db/selectedChild";
 import { countUnsyncedChanges } from "@/lib/db/records";
 import { syncPendingChanges } from "@/lib/db/sync";
+import { clearChildrenCache } from "@note/core/db/children";
 import { getSupabaseClient } from "@note/core/supabase/client";
 
 export function AuthStatus() {
@@ -46,6 +47,7 @@ export function AuthStatus() {
       clearDraft();
       setSelectedChildId(null);
       clearReminderDismissal();
+      clearChildrenCache();
     }
   }
 

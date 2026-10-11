@@ -51,6 +51,20 @@ export function diffInDays(from: string, to: string): number {
   return Math.round((parseDateInputValue(to).getTime() - parseDateInputValue(from).getTime()) / msPerDay);
 }
 
+// 記録できない未来日かどうか(#134)。どちらも toDateInputValue 形式("YYYY-MM-DD"、ゼロ埋め)
+// なので文字列比較で日付の前後が決まる。today は呼び出し側が toDateInputValue(new Date()) で
+// 求めたローカル(JST)の今日を渡す(UTCで求めると日付が変わる瞬間にずれる)。
+export function isFutureDate(value: string, today: string): boolean {
+  return value > today;
+}
+
+// URLの?date=など外から渡された日付を、記録できる範囲(今日まで)に丸める。
+// 未来日、および"YYYY-MM-DD"として読めない値は今日にする。過去日はそのまま返す。
+export function clampToToday(value: string, today: string): string {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return today;
+  return isFutureDate(value, today) ? today : value;
+}
+
 // "HH:MM" を0時からの分数に変換する。想定外の値(旧データ・手入力の崩れ)はnullを返す。
 // 出発時刻の区分判定(departTime.ts)と、傾向タブの起床時刻の集計(stats/aggregate.ts)の
 // 両方が使う唯一の情報源。

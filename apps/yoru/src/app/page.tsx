@@ -3,18 +3,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Skeleton } from "@note/core/components/Skeleton";
 import { useAuth } from "@/lib/auth/AuthProvider";
-import { addDays, diffInDays, toDateInputValue, toMonthOf } from "@note/core/date";
+import { addDays, diffInDays, isFutureDate, toDateInputValue, toMonthOf } from "@note/core/date";
 import { resolveEffectiveChildId, useChildren } from "@/lib/db/children";
 import { localDb } from "@/lib/db/localDb";
 import { discardUnsavedPhotos } from "@/lib/db/photos";
 import { useOwnRecordForDate, useOwnRecordsForHistory, useRecordStatusForMonth } from "@/lib/db/queries";
-import { formatClock, saveQuickRecord, type QuickOutcome } from "@/lib/db/quickRecord";
 import { findLatestOwnRecordForDate, saveRecord } from "@/lib/db/records";
 import { setSelectedChildId, useSelectedChildId } from "@/lib/db/selectedChild";
 import { track } from "@/lib/analytics";
 import { describeErrorForUser } from "@note/core/errors";
 import { RECORD_FLOW_RESET_EVENT } from "@/lib/recordFlowReset";
-import { DEFAULT_COPY_FIELDS, copyFormToChildren, type CopyField } from "./_home/copyToChildren";
 import { clearDraft, loadDraft, saveDraft } from "./_home/draftStorage";
 import { emptyForm, formFromRecord, formToInput, type FormState, type Step } from "./_home/formState";
 import { HomeStepView } from "./_home/HomeStepView";
@@ -33,8 +31,6 @@ export default function RecordPage() {
   const [form, setForm] = useState<FormState | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [copy, setCopy] = useState<{ childIds: string[]; fields: CopyField[] }>({ childIds: [], fields: DEFAULT_COPY_FIELDS });
-  const [quickNotice, setQuickNotice] = useState<string | null>(null);
 
   // popstate など非同期の経路から最新値を読むための参照。
   const formRef = useRef<FormState | null>(null);
@@ -62,13 +58,21 @@ export default function RecordPage() {
   const yesterday = useOwnRecordForDate(form ? addDays(form.recordDate, -1) : "", userId, form ? form.childId : childId);
 
   async function openForm(date: string, forChildId: string | null, entryPoint: "home" | "link" = "home") {
+    try {
+      await openFormUnsafe(date, forChildId, entryPoint);
+    } catch (e) {
+      console.error(e);
+      window.alert(describeErrorForUser(e, "記録を開けませんでした"));
+    }
+  }
+
+  async function openFormUnsafe(date: string, forChildId: string | null, entryPoint: "home" | "link") {
     const existing = await findLatestOwnRecordForDate(date, userId, forChildId);
     const next = existing ? formFromRecord(existing) : emptyForm(date, forChildId);
     const photos = existing ? await localDb.photos.where("recordId").equals(existing.id).toArray() : [];
     initialPhotoIdsRef.current = photos.map((p) => p.id);
     savedRef.current = false;
     setError(null);
-    setCopy({ childIds: [], fields: DEFAULT_COPY_FIELDS });
     setForm(next);
     window.history.pushState({ appStep: "form" }, "");
     setStep("form");
@@ -90,7 +94,8 @@ export default function RecordPage() {
     const params = new URLSearchParams(window.location.search);
     const draft = loadDraft();
     const linkDate = params.get("date");
-    const date = linkDate && /^\d{4}-\d{2}-\d{2}$/.test(linkDate) ? linkDate : null;
+    // 未来日の?date=は記録の対象外(#134)。編集リンクとして扱わず、通常のホーム(今日)を出す。
+    const date = linkDate && /^\d{4}-\d{2}-\d{2}$/.test(linkDate) && !isFutureDate(linkDate, now) ? linkDate : null;
 
     window.history.replaceState({ ...(window.history.state ?? {}), appStep: "home" }, "");
     setToday(now);
@@ -105,7 +110,12 @@ export default function RecordPage() {
       return;
     }
 
-    if (draft) {
+    // 未来日の下書きは復元しない(#134)。使い捨ての下書きなので破棄し、追加済みの写真も残さない。
+    // 端末に既にある保存済みの記録(未来日を含む)は消さない。
+    if (draft && isFutureDate(draft.form.recordDate, now)) {
+      void discardUnsavedPhotos(draft.form.id, new Set(draft.initialPhotoIds));
+      clearDraft();
+    } else if (draft) {
       initialPhotoIdsRef.current = draft.initialPhotoIds;
       savedRef.current = false;
       setSelectedDate(draft.form.recordDate);
@@ -164,30 +174,14 @@ export default function RecordPage() {
     setError(null);
     try {
       await saveRecord(formToInput(form, userId));
-      await copyFormToChildren(form, copy.childIds, copy.fields, userId);
       savedRef.current = true;
-      track(
-        "evening_record_saved",
-        { outcome: form.outcome, child_count_copied: copy.childIds.length },
-        { userId, recordId: form.id }
-      );
+      track("evening_record_saved", { outcome: form.outcome }, { userId, recordId: form.id });
       window.history.back(); // popstate ハンドラがホームへ戻し、下書きを消す
     } catch (e) {
       console.error(e);
       setError(describeErrorForUser(e, "保存に失敗しました"));
     } finally {
       setSaving(false);
-    }
-  }
-
-  async function onQuick(outcome: QuickOutcome) {
-    if (!today) return;
-    try {
-      await saveQuickRecord({ outcome, recordDate: today, userId, childId });
-      setQuickNotice(`${formatClock(new Date())} に残しました`);
-    } catch (e) {
-      console.error(e);
-      setQuickNotice(describeErrorForUser(e, "保存に失敗しました"));
     }
   }
 
@@ -209,9 +203,6 @@ export default function RecordPage() {
         history={history ?? []}
         yesterday={yesterday ?? null}
         childName={childList.length >= 2 ? (childList.find((c) => c.id === form.childId)?.name ?? null) : null}
-        otherChildren={childList.filter((c) => c.id !== form.childId)}
-        copy={copy}
-        onCopyChange={setCopy}
         saving={saving}
         error={error}
         onSave={onSave}
@@ -233,8 +224,6 @@ export default function RecordPage() {
       onSelectChild={setSelectedChildId}
       ownRecord={ownRecord}
       onStart={() => void openForm(selectedDate, childId)}
-      onQuick={(o) => void onQuick(o)}
-      quickNotice={quickNotice}
     />
   );
 }

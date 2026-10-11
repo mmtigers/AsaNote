@@ -1,14 +1,15 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { clearLocalData, localDb, type LocalRecord } from "./localDb";
-import { PULL_PAGE_SIZE, pullFromCloud, syncPendingChanges } from "./sync";
+import { PULL_PAGE_SIZE, pullFromCloud, registerSyncListeners, syncPendingChanges } from "./sync";
 
 const authGetUser = vi.fn();
+const authGetSession = vi.fn();
 const fromMock = vi.fn();
 const reportSyncOutcome = vi.fn();
 
 vi.mock("@note/core/supabase/client", () => ({
   getSupabaseClient: () => ({
-    auth: { getUser: authGetUser },
+    auth: { getUser: authGetUser, getSession: authGetSession },
     from: fromMock,
   }),
 }));
@@ -90,6 +91,7 @@ function mockRecordsTable(overrides: { upsert?: unknown; select?: SelectImpl; de
 beforeEach(async () => {
   await clearLocalData();
   authGetUser.mockReset();
+  authGetSession.mockReset().mockResolvedValue({ data: { session: { user: { id: "user-1" } } } });
   fromMock.mockReset();
   reportSyncOutcome.mockReset();
   setOnline(true);
@@ -158,6 +160,17 @@ describe("syncPendingChanges", () => {
     expect(upsert).toHaveBeenCalledWith([expect.objectContaining({ id: "r1", child_id: null })]);
   });
 
+  it("condition_scale列は送信しない(サーバーの既存値をnullで上書きして消さない #137)", async () => {
+    await localDb.records.add(makeLocalRecord({ id: "r1" }));
+    const upsert = vi.fn().mockResolvedValue({ error: null });
+    mockRecordsTable({ upsert });
+
+    await syncPendingChanges();
+
+    const [rows] = upsert.mock.calls[0] as [Record<string, unknown>[]];
+    expect(rows[0]).not.toHaveProperty("condition_scale");
+  });
+
   it("一括upsertが失敗した場合、1件ずつ再試行し、失敗した行だけpendingのまま残し、失敗を報告する", async () => {
     await localDb.records.add(makeLocalRecord({ id: "ok" }));
     await localDb.records.add(makeLocalRecord({ id: "ng" }));
@@ -224,6 +237,51 @@ describe("syncPendingChanges", () => {
   });
 });
 
+describe("前面に戻ったときの取り込み(#125)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-10-09T09:00:00+09:00"));
+    mockRecordsTable();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  async function resume() {
+    document.dispatchEvent(new Event("visibilitychange"));
+    await vi.waitFor(() => expect(authGetSession).toHaveBeenCalled());
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+
+  it("通常の pullFromCloud のあと5分未満なら取り込まず、5分以上なら取り込む", async () => {
+    const stop = registerSyncListeners();
+    await pullFromCloud();
+    fromMock.mockClear();
+
+    vi.setSystemTime(Date.now() + 4 * 60 * 1000);
+    document.dispatchEvent(new Event("visibilitychange"));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(authGetSession).not.toHaveBeenCalled();
+    expect(fromMock).not.toHaveBeenCalled();
+
+    vi.setSystemTime(Date.now() + 2 * 60 * 1000);
+    await resume();
+    expect(fromMock).toHaveBeenCalledWith("records");
+    stop?.();
+  });
+
+  it("リスナーを解除すると、取り込まない", async () => {
+    const stop = registerSyncListeners();
+    stop?.();
+
+    vi.setSystemTime(Date.now() + 10 * 60 * 1000);
+    document.dispatchEvent(new Event("visibilitychange"));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(authGetSession).not.toHaveBeenCalled();
+    expect(fromMock).not.toHaveBeenCalled();
+  });
+});
+
 describe("pullFromCloud", () => {
   it("ローカルが未同期(pending)の記録はクラウドの値で上書きしない", async () => {
     await localDb.records.add(makeLocalRecord({ id: "r1", memo: "ローカル未送信の変更" }));
@@ -237,6 +295,21 @@ describe("pullFromCloud", () => {
     await pullFromCloud();
 
     expect((await localDb.records.get("r1"))?.memo).toBe("ローカル未送信の変更");
+  });
+
+  it("サーバーに残るcondition_scale列があっても取り込め、ローカルには持ち込まない(#137)", async () => {
+    mockRecordsTable({
+      select: vi.fn().mockResolvedValue({
+        data: [makeCloudRow({ id: "r-cond", condition_scale: 3 })],
+        error: null,
+      }),
+    });
+
+    await pullFromCloud();
+
+    const saved = await localDb.records.get("r-cond");
+    expect(saved?.id).toBe("r-cond");
+    expect(saved).not.toHaveProperty("conditionScale");
   });
 
   it("Postgres の time 列が HH:MM:SS で返っても HH:MM へ正規化する(#61)", async () => {

@@ -259,6 +259,68 @@ $$;
 
 grant execute on function get_group_members() to authenticated;
 
+-- 空グループと、期限切れで未使用の招待コードの掃除(Issue #128)。
+-- 最後のメンバーが脱退しても groups 行と有効期限内の招待コードが残るため、定期的に消す。
+--
+-- 消してよい根拠(外部キーを全て確認済み):
+--   groups(id) を参照する外部キーは group_members.group_id と group_invites.group_id の
+--   2つだけで、どちらも on delete cascade。records / children / notification_settings /
+--   push_subscriptions などには group_id 列が無く、グループ削除で記録・子ども・通知設定が
+--   消えたり孤立したりすることはない(children は created_by、records は user_id で所有される)。
+--   空グループ(group_members が0行)を消して連鎖して消えるのは、そのグループの group_invites だけ。
+--
+-- 使用済みの招待コード(used_at あり)の履歴は、グループが残る限り消さない。
+-- 実行できるのは service_role / pg_cron(postgres)のみ。匿名・一般ユーザーには公開しない。
+create or replace function cleanup_empty_groups_and_invites()
+returns table (deleted_invites integer, deleted_groups integer)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_invites integer;
+  v_groups integer;
+begin
+  -- 先に期限切れ・未使用の招待コードを消す(使用済みは残す)。
+  delete from group_invites
+  where used_at is null
+    and expires_at < now();
+  get diagnostics v_invites = row_count;
+
+  -- メンバーが1人もいないグループだけを消す。メンバーがいるグループには触れない。
+  -- create_group() は groups と group_members を同一トランザクションで追加するため、
+  -- 作成直後の途中状態(メンバー0人)を、ここから見ることはない。
+  delete from groups g
+  where not exists (
+    select 1 from group_members gm where gm.group_id = g.id
+  );
+  get diagnostics v_groups = row_count;
+
+  return query select v_invites, v_groups;
+end;
+$$;
+
+-- Supabase は新しい関数に anon / authenticated / service_role への実行権を自動で付けるため、
+-- public からの revoke だけでは足りず、明示的に外す。ロールが無い環境(CI の素のPostgres)でも
+-- 失敗しないよう、存在するロールだけを対象にする。
+revoke all on function cleanup_empty_groups_and_invites() from public;
+
+do $$
+declare
+  v_role text;
+begin
+  foreach v_role in array array['anon', 'authenticated'] loop
+    if exists (select 1 from pg_roles where rolname = v_role) then
+      execute format('revoke all on function cleanup_empty_groups_and_invites() from %I', v_role);
+    end if;
+  end loop;
+
+  if exists (select 1 from pg_roles where rolname = 'service_role') then
+    grant execute on function cleanup_empty_groups_and_invites() to service_role;
+  end if;
+end
+$$;
+
 -- 複数の子どもがいる家庭向け。groups同様「作成者 + 同じグループのメンバー」が
 -- 閲覧できる共有リストとして扱う(id はrecords.child_idから参照する)。
 create table if not exists children (
@@ -269,6 +331,74 @@ create table if not exists children (
 );
 
 create index if not exists idx_children_created_by on children(created_by);
+
+-- 子どもの作成者がグループを脱退したとき、その子どもの所有(created_by)を、同じグループに
+-- 残る別のメンバーへ移す(Issue #128)。移さないと、children の SELECT が「作成者 または 作成者と
+-- 同じグループのメンバー」のため、残ったメンバーから子どもが見えなくなり、編集・削除もできなくなる。
+--
+-- 移す先: そのグループで最も早く参加したメンバー(joined_at が最も古い人。同時刻は user_id 順)。
+-- 脱退する本人は除く。
+-- 何もしない場合: 残るメンバーがいない(最後の1人の脱退)/ 脱退する人が子どもを作っていない。
+--   グループに属さない人の子どもには、この関数は触れない(group_members の行の削除が起点のため)。
+-- 脱退の経路(クライアントの直接 delete / アカウント削除による連鎖 / SQL)を問わず動くよう、
+-- group_members の before delete トリガーにしている(クライアントの変更は不要)。
+-- 同じグループの複数人が同時に脱退しても、互いに「脱退する人」へ移し合わないよう、groups の行を
+-- ロックして順番に処理する(for no key update は招待・参加の外部キー確認とは衝突しない)。
+-- 関連する外部キー: children.created_by は auth.users(id) への on delete cascade(not null)。
+-- records.child_id は on delete set null。この関数は created_by を更新するだけで、children の行は
+-- 消さないため、records.child_id には影響しない。
+create or replace function transfer_children_on_group_leave()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_new_owner uuid;
+begin
+  perform 1 from groups where id = old.group_id for no key update;
+
+  select gm.user_id into v_new_owner
+  from group_members gm
+  where gm.group_id = old.group_id
+    and gm.user_id <> old.user_id
+  order by gm.joined_at asc, gm.user_id asc
+  limit 1;
+
+  if v_new_owner is null then
+    return old;
+  end if;
+
+  update children
+  set created_by = v_new_owner
+  where created_by = old.user_id;
+
+  return old;
+end;
+$$;
+
+-- トリガー専用の関数。anon / authenticated などから直接呼べる状態にしない。
+-- ロールが無い環境(CI の素のPostgres)でも失敗しないよう、存在するロールだけを対象にする。
+revoke all on function transfer_children_on_group_leave() from public;
+
+do $$
+declare
+  v_role text;
+begin
+  foreach v_role in array array['anon', 'authenticated'] loop
+    if exists (select 1 from pg_roles where rolname = v_role) then
+      execute format('revoke all on function transfer_children_on_group_leave() from %I', v_role);
+    end if;
+  end loop;
+end
+$$;
+
+drop trigger if exists trg_transfer_children_on_group_leave on group_members;
+
+create trigger trg_transfer_children_on_group_leave
+  before delete on group_members
+  for each row
+  execute function transfer_children_on_group_leave();
 
 -- 子どもが1人だけ(childrenが0〜1件)の家庭では入力を増やさないため、
 -- 記録フォーム側からは常にnullのまま保存する。子どもを削除した場合も記録自体は
@@ -434,6 +564,40 @@ create policy "notification_settings are deletable by owner"
   to authenticated
   using (auth.uid() = user_id);
 
+-- 未入力日のリマインドPushの送信済み記録(#130)。send-reminders は設定時刻を過ぎて直近N分以内の
+-- ユーザーを対象にする(cron/関数の1分の欠けを取り戻す)ため、同じ日に二重送信しないよう、
+-- 「ユーザー × JSTの日付」ごとに1行を残す。主キーの衝突で、同時実行された関数同士も二重に送らない。
+-- Edge Function(service role)だけが読み書きする。RLSを有効にしてポリシーを一切作らず、
+-- authenticated / anon からは読めも書けもしない(analytics_eventsの集計ビューと同じ「サーバー専用」の扱い)。
+create table if not exists reminder_deliveries (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  sent_on date not null,
+  created_at timestamptz not null default now(),
+  primary key (user_id, sent_on)
+);
+
+alter table reminder_deliveries enable row level security;
+
+-- Supabase は新しいテーブルに anon / authenticated への権限を自動で付けるため、明示的に外す。
+-- ロールが無い環境(CI の素のPostgres)でも失敗しないよう、存在するロールだけを対象にする。
+revoke all on table reminder_deliveries from public;
+
+do $$
+declare
+  v_role text;
+begin
+  foreach v_role in array array['anon', 'authenticated'] loop
+    if exists (select 1 from pg_roles where rolname = v_role) then
+      execute format('revoke all on table reminder_deliveries from %I', v_role);
+    end if;
+  end loop;
+
+  if exists (select 1 from pg_roles where rolname = 'service_role') then
+    grant select, insert, delete on table reminder_deliveries to service_role;
+  end if;
+end
+$$;
+
 -- 記録フローの計測イベント(所要時間・離脱率の分析用)。書き込み専用ログとして扱い、
 -- クライアントからの読み取りは許可しない(集計はダッシュボード等からservice role/
 -- ダッシュボードSQLで行う想定)。ログイン前(オフライン専用利用)は同期先が無いため、
@@ -459,6 +623,38 @@ create policy "analytics_events are insertable by their own user"
   on analytics_events for insert
   to authenticated
   with check (auth.uid() = user_id);
+
+-- ブラウザ側で起きた想定外のエラーの記録(後から原因を追うための書き込み専用ログ)。
+-- console.error はユーザーの端末に残るだけで開発者には届かないため、error.tsx / window の
+-- error・unhandledrejection で捕まえたものを、パッケージ共通の reportClientError()
+-- (packages/core/src/clientErrors.ts)がここへ送る。あさノート・よるノートで共用する。
+-- ログイン前や認証切れでも原因を残したいので anon からの insert も許可する(user_id は null)。
+-- analytics_events と同じく読み取りは許可せず、確認はダッシュボードのSQL Editor/service
+-- roleから行う。巨大な値で表を膨らませられないよう、長さはcheck制約で縛る。
+create table if not exists client_errors (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid references auth.users(id) on delete set null,
+  app text not null check (app in ('asa', 'yoru')),
+  source text not null check (source in ('error-boundary', 'window-error', 'unhandled-rejection')),
+  message text not null check (char_length(message) <= 1000),
+  stack text check (char_length(stack) <= 8000),
+  path text check (char_length(path) <= 500),
+  user_agent text check (char_length(user_agent) <= 500),
+  app_version text check (char_length(app_version) <= 50),
+  client_ts timestamptz not null,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists idx_client_errors_created_at on client_errors(created_at desc);
+
+alter table client_errors enable row level security;
+
+drop policy if exists "client_errors are insertable by anyone for themselves" on client_errors;
+
+create policy "client_errors are insertable by anyone for themselves"
+  on client_errors for insert
+  to anon, authenticated
+  with check (user_id is null or auth.uid() = user_id);
 
 -- 以下、analytics_eventsの集計用ビュー。analytics_events自体がSELECTを一切許可しない
 -- 書き込み専用ログである(#計測)のと同じ理由で、これらのビューもauthenticated/anon
@@ -487,7 +683,12 @@ select
   min(client_ts) filter (where event_name in ('record_flow_started', 'record_flow_resumed')) as started_at,
   max(client_ts) filter (where event_name in ('record_saved', 'record_flow_paused')) as ended_at,
   bool_or(event_name = 'record_flow_resumed') as is_resume,
-  max(properties ->> 'entry_point') filter (where event_name = 'record_flow_started') as entry_point,
+  -- 旧名 'push_reminder'(実際はアプリ内リマインド経由)は 'in_app_reminder' として読み替える
+  -- (analytics_eventsの元データは書き換えない。列の型はtext・位置は変えない)。
+  case max(properties ->> 'entry_point') filter (where event_name = 'record_flow_started')
+    when 'push_reminder' then 'in_app_reminder'
+    else max(properties ->> 'entry_point') filter (where event_name = 'record_flow_started')
+  end as entry_point,
   coalesce(
     max(properties ->> 'is_edit') filter (where event_name = 'record_flow_started'),
     max(properties ->> 'is_edit') filter (where event_name = 'record_saved')
@@ -520,6 +721,10 @@ group by day, entry_point
 order by day, entry_point;
 
 -- 記録フローの各ステップ到達数の日別集計(離脱率の算出用)。
+-- 現行アプリの記録フローは1画面で、record_step_viewedは step = 'form' しか送らない。
+-- reached_result / reached_reason は旧フロー(複数画面)の過去データ用に残している
+-- (新しいデータでは常に0)。現行の到達数は reached_form を見ること。
+-- create or replace view は列の追加だけ許すため、新しい列は末尾に足している。
 create or replace view analytics_step_funnel_daily as
 select
   (client_ts at time zone 'Asia/Tokyo')::date as day,
@@ -528,7 +733,8 @@ select
   count(*) filter (where event_name = 'record_outcome_selected') as outcome_selected,
   count(*) filter (where event_name = 'record_step_viewed' and properties ->> 'step' = 'reason') as reached_reason,
   count(*) filter (where event_name = 'record_saved') as saved,
-  count(*) filter (where event_name = 'record_flow_paused') as paused
+  count(*) filter (where event_name = 'record_flow_paused') as paused,
+  count(*) filter (where event_name = 'record_step_viewed' and properties ->> 'step' = 'form') as reached_form
 from analytics_events
 group by day
 order by day;

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { matchesChildFilter } from "@note/core/childFilter";
 import { ChildSwitcher } from "@note/core/components/ChildSwitcher";
 import { ConfirmDialog } from "@note/core/components/ConfirmDialog";
 import { PartnerAvatar } from "@note/core/components/PartnerAvatar";
@@ -56,10 +57,12 @@ export default function TimelinePage() {
   const childNameMap = new Map((children ?? []).map((c) => [c.id, c.name]));
   const showChildName = (children?.length ?? 0) > 1;
   const [deleteError, setDeleteError] = useState(false);
+  // 未分類の記録があるときだけ「未分類」の絞り込みを出す(#127)。
+  const hasUnassigned = records?.some((r) => !r.childId) ?? false;
 
   const visibleRecords = records?.filter(
     (r) =>
-      (filterChildId === null || r.childId === filterChildId) &&
+      matchesChildFilter(r.childId, filterChildId) &&
       (filterOutcome === null || r.outcome === filterOutcome)
   );
 
@@ -87,7 +90,10 @@ export default function TimelinePage() {
       </header>
 
       {children && children.length > 1 && (
-        <ChildSwitcher childList={children} selectedId={filterChildId} onSelect={setFilterChildId} allowAll />
+        <ChildSwitcher childList={children} selectedId={filterChildId} onSelect={setFilterChildId}
+          allowAll
+          allowUnassigned={hasUnassigned}
+        />
       )}
 
       <div className="flex flex-wrap gap-1">

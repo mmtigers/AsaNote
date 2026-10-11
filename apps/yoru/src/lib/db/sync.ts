@@ -1,7 +1,9 @@
+import { createResumePuller } from "@note/core/pullOnResume";
 import { getSupabaseClient } from "@note/core/supabase/client";
 import type { DinnerState, MilestoneKey, Outcome, ResponseEffect } from "@/constants/choices";
 import type { EveningRecord } from "@/types/models";
 import { localDb, type LocalPhoto, type LocalRecord } from "./localDb";
+import { normalizeMilestoneValue } from "@/lib/timeBands";
 import { reportSyncOutcome } from "./syncStatus";
 
 let syncing = false;
@@ -18,10 +20,8 @@ export const PULL_PAGE_SIZE = 500;
 const TIME_COLUMNS = {
   arrive: "t_arrive",
   hwStart: "t_hw_start",
-  hwEnd: "t_hw_end",
   dinner: "t_dinner",
   bath: "t_bath",
-  prep: "t_prep",
   bed: "t_bed",
 } as const satisfies Record<MilestoneKey, string>;
 
@@ -70,7 +70,7 @@ export function normalizeTimeValue(value: string | null | undefined): string | n
 // user_id は RLS の INSERT/UPDATE ポリシーが要求するため必須で付与する。
 export function toRecordRow(record: LocalRecord, userId: string) {
   const times = Object.fromEntries(
-    (Object.keys(TIME_COLUMNS) as MilestoneKey[]).map((key) => [TIME_COLUMNS[key], record.times[key] ?? null])
+    (Object.keys(TIME_COLUMNS) as MilestoneKey[]).map((key) => [TIME_COLUMNS[key], normalizeMilestoneValue(key, record.times[key])])
   ) as TimeColumns;
   return {
     id: record.id,
@@ -97,7 +97,7 @@ export function toRecordRow(record: LocalRecord, userId: string) {
 export function fromRecordRow(row: CloudRecordRow): LocalRecord {
   const times: EveningRecord["times"] = {};
   for (const key of Object.keys(TIME_COLUMNS) as MilestoneKey[]) {
-    const v = normalizeTimeValue(row[TIME_COLUMNS[key]]);
+    const v = normalizeMilestoneValue(key, normalizeTimeValue(row[TIME_COLUMNS[key]]));
     if (v) times[key] = v;
   }
   return {
@@ -280,7 +280,7 @@ async function fetchAllPages<T>(table: string, orderBy: string): Promise<T[] | n
   return all;
 }
 
-// クラウド→ローカルの取り込み(ログイン直後・起動時・グループ参加/脱退後に実行)。他端末
+// クラウド→ローカルの取り込み(ログイン直後・起動時・グループ参加/脱退後・前面に戻ったとき(5分以上空いていれば)に実行)。他端末
 // (パートナーの端末)で記録したデータや、この端末のIndexedDBが空になった場合の復元に使う。
 // ローカルにまだ送信していない変更(syncStatus: "pending")がある行は、クラウドの古い値で
 // 上書きしないようスキップする。user_id での絞り込みは行わず RLS に委ねる
@@ -288,11 +288,22 @@ async function fetchAllPages<T>(table: string, orderBy: string): Promise<T[] | n
 //
 // 取得は全ページ取得で、途中のページが失敗した場合はローカルへの反映も「見えなくなった行の削除」も
 // 行わない(部分的な結果で削除判定すると、取得漏れの行が消えるため)。
+// 前面に戻ったときの取り込み(#125)。前回の取り込み時刻は、起動時・ログイン時などの pullFromCloud も更新する。
+// ログイン済みかはローカルのセッションで見る(getUser はサーバーへ問い合わせるため、復帰のたびには使わない)。
+const resumePuller = createResumePuller({
+  pull: () => pullFromCloud(),
+  isSignedIn: async () => {
+    const { data } = await getSupabaseClient().auth.getSession();
+    return data.session !== null;
+  },
+});
+
 export async function pullFromCloud() {
   if (pulling) return;
   if (typeof navigator !== "undefined" && !navigator.onLine) return;
 
   pulling = true;
+  resumePuller.markPulled();
   let hadWork = false;
   let hadError = false;
   try {
@@ -361,14 +372,22 @@ export async function pullFromCloud() {
   }
 }
 
-// 起動時とオンライン復帰時に同期をトリガーする。オフライン中の変更をキャッシュに残したまま
+// 起動時とオンライン復帰時に同期をトリガーし、前面に戻ったときは(5分以上空いていれば)取り込む。オフライン中の変更をキャッシュに残したまま
 // バックグラウンドで送信するため、UI側の待ち時間は発生しない。
 export function registerSyncListeners() {
   if (typeof window === "undefined") return;
 
-  window.addEventListener("online", () => {
+  const onOnline = () => {
     void syncPendingChanges();
-  });
+  };
+  window.addEventListener("online", onOnline);
+  const stopResumePull = resumePuller.register();
 
   void syncPendingChanges();
+
+  // StrictMode や再マウントで二重に張らないよう、呼び出し側(ServiceWorkerRegister)がクリーンアップで解除する。
+  return () => {
+    window.removeEventListener("online", onOnline);
+    stopResumePull();
+  };
 }

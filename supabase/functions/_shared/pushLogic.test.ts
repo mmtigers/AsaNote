@@ -6,9 +6,13 @@ import {
   isStaleSubscriptionError,
   jstDateNow,
   jstTimeNow,
+  minutesOfDay,
   partnerRecordPayload,
+  REMINDER_CATCHUP_WINDOW_MINUTES,
   reminderPayload,
+  selectDueReminderUserIds,
   selectReminderTargets,
+  selectUsersToRelease,
   sendToSubscriptions,
   type PushSubscriptionRow,
 } from "./pushLogic";
@@ -30,6 +34,87 @@ describe("jstTimeNow / jstDateNow", () => {
 
   it("日付はYYYY-MM-DD形式(UTC14:59 → JST23:59は同日)", () => {
     expect(jstDateNow(new Date("2026-10-05T14:59:00Z"))).toBe("2026-10-05");
+  });
+});
+
+describe("minutesOfDay", () => {
+  it("HH:MM と HH:MM:SS を分数にする", () => {
+    expect(minutesOfDay("21:00")).toBe(1260);
+    expect(minutesOfDay("21:00:00")).toBe(1260);
+    expect(minutesOfDay("00:00")).toBe(0);
+  });
+  it("不正な値は null", () => {
+    expect(minutesOfDay("24:00")).toBeNull();
+    expect(minutesOfDay("9:00")).toBeNull();
+    expect(minutesOfDay("abc")).toBeNull();
+  });
+});
+
+describe("selectDueReminderUserIds", () => {
+  // JST 21:00 = UTC 12:00。
+  const at = (utc: string) => new Date(`2026-10-05T${utc}Z`);
+  const settings = [{ user_id: "a", reminder_time: "21:00:00" }];
+
+  it("設定時刻ちょうどは対象", () => {
+    expect(selectDueReminderUserIds(settings, at("12:00:30"), [])).toEqual(["a"]);
+  });
+
+  it("設定時刻の前は対象外", () => {
+    expect(selectDueReminderUserIds(settings, at("11:59:59"), [])).toEqual([]);
+  });
+
+  it("N分以内(N-1分後)は対象、ちょうどN分後は対象外", () => {
+    const n = REMINDER_CATCHUP_WINDOW_MINUTES;
+    expect(selectDueReminderUserIds(settings, at(`12:${String(n - 1).padStart(2, "0")}:59`), [])).toEqual(["a"]);
+    expect(selectDueReminderUserIds(settings, at(`12:${String(n).padStart(2, "0")}:00`), [])).toEqual([]);
+  });
+
+  it("窓の幅は引数で変えられる", () => {
+    expect(selectDueReminderUserIds(settings, at("12:04:00"), [], 5)).toEqual(["a"]);
+    expect(selectDueReminderUserIds(settings, at("12:05:00"), [], 5)).toEqual([]);
+  });
+
+  it("今日送信済みのユーザーは除く", () => {
+    const two = [...settings, { user_id: "b", reminder_time: "21:05:00" }];
+    expect(selectDueReminderUserIds(two, at("12:07:00"), ["a"])).toEqual(["b"]);
+  });
+
+  it("JSTで判定する(UTC21:00は対象外、JST翌日6時)", () => {
+    expect(selectDueReminderUserIds(settings, at("21:00:00"), [])).toEqual([]);
+  });
+
+  it("日付をまたぐ取り戻しはしない(23:55設定を翌0:03に実行)", () => {
+    const late = [{ user_id: "a", reminder_time: "23:55:00" }];
+    // JST 2026-10-06 00:03 = UTC 2026-10-05 15:03
+    expect(selectDueReminderUserIds(late, at("15:03:00"), [])).toEqual([]);
+    // 同日内の 23:58(UTC14:58)は対象
+    expect(selectDueReminderUserIds(late, at("14:58:00"), [])).toEqual(["a"]);
+  });
+
+  it("0:00設定は日付が変わった直後から対象", () => {
+    const midnight = [{ user_id: "a", reminder_time: "00:00:00" }];
+    expect(selectDueReminderUserIds(midnight, at("15:00:10"), [])).toEqual(["a"]);
+  });
+
+  it("不正な時刻の設定は無視する", () => {
+    expect(selectDueReminderUserIds([{ user_id: "a", reminder_time: "bad" }], at("12:00:00"), [])).toEqual([]);
+  });
+});
+
+describe("selectUsersToRelease", () => {
+  const subs = [
+    { id: "s1", user_id: "a" },
+    { id: "s2", user_id: "a" },
+    { id: "s3", user_id: "b" },
+  ];
+  it("1件でも成功したユーザーは印を残す", () => {
+    expect(selectUsersToRelease(subs, ["s2"])).toEqual(["b"]);
+  });
+  it("全滅したユーザーは印を外す", () => {
+    expect(selectUsersToRelease(subs, [])).toEqual(["a", "b"]);
+  });
+  it("購読が無いユーザーは対象に含まれない", () => {
+    expect(selectUsersToRelease([], [])).toEqual([]);
   });
 });
 

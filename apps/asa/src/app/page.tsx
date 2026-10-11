@@ -17,7 +17,7 @@ import { useStepNavigation } from "./_home/useStepNavigation";
 import { useRecordForm } from "./_home/useRecordForm";
 import { useDraftPersistence } from "./_home/useDraftPersistence";
 import type { Step } from "./_home/types";
-import { addDays, diffInDays, formatDateLabel, toDateInputValue, toMonthOf } from "@note/core/date";
+import { addDays, clampToToday, diffInDays, isFutureDate, formatDateLabel, toDateInputValue, toMonthOf } from "@note/core/date";
 import { useRecordFlowResetListener } from "@/lib/recordFlowReset";
 import { track } from "@/lib/analytics";
 
@@ -53,14 +53,19 @@ export default function HomePage() {
     const requestedDate = params.get("date");
     const requestedChildId = params.get("childId");
     if (requestedDate) {
+      // 未来日(や読めない値)は記録の対象外なので今日に丸める(#134)。この場合は「その日の記録を
+      // 編集する」リンクとして成り立たないため、記録フォームは自動で開かず、通常のホームを出す。
+      const clampedDate = clampToToday(requestedDate, todayValue);
       // eslint-disable-next-line react-hooks/set-state-in-effect -- URLの初期パラメータをstateへ反映する、マウント時一度きりの初期化
-      changeDate(requestedDate);
+      changeDate(clampedDate);
+      if (clampedDate !== requestedDate) return;
       if (requestedChildId) {
         setEditChildIdOverride(requestedChildId);
         setSelectedChildId(requestedChildId);
       }
       cameFromEditLink.current = true;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- マウント時一度きりの初期化(todayValueはマウント時に確定する値)
   }, []);
 
   const children = useChildren();
@@ -157,7 +162,9 @@ export default function HomePage() {
     const dy = e.clientY - start.y;
     if (Math.abs(dx) >= SWIPE_THRESHOLD && Math.abs(dx) > Math.abs(dy)) {
       suppressClickRef.current = true;
-      changeDate(addDays(date, dx < 0 ? 1 : -1));
+      const next = addDays(date, dx < 0 ? 1 : -1);
+      // 今日より先へは進めない(#134)。
+      if (!isFutureDate(next, todayValue)) changeDate(next);
     }
   }
   function handleRecordClick(action: () => void) {
@@ -168,7 +175,7 @@ export default function HomePage() {
     action();
   }
 
-  function startRecording(entryPoint: "home_start_button" | "push_reminder", dateOffsetDays: number) {
+  function startRecording(entryPoint: "home_start_button" | "in_app_reminder", dateOffsetDays: number) {
     track(
       "record_flow_started",
       { entry_point: entryPoint, is_edit: false, date_offset_days: dateOffsetDays },
@@ -182,7 +189,7 @@ export default function HomePage() {
   // 使わず0を直接渡す。
   function handleReminderStartRecording() {
     changeDate(todayValue);
-    startRecording("push_reminder", 0);
+    startRecording("in_app_reminder", 0);
   }
 
   // すでにその日の記録がある状態から「記録を編集する」を押したときの起点

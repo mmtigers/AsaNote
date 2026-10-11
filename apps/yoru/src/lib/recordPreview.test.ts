@@ -29,22 +29,22 @@ describe("buildRecordPreview", () => {
     const text = buildRecordPreview({
       ...EMPTY,
       outcome: "rough",
-      times: { arrive: "15:00", hwStart: "16:00", hwEnd: "16:30", bed: "20:45" },
+      times: { arrive: "late", hwStart: "early", bed: "mid" },
       dinner: "little",
       dinnerWhy: ["においが苦手"],
-      free: ["TV", "ドラえもん"],
+      free: ["TV", "読書"],
       trigger: ["時間切れ・間に合わない"],
       behavior: ["号泣"],
       response: ["放置"],
       responseEffect: "mid",
-      body: ["蕁麻疹"],
+      body: ["疲れ"],
       photoCount: 2,
       memo: "友達を家に呼べた。",
     });
     expect(text).toBe(
-      "少し荒れた夜。15:00ごろに帰宅。宿題は16:00ごろから16:30ごろまで。夕食は少し(においが苦手)。" +
-        "自由時間は「TV・ドラえもん」。きっかけは「時間切れ・間に合わない」。号泣があった。" +
-        "対応は「放置」(少し効いた)。からだ: 蕁麻疹。写真2枚。20:45ごろに消灯。友達を家に呼べた。"
+      "少し荒れた夜。15時以降に帰宅。宿題は15〜17時に開始。夕食は少し(においが苦手)。" +
+        "自由時間は「TV・読書」。きっかけは「時間切れ・間に合わない」。号泣があった。" +
+        "対応は「放置」(少し効いた)。からだ: 疲れ。写真2枚。20〜21時に消灯。友達を家に呼べた。"
     );
   });
 
@@ -53,9 +53,9 @@ describe("buildRecordPreview", () => {
     expect(text).toBe("穏やかな夜。");
   });
 
-  it("宿題の開始が無く終了だけのとき", () => {
-    expect(buildRecordPreview({ ...EMPTY, outcome: "calm", times: { hwEnd: "17:30" } })).toBe(
-      "穏やかな夜。宿題は17:30ごろに終了。"
+  it("「ほか」で選んだ時刻は「ごろ」を付けて文章にする", () => {
+    expect(buildRecordPreview({ ...EMPTY, outcome: "calm", times: { arrive: "14:45", bed: "21:30" } })).toBe(
+      "穏やかな夜。14:45ごろに帰宅。21:30ごろに消灯。"
     );
   });
 });

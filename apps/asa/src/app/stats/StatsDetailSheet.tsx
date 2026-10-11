@@ -28,6 +28,8 @@ interface StatsDetailSheetProps {
   currentUserId: string | null | undefined;
   authLoading: boolean;
   emailMap: Map<string, string | null>;
+  // 子どものid→名前。子どもが複数いるときだけ渡す(渡さない/空なら子ども名は出さない)。
+  childNames?: Map<string, string>;
   onClose: () => void;
 }
 
@@ -39,6 +41,7 @@ export function StatsDetailSheet({
   currentUserId,
   authLoading,
   emailMap,
+  childNames,
   onClose,
 }: StatsDetailSheetProps) {
   const [unit, setUnit] = useState<PeriodUnit>("day");
@@ -149,6 +152,11 @@ export function StatsDetailSheet({
                             className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${OUTCOME_BADGE_STYLES[outcome.color]}`}
                           >
                             {outcome.emoji} {outcome.label}
+                          </span>
+                        )}
+                        {record.childId && childNames?.has(record.childId) && (
+                          <span className="rounded-full bg-[var(--surface-2)] px-2 py-0.5 text-[11px] font-bold text-[var(--sub)]">
+                            {childNames.get(record.childId)}
                           </span>
                         )}
                         {!own && <PartnerAvatar email={emailMap.get(record.userId ?? "")} />}
