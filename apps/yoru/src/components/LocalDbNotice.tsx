@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { reportClientError } from "@note/core/clientErrors";
+import { releases } from "@/data/releases";
 import { checkLocalDb, type LocalDbHealth } from "@/lib/db/localDb";
 
 // 端末内のデータベースが開けないとき、その原因を画面に出す。
@@ -11,6 +13,10 @@ export function LocalDbNotice() {
     let cancelled = false;
     void checkLocalDb().then((h) => {
       if (!cancelled) setHealth(h);
+      // 画面に出すだけでは開発側に届かないので、原因(エラー名・文言)を client_errors へも送る。
+      if (!h.ok) {
+        reportClientError("yoru", "local-db", Object.assign(new Error(h.message), { name: h.name }), releases[0]?.version);
+      }
     });
     return () => {
       cancelled = true;

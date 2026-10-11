@@ -1,10 +1,18 @@
+import { reportClientError } from "@note/core/clientErrors";
 import { createResumePuller } from "@note/core/pullOnResume";
 import { getSupabaseClient } from "@note/core/supabase/client";
 import type { DinnerState, MilestoneKey, Outcome, ResponseEffect } from "@/constants/choices";
 import type { EveningRecord } from "@/types/models";
+import { releases } from "@/data/releases";
 import { localDb, type LocalPhoto, type LocalRecord } from "./localDb";
 import { normalizeMilestoneValue } from "@/lib/timeBands";
 import { reportSyncOutcome } from "./syncStatus";
+
+// 画面には「同期に失敗しています」としか出ないので、原因(Supabaseのエラー内容)は client_errors へ送る。
+// 記録・写真の中身は送らず、どの段階で何件失敗したかだけを付ける。
+function reportSyncFailure(phase: string, error: unknown, count?: number) {
+  reportClientError("yoru", "sync-failure", error, releases[0]?.version, { phase, count: count ?? null });
+}
 
 let syncing = false;
 let pulling = false;
@@ -160,10 +168,12 @@ export async function syncPendingChanges() {
         // 一括 upsert は1件でもエラーになると全体が失敗するため、失敗時のみ1件ずつ再試行し、
         // 問題のない他のレコードまで巻き込まれないようにする。
         console.warn(`evening_records一括同期に失敗しました(${pendingRecords.length}件)。1件ずつ再試行します:`, error);
+        reportSyncFailure("push-records-bulk", error, pendingRecords.length);
         for (const record of pendingRecords) {
           const { error: rowError } = await supabase.from("evening_records").upsert(toRecordRow(record, userId));
           if (rowError) {
             console.warn(`evening_record同期に失敗しました(id=${record.id}):`, rowError);
+            reportSyncFailure("push-record", rowError);
             hadError = true;
           } else {
             await localDb.records.update(record.id, { syncStatus: "synced", userId });
@@ -199,6 +209,7 @@ export async function syncPendingChanges() {
         .in("id", pendingPhotoDeletes.map((d) => d.id));
       if (storageError || rowError) {
         console.warn("写真の削除の同期に失敗しました:", storageError ?? rowError);
+        reportSyncFailure("push-photo-deletes", storageError ?? rowError);
         hadError = true;
       } else {
         await localDb.pendingPhotoDeletes.bulkDelete(pendingPhotoDeletes.map((d) => d.id));
@@ -214,6 +225,7 @@ export async function syncPendingChanges() {
 
       if (error) {
         console.warn(`evening_records削除の同期に失敗しました(${ids.length}件):`, error);
+        reportSyncFailure("push-deletes", error, ids.length);
         hadError = true;
       } else {
         await localDb.pendingRecordDeletes.bulkDelete(ids);
@@ -221,6 +233,7 @@ export async function syncPendingChanges() {
     }
   } catch (error) {
     console.warn("Supabaseへの同期をスキップしました:", error);
+    reportSyncFailure("push-unexpected", error);
     hadWork = true;
     hadError = true;
   } finally {
@@ -240,6 +253,7 @@ async function uploadPhoto(photo: LocalPhoto, userId: string): Promise<boolean> 
     .upload(path, photo.blob!, { contentType: "image/jpeg", upsert: true });
   if (uploadError) {
     console.warn(`写真のアップロードに失敗しました(id=${photo.id}):`, uploadError);
+    reportSyncFailure("push-photo-upload", uploadError);
     return false;
   }
 
@@ -252,6 +266,7 @@ async function uploadPhoto(photo: LocalPhoto, userId: string): Promise<boolean> 
   });
   if (rowError) {
     console.warn(`写真の登録に失敗しました(id=${photo.id}):`, rowError);
+    reportSyncFailure("push-photo-row", rowError);
     return false;
   }
 
@@ -271,6 +286,7 @@ async function fetchAllPages<T>(table: string, orderBy: string): Promise<T[] | n
       .range(from, from + PULL_PAGE_SIZE - 1);
     if (error) {
       console.warn(`${table}のpullに失敗しました(offset=${from}):`, error);
+      reportSyncFailure(`pull-${table}`, error);
       return null;
     }
     const page = (data ?? []) as T[];
@@ -364,6 +380,7 @@ export async function pullFromCloud() {
     }
   } catch (error) {
     console.warn("Supabaseからの取り込みをスキップしました:", error);
+    reportSyncFailure("pull-unexpected", error);
     hadWork = true;
     hadError = true;
   } finally {

@@ -418,7 +418,7 @@ Supabase Edge Function `send-reminders`（`supabase/functions/send-reminders/ind
 | `reminder_deliveries` | `(user_id, sent_on)` PK, `created_at` | 未入力リマインドの送信済み記録（ユーザー×JSTの日付。§4.3）。Edge Function（service role）専用 |
 | `notification_settings` | `user_id` PK, `reminder_time`(time, 既定 21:00), `enabled`(既定 true), `notify_partner_record`(既定 false), `updated_at` | 通知設定。ユーザー1人につき1行 |
 | `analytics_events` | `user_id`, `record_id`, `event_name`, `properties`(jsonb), `client_ts`, `created_at`。索引 `user_id` / `record_id` | 記録フローの計測（§11）。書き込み専用 |
-| `client_errors` | `user_id`(null可), `app`, `source`, `message`, `stack`, `path`, `user_agent`, `app_version`, `client_ts`, `created_at`。索引 `created_at` | ブラウザ側の想定外エラーの記録（§11.3）。書き込み専用。あさノート・よるノート共用 |
+| `client_errors` | `user_id`(null可), `app`, `source`, `message`, `stack`, `path`, `user_agent`, `app_version`, `context`(jsonb), `client_ts`, `created_at`。索引 `created_at` | ブラウザ側の想定外エラーの記録（§11.3）。書き込み専用。あさノート・よるノート共用 |
 
 `Group` / `GroupInvite` / `Child` / `GroupMemberProfile` の型は `src/types/models.ts`。
 
@@ -908,7 +908,8 @@ npm run test:e2e:supabase  # 実Supabaseテストプロジェクト向けE2E（S
 
 `console.error` は端末にしか残らないため、想定外のエラーは `client_errors` にも送り、あとから原因を追えるようにする（`packages/core/src/clientErrors.ts` の `reportClientError()`）。
 
-- 送る契機: `error.tsx` / `global-error.tsx`（`source=error-boundary`）、`window` の `error`（`window-error`）、`unhandledrejection`（`unhandled-rejection`）。後 two は `ClientErrorReporter` がルートレイアウトで拾う。
-- 送る内容: エラーの文言・スタック・画面のパス（クエリ除く）・UA・アプリの版・ログイン中ならユーザーID。**記録の内容（メモ・タグ等）は送らない**。
+- 送る契機: `error.tsx` / `global-error.tsx`（`source=error-boundary`）、`window` の `error`（`window-error`）、`unhandledrejection`（`unhandled-rejection`）。後2つは `ClientErrorReporter` がルートレイアウトで拾う。
+  画面側で握りつぶして表示だけしているエラーも送る: 同期の失敗（`source=sync-failure`。`sync.ts` の各失敗箇所。`context.phase` に段階、`count` に件数）と、よるノートの端末DB不可（`local-db`。`LocalDbNotice`）。
+- 送る内容: エラーの文言・スタック・画面のパス（クエリ除く）・UA・アプリの版・付帯情報 `context`（オンライン状態・PWAか・同期の段階と件数）・ログイン中ならユーザーID。**記録の内容（メモ・タグ等）は送らない**。
 - fire-and-forget。送信失敗は `console.warn` に留める。1ページ読み込みあたり10件まで、同じエラーは1回のみ。
 - 確認はSupabaseダッシュボードのSQL Editor／service roleから（`select * from client_errors order by created_at desc`）。
