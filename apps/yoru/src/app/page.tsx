@@ -58,6 +58,15 @@ export default function RecordPage() {
   const yesterday = useOwnRecordForDate(form ? addDays(form.recordDate, -1) : "", userId, form ? form.childId : childId);
 
   async function openForm(date: string, forChildId: string | null, entryPoint: "home" | "link" = "home") {
+    try {
+      await openFormUnsafe(date, forChildId, entryPoint);
+    } catch (e) {
+      console.error(e);
+      window.alert(describeErrorForUser(e, "記録を開けませんでした"));
+    }
+  }
+
+  async function openFormUnsafe(date: string, forChildId: string | null, entryPoint: "home" | "link") {
     const existing = await findLatestOwnRecordForDate(date, userId, forChildId);
     const next = existing ? formFromRecord(existing) : emptyForm(date, forChildId);
     const photos = existing ? await localDb.photos.where("recordId").equals(existing.id).toArray() : [];
