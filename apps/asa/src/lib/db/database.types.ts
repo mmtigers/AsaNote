@@ -387,6 +387,17 @@ export type Database = {
         }
         Relationships: []
       }
+      client_errors_summary_7d: {
+        Row: {
+          app: string | null
+          first_seen: string | null
+          last_seen: string | null
+          message: string | null
+          occurrences: number | null
+          source: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       cleanup_empty_groups_and_invites: {
@@ -394,6 +405,13 @@ export type Database = {
         Returns: {
           deleted_groups: number
           deleted_invites: number
+        }[]
+      }
+      cleanup_old_logs: {
+        Args: never
+        Returns: {
+          deleted_client_errors: number
+          deleted_reminder_deliveries: number
         }[]
       }
       create_group: {

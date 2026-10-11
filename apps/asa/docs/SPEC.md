@@ -415,10 +415,10 @@ Supabase Edge Function `send-reminders`（`supabase/functions/send-reminders/ind
 | `group_invites` | `code` unique、`expires_at`（既定=作成+24時間）、`used_at` / `used_by`（1回限り）。索引 `group_id` | 招待コード（§6.4） |
 | `children` | `id`, `created_by`(FK、削除で連鎖), `name` 1〜50文字(`CHECK`), `created_at`。索引 `created_by` | 子ども。グループ内で共有 |
 | `push_subscriptions` | `user_id`, `endpoint` **unique**, `p256dh`, `auth_key`。索引 `user_id` | Push購読。1ユーザーが複数端末を持てる |
-| `reminder_deliveries` | `(user_id, sent_on)` PK, `created_at` | 未入力リマインドの送信済み記録（ユーザー×JSTの日付。§4.3）。Edge Function（service role）専用 |
+| `reminder_deliveries` | `(user_id, sent_on)` PK, `created_at` | 未入力リマインドの送信済み記録（ユーザー×JSTの日付。§4.3）。Edge Function（service role）専用。**7日で掃除**（使うのは当日の行だけ。`cleanup_old_logs()`） |
 | `notification_settings` | `user_id` PK, `reminder_time`(time, 既定 21:00), `enabled`(既定 true), `notify_partner_record`(既定 false), `updated_at` | 通知設定。ユーザー1人につき1行 |
 | `analytics_events` | `user_id`, `record_id`, `event_name`, `properties`(jsonb), `client_ts`, `created_at`。索引 `user_id` / `record_id` | 記録フローの計測（§11）。書き込み専用 |
-| `client_errors` | `user_id`(null可), `app`, `source`, `message`, `stack`, `path`, `user_agent`, `app_version`, `context`(jsonb), `client_ts`, `created_at`。索引 `created_at` | ブラウザ側の想定外エラーの記録（§11.3）。書き込み専用。あさノート・よるノート共用 |
+| `client_errors` | `user_id`(null可), `app`, `source`, `message`, `stack`, `path`, `user_agent`, `app_version`, `context`(jsonb), `client_ts`, `created_at`。索引 `created_at` | ブラウザ側の想定外エラーの記録（§11.4）。書き込み専用。あさノート・よるノート共用。**90日で掃除**（`cleanup_old_logs()`、§8.3）、匿名insertの濫用対策として**総行数の上限20,000行**（`client_errors_enforce_cap` トリガー）。確認用ビュー `client_errors_summary_7d` |
 
 `Group` / `GroupInvite` / `Child` / `GroupMemberProfile` の型は `src/types/models.ts`。
 
@@ -476,7 +476,7 @@ stateDiagram-v2
 | `notification_settings` | 本人のみ | 本人のみ | 本人のみ | 本人のみ |
 | `reminder_deliveries` | なし（service roleのみ） | なし | なし | なし |
 | `analytics_events` | **なし**（読み取り不可） | 本人のみ | なし | なし |
-| `client_errors` | **なし**（読み取り不可） | 未ログイン(anon)も可。`user_id` は null か本人のみ | なし | なし |
+| `client_errors` | **なし**（読み取り不可） | 未ログイン(anon)も可。`user_id` は null か本人のみ。総行数が20,000行に達すると insert は失敗する（トリガー） | なし | なし |
 
 - 「同じグループのメンバー」は、`group_members` を自己結合して「自分と記録者が同じグループにいる」ことで判定する。
 - `groups` の SELECT に「作成者本人」を含めるのは、作成直後（まだ `group_members` に自分を入れる前）の `insert ... returning` で行を読み返せるようにするため（RLSは `returning` にもSELECTポリシーを適用する）。
@@ -518,7 +518,7 @@ stateDiagram-v2
 | Push購読 | `endpoint` と鍵を本人のみ読み書きできる形で保存 |
 | 外部への通信 | Supabase、Push配信（ブラウザベンダのPushサービス）、Google Fonts（`globals.css` の `@import`。**要確認 Q18**） |
 
-退会（アカウント・データの削除）の機能はコードに無い。データの保持期間の方針も確認できない。**要確認 Q13**
+退会（アカウント・データの削除）の機能はコードに無い。ログの保持期間は決めた（`client_errors` は90日、`reminder_deliveries` は7日。`cleanup_old_logs()`、§8.3、`docs/log-retention.md`）が、記録データ本体や `analytics_events` の保持期間は決まっていない。**要確認 Q13**
 
 ### 6.6 端末内データの扱い
 
@@ -639,6 +639,7 @@ DBに一意制約が無く、2端末でオフライン中に同じ日を新規�
 | Edge Function（`send-reminders` / `notify-partner`）のデプロイ、VAPIDシークレット設定 | `docs/push-notifications-setup.md` |
 | `pg_cron` の登録（`supabase/cron-reminders.sql`） | 同上。`<PROJECT_REF>` と `<SERVICE_ROLE_KEY>` を実値に置き換えてSQL Editorで実行 |
 | パートナー通知のトリガー作成（`supabase/partner-notify-trigger.sql`） | 同上 |
+| 古いログの掃除の `pg_cron` 登録（`supabase/cron-cleanup-logs.sql`） | `docs/log-retention.md`。SQL Editor で1回実行（`schema.sql` の自動適用には含まれない）。登録するまで掃除は走らず、`client_errors` は上限に達すると新しい記録が入らなくなる |
 | 空グループ・期限切れ招待コードの掃除の `pg_cron` 登録（`supabase/cron-cleanup-groups.sql`） | `docs/group-cleanup.md`。SQL Editor で1回実行（`schema.sql` の自動適用には含まれない）。登録するまで掃除は走らない |
 | Supabase Auth の URL 設定 | 下記 |
 
@@ -816,7 +817,8 @@ npm run test:e2e:supabase  # 実Supabaseテストプロジェクト向けE2E（S
   画面側で握りつぶして表示だけしているエラーも送る: 同期の失敗（`source=sync-failure`。`sync.ts` の各失敗箇所。`context.phase` に段階、`count` に件数）と、よるノートの端末DB不可（`local-db`。`LocalDbNotice`）。
 - 送る内容: エラーの文言・スタック・画面のパス（クエリ除く）・UA・アプリの版・付帯情報 `context`（オンライン状態・PWAか・同期の段階と件数）・ログイン中ならユーザーID。**記録の内容（メモ・タグ等）は送らない**。
 - fire-and-forget。送信失敗は `console.warn` に留める。1ページ読み込みあたり10件まで、同じエラーは1回のみ。
-- 確認はSupabaseダッシュボードのSQL Editor／service roleから（`select * from client_errors order by created_at desc`）。
+- 確認はSupabaseダッシュボードのSQL Editor／service roleから（`select * from client_errors order by created_at desc`。件数の集計は `select * from client_errors_summary_7d`＝直近7日を画面・種類・文言ごと）。
+- 保管は90日（`cleanup_old_logs()` が `pg_cron` で毎日消す。**登録は手動**: §8.3）。総行数が20,000行に達すると、anon を含め insert が失敗する（`client_errors_enforce_cap`。クライアントは fire-and-forget のため画面には影響せず、ログが入らなくなるだけ。`pg_cron` を登録していないと、いずれここに達する）。
 
 ## 12. 非機能要件
 
@@ -907,7 +909,7 @@ npm run test:e2e:supabase  # 実Supabaseテストプロジェクト向けE2E（S
 | Q9（解決済み #125） | 前面に戻ったとき、前回の取り込みから5分以上空いていれば `pullFromCloud` を呼ぶようにした。定期取得と Realtime は使わない | §7.3 | `src/lib/db/sync.ts`, `packages/core/src/pullOnResume.ts` |
 | Q11 | 招待コード（8文字×32種）にアプリ側の試行回数制限が無い。Supabase側のレート制限に任せる想定か | §6.4 | `src/lib/db/groups.ts`, `schema.sql` |
 | Q12 | 本番URL、対応ブラウザ・OSの公式な範囲（ホスティング先は Vercel と確認済み） | §8.1, §12 | `docs/push-notifications-setup.md`、PRのVercelプレビュー |
-| Q13 | 想定利用者の範囲（家族内の限定運用か一般公開か）、データの保持期間、退会（アカウント・データ削除）の方針。退会機能はコードに無い | §1.2, §6.5 | README、コード全般 |
+| Q13 | 想定利用者の範囲（家族内の限定運用か一般公開か）、記録データ本体と `analytics_events` の保持期間（ログは決定済み: `client_errors` 90日・`reminder_deliveries` 7日）、退会（アカウント・データ削除）の方針。退会機能はコードに無い | §1.2, §6.5 | README、コード全般 |
 | Q14（解決済み #127） | タイムラインのカードに子ども名が出ない／エクスポートが子どもで分かれない。→ タイムライン・傾向は #180 でカードに子ども名と「未分類」の絞り込みを追加。エクスポートは子どもの絞り込みと、CSVの末尾の「子ども」列、印刷/PDFの子ども名を追加した | §3.2, §3.4 | `src/app/timeline/page.tsx`, `src/app/export/page.tsx`, `src/app/export/selectEntries.ts` |
 | Q15 | 初回訪問直後にオフラインで起動できるか（プリキャッシュは `/` とアイコンのみで、JS等は遅延キャッシュ）。未検証 | §7.7 | `public/sw.js` |
 | Q16（解消済み #131） | ログアウトで、IndexedDBに加え、`localStorage` の下書き・選択中の子ども・リマインドを閉じた日付も消すようにした | §3.6, §5.3, §6.6 | `src/lib/db/localDb.ts`, `src/components/AuthStatus.tsx` |
