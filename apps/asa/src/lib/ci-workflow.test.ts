@@ -99,3 +99,21 @@ describe("実Supabase E2E(e2e-supabase.yml)の skip の見える化(#198)", () =
     expect(yaml).toContain("実Supabase E2E は未実行");
   });
 });
+
+describe("本番DBへの反映ワークフローの concurrency(#203)", () => {
+  // あさノート・よるノートは同じ本番DB(SUPABASE_DB_URL)へ DDL を流す。
+  // group 名が別だと、両方の schema.sql を変えた PR のマージで同時に走ってしまう。
+  const group = (name: string) =>
+    readFileSync(`${WORKFLOWS_DIR}${name}`, "utf8").match(/concurrency:\s*\n\s*group:\s*(\S+)/)?.[1];
+
+  it("db-deploy.yml と db-deploy-yoru.yml は同じ concurrency group で直列化されている", () => {
+    expect(group("db-deploy.yml")).toBeTruthy();
+    expect(group("db-deploy-yoru.yml")).toBe(group("db-deploy.yml"));
+  });
+
+  it("どちらも途中で打ち切らない(cancel-in-progress: false)", () => {
+    for (const name of ["db-deploy.yml", "db-deploy-yoru.yml"]) {
+      expect(readFileSync(`${WORKFLOWS_DIR}${name}`, "utf8")).toMatch(/cancel-in-progress:\s*false/);
+    }
+  });
+});

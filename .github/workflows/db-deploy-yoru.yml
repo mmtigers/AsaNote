@@ -35,9 +35,10 @@ on:
 permissions:
   contents: read
 
-# 本番DBへの適用が同時に走らないようにする。CI と違い、途中で打ち切らない。
+# 本番DBへの適用が同時に走らないようにする。あさノート・よるノートは同じ本番DB(SUPABASE_DB_URL)へ
+# 流すため、両ワークフローで同じ group 名にして直列化する(#203。片方だけ変えないこと)。CI と違い、途中で打ち切らない。
 concurrency:
-  group: db-deploy-yorunote
+  group: db-deploy-production
   cancel-in-progress: false
 
 jobs:
