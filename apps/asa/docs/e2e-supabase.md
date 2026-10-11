@@ -94,7 +94,7 @@ Authentication → Users → **Add user → Create new user** で、次の2人�
 
 `.github/workflows/e2e-supabase.yml`(通常のCI `ci.yml` とは別ワークフロー)。`main` への push、`main` 向けのPR、手動実行(workflow_dispatch)で動く。
 
-- Secrets 未設定 → 判定ステップが「スキップ」の notice を出し、以降を飛ばして成功で終わる。
+- Secrets 未設定 → 判定ステップが `::warning::` と job summary(「実Supabase E2E は未実行」)を出し、以降を飛ばして成功で終わる。緑でも実DBでは検証されていない(#198)。
 - fork のPR → Secrets が渡されないので同様に skip。`pull_request_target` は使わない(fork のコードを Secrets 付きで動かさないため)。
 - 同じテストユーザーを共有するため、実行は同時に1つだけ(`concurrency`、打ち切りなし)。
 - トレース・スクリーンショットは取らない(ログイン済みセッションのトークンを含むため)。失敗時はHTMLレポートのみ7日保存。

@@ -83,3 +83,19 @@ describe("DBスキーマを適用するワークフローの psql(#196)", () => 
     },
   );
 });
+
+describe("実Supabase E2E(e2e-supabase.yml)の skip の見える化(#198)", () => {
+  // Secrets 未設定だと全ステップが skip され、緑のまま「実行された」ように見える。
+  // 未実行であることを warning と job summary に出す設計を、うっかり戻さないよう固定する。
+  const yaml = readFileSync(`${WORKFLOWS_DIR}e2e-supabase.yml`, "utf8");
+
+  it("skip 時に ::warning:: を出している(::notice:: のままではない)", () => {
+    expect(yaml).toContain("::warning::実SupabaseのE2Eは実行されていません");
+    expect(yaml).not.toContain("::notice::実SupabaseのE2E");
+  });
+
+  it("skip 時に job summary(GITHUB_STEP_SUMMARY)へ「未実行」を書いている", () => {
+    expect(yaml).toContain("GITHUB_STEP_SUMMARY");
+    expect(yaml).toContain("実Supabase E2E は未実行");
+  });
+});
