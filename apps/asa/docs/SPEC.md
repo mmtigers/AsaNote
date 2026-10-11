@@ -2,7 +2,7 @@
 
 子どもが登校を渋る朝のようすを、選ぶだけでサッと記録する家族向けPWA。
 本書は実装（`src/`・`supabase/`・`public/sw.js`・`e2e/`・`.github/workflows/`）から起こした現状の仕様書で、**食い違いがあれば実装が正**。
-対象バージョン: v0.4.2（`src/data/releases.ts` 先頭）。
+対象バージョン: `src/data/releases.ts` の先頭が現行（本書には版番号を書かない。更新漏れで実際とずれるため）。
 
 ## 本書の使い方・メンテナンス方針
 
@@ -639,6 +639,7 @@ DBに一意制約が無く、2端末でオフライン中に同じ日を新規�
 | Edge Function（`send-reminders` / `notify-partner`）のデプロイ、VAPIDシークレット設定 | `docs/push-notifications-setup.md` |
 | `pg_cron` の登録（`supabase/cron-reminders.sql`） | 同上。`<PROJECT_REF>` と `<SERVICE_ROLE_KEY>` を実値に置き換えてSQL Editorで実行 |
 | パートナー通知のトリガー作成（`supabase/partner-notify-trigger.sql`） | 同上 |
+| 空グループ・期限切れ招待コードの掃除の `pg_cron` 登録（`supabase/cron-cleanup-groups.sql`） | `docs/group-cleanup.md`。SQL Editor で1回実行（`schema.sql` の自動適用には含まれない）。登録するまで掃除は走らない |
 | Supabase Auth の URL 設定 | 下記 |
 
 ### 8.4 環境変数・シークレット
@@ -765,6 +766,7 @@ npm run test:e2e:supabase  # 実Supabaseテストプロジェクト向けE2E（S
 | `release-notes-check` | ルートの `scripts/check-release-notes.mjs`（テスト: `src/lib/releaseNotesCheck.test.ts`）。判定条件と例外は本書冒頭の更新ルール |
 
 - 本番への反映は別のワークフロー（`db-deploy.yml`、§8.2）。
+- 共通パッケージ `packages/core` の lint・型検査・テストは**別ワークフロー** `.github/workflows/ci-core.yml`（`lint-typecheck-test`。上のジョブ表には含まれない）。アプリ側の確認は `ci.yml` / `ci-yoru.yml` が同じ push・PR で別に行う。
 - 実Supabaseテストプロジェクト向けE2Eは**別ワークフロー** `.github/workflows/e2e-supabase.yml`（上のジョブ表には含まれない）。Secrets未設定・forkのPRでは判定ステップだけ走り、`::warning::` と job summary に「未実行」を出して成功で終わる(緑でも実DBでは検証されていない、#198)（`pull_request_target` は使わない）。同じテストユーザーを共有するため同時実行は1つ。本番や通常CIの結果には影響しない。
 - Dependabot（`.github/dependabot.yml`）: npmとGitHub Actionsを週次（月曜9:00 JST）で確認。npmのminor/patchは1本のグループPRにまとめ、メジャーは個別PR。ただし `eslint` と `typescript` のメジャーは無視（`eslint-config-next` 配下のプラグインや `typescript-eslint` が未対応のため。理由は同ファイルのコメント）。`vitest` 5 と `@types/node` は更新済みで無視対象ではない。
 - Actionsはコミットで固定し、Dependabotが追随する（Supabase CLIの `with.version` は対象外のため手動で上げる）。
@@ -805,6 +807,16 @@ npm run test:e2e:supabase  # 実Supabaseテストプロジェクト向けE2E（S
 | `analytics_flow_duration_daily` | 主指標。**新規記録・中断なしで完走**したセッションの所要秒数を、日別・`entry_point`別に平均/中央値/p90で集計 |
 | `analytics_step_funnel_daily` | 各ステップ到達数の日別集計（離脱率用）。フローが1画面になった現行アプリは `step = 'form'` しか送らないため、旧フロー用の `reached_result` / `reached_reason` は新しいデータでは常に0になる（過去データ用に残している）。現行の到達数は `reached_form` |
 | `analytics_pause_resume_daily` | 離脱理由別の件数と、うち再開を伴った件数（上記の理由で再開はほぼ0になる想定） |
+
+### 11.4 ブラウザ側エラーの記録
+
+`console.error` は端末にしか残らないため、想定外のエラーは `client_errors` にも送り、あとから原因を追えるようにする（`packages/core/src/clientErrors.ts` の `reportClientError()`）。
+
+- 送る契機: `error.tsx` / `global-error.tsx`（`source=error-boundary`）、`window` の `error`（`window-error`）、`unhandledrejection`（`unhandled-rejection`）。後2つは `ClientErrorReporter` がルートレイアウトで拾う。
+  画面側で握りつぶして表示だけしているエラーも送る: 同期の失敗（`source=sync-failure`。`sync.ts` の各失敗箇所。`context.phase` に段階、`count` に件数）と、よるノートの端末DB不可（`local-db`。`LocalDbNotice`）。
+- 送る内容: エラーの文言・スタック・画面のパス（クエリ除く）・UA・アプリの版・付帯情報 `context`（オンライン状態・PWAか・同期の段階と件数）・ログイン中ならユーザーID。**記録の内容（メモ・タグ等）は送らない**。
+- fire-and-forget。送信失敗は `console.warn` に留める。1ページ読み込みあたり10件まで、同じエラーは1回のみ。
+- 確認はSupabaseダッシュボードのSQL Editor／service roleから（`select * from client_errors order by created_at desc`）。
 
 ## 12. 非機能要件
 
@@ -847,7 +859,7 @@ npm run test:e2e:supabase  # 実Supabaseテストプロジェクト向けE2E（S
 - **競合は順序依存**: 後から同期した側が残る（§7.4）。
 - **パートナーの記録の反映タイミング**: pull は起動時・ログイン・グループ参加/脱退時に加え、前面に戻ったとき（前回から5分以上空いていれば）に行う。定期取得と Realtime は無く、起動したまま前面に居続ける間は反映されない（§7.3）。Q9（解決済み）→ [#125](https://github.com/mmtigers/AsaNote/issues/125)
 - **子ども一覧はオンライン必須**: オフラインで起動して子ども一覧を取得できないと、複数の子どもがいる家庭でも記録が `childId: null` で保存される。Q8 → [#126](https://github.com/mmtigers/AsaNote/issues/126)
-- **グループは1ユーザー1つ**。3人以上の運用は未検証。最後のメンバーが脱退したグループ・招待コードは残る。子どもの作成者が脱退したときは、その人が作成した子どもの所有が、同じグループに残る最古参加のメンバーへ移る（§3.5。最後の1人の脱退では移らず、作成者のまま）。Q10 → [#128](https://github.com/mmtigers/AsaNote/issues/128)
+- **グループは1ユーザー1つ**。3人以上の運用は未検証。最後のメンバーが脱退したグループ（空グループ）と、期限切れで未使用の招待コードは、DB関数 `cleanup_empty_groups_and_invites()`（`supabase/schema.sql`）が定期的に消す（定期実行の `pg_cron` は**手動登録**: §8.3、`docs/group-cleanup.md`）。子どもの作成者が脱退したときは、その人が作成した子どもの所有が、同じグループに残る最古参加のメンバーへ移る（§3.5。最後の1人の脱退では移らず、作成者のまま）。[#128](https://github.com/mmtigers/AsaNote/issues/128)
 - **招待コードの総当たり耐性**: アプリ側の試行制限なし。Q11 → [#129](https://github.com/mmtigers/AsaNote/issues/129)
 - **Pushのリマインドの取り戻しは設定時刻から15分まで**: 窓内の欠落は次の分以降で取り戻す。窓を超える停止や、日付をまたぐ場合は届かない（§4.3）。失敗の検知は手動（`push-notifications-setup.md` の「cronの失敗検知」）。 → [#130](https://github.com/mmtigers/AsaNote/issues/130)
 - **IndexedDB書き込み失敗の専用UIなし**（§3.1.7）。 → [#132](https://github.com/mmtigers/AsaNote/issues/132)
@@ -893,7 +905,6 @@ npm run test:e2e:supabase  # 実Supabaseテストプロジェクト向けE2E（S
 | Q7 | `manifest` の `theme_color` / `background_color`（`#f6f3ec`）と、`layout.tsx` の `themeColor`・CSSの背景（`#fff5f6`）が不一致 | §13.2 | `public/manifest.webmanifest`, `src/app/layout.tsx`, `globals.css` |
 | Q8 | 子ども一覧の取得に失敗（オフライン起動など）すると「子どもなし」扱いになり、複数の子どもがいても `childId: null` で保存される。許容か | §3.1.7 | `src/lib/db/children.ts`, `src/lib/db/useAuthedList.ts` |
 | Q9（解決済み #125） | 前面に戻ったとき、前回の取り込みから5分以上空いていれば `pullFromCloud` を呼ぶようにした。定期取得と Realtime は使わない | §7.3 | `src/lib/db/sync.ts`, `packages/core/src/pullOnResume.ts` |
-| Q10 | 最後のメンバーが脱退したグループ・招待コードの後始末が無い。（子どもの扱いは解決済み: 作成者が脱退すると、子どもの所有は同じグループに残る最も早く参加したメンバーへ移る。`group_members` の before delete トリガー） | §3.5, §13.2 | `supabase/schema.sql`（`children` / `group_members` ポリシー、`transfer_children_on_group_leave()`） |
 | Q11 | 招待コード（8文字×32種）にアプリ側の試行回数制限が無い。Supabase側のレート制限に任せる想定か | §6.4 | `src/lib/db/groups.ts`, `schema.sql` |
 | Q12 | 本番URL、対応ブラウザ・OSの公式な範囲（ホスティング先は Vercel と確認済み） | §8.1, §12 | `docs/push-notifications-setup.md`、PRのVercelプレビュー |
 | Q13 | 想定利用者の範囲（家族内の限定運用か一般公開か）、データの保持期間、退会（アカウント・データ削除）の方針。退会機能はコードに無い | §1.2, §6.5 | README、コード全般 |
@@ -903,13 +914,3 @@ npm run test:e2e:supabase  # 実Supabaseテストプロジェクト向けE2E（S
 | Q17 | （解決済み）`entry_point` を `push_reminder` から `in_app_reminder` に改名した（過去データはビューで読み替え）。Push通知のタップの計測は行わない。 | §11.2 | `src/app/page.tsx`, `supabase/schema.sql` |
 | Q18 | Google Fonts を外部から取得（CSSの `@import`）。プライバシー・オフライン時の見た目の方針 | §6.5, §12 | `src/app/globals.css`, `public/sw.js` |
 | Q19（解決済み #134） | ホームのカレンダーで未来日を選べて記録できた。オーナーの判断で「未来日の記録は許可しない」とし、カレンダーで選択不可にした。URLの `?date=` で未来日（や日付として読めない値）を指定した場合は今日に丸め、編集リンクとしては扱わない（記録フォームを自動で開かない）。端末にある未来日の保存済み記録は消さない（タイムラインには出る） | §3.1.1 | `src/components/MonthCalendar.tsx`, `src/app/page.tsx` |
-
-### 11.3 ブラウザ側エラーの記録
-
-`console.error` は端末にしか残らないため、想定外のエラーは `client_errors` にも送り、あとから原因を追えるようにする（`packages/core/src/clientErrors.ts` の `reportClientError()`）。
-
-- 送る契機: `error.tsx` / `global-error.tsx`（`source=error-boundary`）、`window` の `error`（`window-error`）、`unhandledrejection`（`unhandled-rejection`）。後2つは `ClientErrorReporter` がルートレイアウトで拾う。
-  画面側で握りつぶして表示だけしているエラーも送る: 同期の失敗（`source=sync-failure`。`sync.ts` の各失敗箇所。`context.phase` に段階、`count` に件数）と、よるノートの端末DB不可（`local-db`。`LocalDbNotice`）。
-- 送る内容: エラーの文言・スタック・画面のパス（クエリ除く）・UA・アプリの版・付帯情報 `context`（オンライン状態・PWAか・同期の段階と件数）・ログイン中ならユーザーID。**記録の内容（メモ・タグ等）は送らない**。
-- fire-and-forget。送信失敗は `console.warn` に留める。1ページ読み込みあたり10件まで、同じエラーは1回のみ。
-- 確認はSupabaseダッシュボードのSQL Editor／service roleから（`select * from client_errors order by created_at desc`）。
