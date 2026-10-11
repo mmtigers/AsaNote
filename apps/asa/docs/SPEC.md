@@ -12,7 +12,7 @@
 
 ### 更新ルール
 
-CIが強制するもの（`.github/workflows/ci.yml` の `release-notes-check`、判定は ルートの `scripts/check-release-notes.mjs`）:
+CIが強制するもの（`.github/workflows/_app-ci.yml` の `lint-build-test` の先頭 step「Release notes check」、判定は ルートの `scripts/check-release-notes.mjs`）:
 
 | 条件 | 結果 |
 |---|---|
@@ -23,7 +23,7 @@ CIが強制するもの（`.github/workflows/ci.yml` の `release-notes-check`�
 CIが強制しないもの（レビューで担保する。PRを出すときの確認項目は `.github/pull_request_template.md` にチェックリストとして置いてある）:
 
 - **本書の更新はCIの対象外**。挙動・スキーマ・運用手順を変えるPRは、同じPRで本書も更新する。ユーザー向けの変更なら `releases.ts` と version（`package.json` / `package-lock.json`）も同じPRで更新する。
-- `docs/`・`README.md`・`supabase/`・`scripts/`・`e2e/` のみの変更は `release-notes-check` の対象外（更新履歴は不要）。
+- `docs/`・`README.md`・`supabase/`・`scripts/`・`e2e/` のみの変更は更新履歴の検査（Release notes check）の対象外（更新履歴は不要）。
 - `supabase/schema.sql` を変えたら `npm run db:types` で `src/lib/db/database.types.ts` を再生成する（`db-types-check` が差分を検出して失敗させる）。`main` マージ時に本番へ自動適用される（§8）。
 - Push通知まわりのSQL・Edge Functionは自動適用されない（§8、`docs/push-notifications-setup.md`）。
 
@@ -763,11 +763,11 @@ npm run test:e2e:supabase  # 実Supabaseテストプロジェクト向けE2E（S
 | `lint-build-test` | `npm ci` → `npm audit --audit-level=high --omit=dev`（本番依存のみ） → `lint` → `next typegen` → `tsc --noEmit` → `test:coverage`（`coverage-report` 成果物を14日保存） → `build`（ダミーのSupabase環境変数） |
 | `e2e-test` | chromiumを入れて `npm run test:e2e`。失敗時のみ `playwright-report` を7日保存 |
 | `db-types-check` | `postgres:16` に `auth-stub.sql` と `schema.sql`（べき等性の確認のため2回）を `ON_ERROR_STOP=1` で適用し（SQLエラーがあればここで落ちる）、固定版のSupabase CLI（2.117.0）で `supabase gen types` した結果が `src/lib/db/database.types.ts` と一致するか検査。ずれたら `npm run db:types`（要Docker）で再生成を促す |
-| `release-notes-check` | ルートの `scripts/check-release-notes.mjs`（テスト: `src/lib/releaseNotesCheck.test.ts`）。判定条件と例外は本書冒頭の更新ルール |
 
+- 更新履歴の検査（Release notes check。ルートの `scripts/check-release-notes.mjs`、テスト: `src/lib/releaseNotesCheck.test.ts`。判定条件と例外は本書冒頭の更新ルール）は、`lint-build-test` の**先頭の step**（依存の導入より前）として走る。以前は別ジョブだったが、数秒で終わるのに1ジョブ＝最低1分で課金されるため統合した（#209。Actions の無料枠は月2,000分で、ジョブごとに1分単位で切り上げて数える）。
 - 本番への反映は別のワークフロー（`db-deploy.yml`、§8.2）。
 - 共通パッケージ `packages/core` の lint・型検査・テストは**別ワークフロー** `.github/workflows/ci-core.yml`（`lint-typecheck-test`。上のジョブ表には含まれない）。アプリ側の確認は `ci.yml` / `ci-yoru.yml` が同じ push・PR で別に行う。
-- 実Supabaseテストプロジェクト向けE2Eは**別ワークフロー** `.github/workflows/e2e-supabase.yml`（上のジョブ表には含まれない）。Secrets未設定・forkのPRでは判定ステップだけ走り、`::warning::` と job summary に「未実行」を出して成功で終わる(緑でも実DBでは検証されていない、#198)（`pull_request_target` は使わない）。同じテストユーザーを共有するため同時実行は1つ。本番や通常CIの結果には影響しない。
+- 実Supabaseテストプロジェクト向けE2Eは**別ワークフロー** `.github/workflows/e2e-supabase.yml`（上のジョブ表には含まれない）。リポジトリ変数 `E2E_SUPABASE_ENABLED` が `true` でなければジョブごと起動しない（skipped。分数を消費しない）。有効なのにSecrets未設定・forkのPRでは判定ステップだけ走り、`::warning::` と job summary に「未実行」を出して成功で終わる(緑でも実DBでは検証されていない、#198)（`pull_request_target` は使わない）。同じテストユーザーを共有するため同時実行は1つ。本番や通常CIの結果には影響しない。
 - Dependabot（`.github/dependabot.yml`）: npmとGitHub Actionsを週次（月曜9:00 JST）で確認。npmのminor/patchは1本のグループPRにまとめ、メジャーは個別PR。ただし `eslint` と `typescript` のメジャーは無視（`eslint-config-next` 配下のプラグインや `typescript-eslint` が未対応のため。理由は同ファイルのコメント）。`vitest` 5 と `@types/node` は更新済みで無視対象ではない。
 - Actionsはコミットで固定し、Dependabotが追随する（Supabase CLIの `with.version` は対象外のため手動で上げる）。
 

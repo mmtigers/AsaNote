@@ -77,7 +77,7 @@
 | `/updates` | 更新履歴 | 全バージョンの変更点。ホームに最新版のお知らせを出し、開くと既読になる |
 | `/login` | ログイン | メールのマジックリンク(あさノートと同様)。ログイン無しでも、この端末だけで記録できる |
 
-更新履歴は `src/data/releases.ts` に新しい順で書く。ユーザーに見える変更を入れるときは追加して `package.json` / `package-lock.json` の version も同じ値に上げる(CI の `release-notes-check` が検査。依存更新などは PR ラベル `no-release-note` か本文の `[skip release-note]` で除外)。
+更新履歴は `src/data/releases.ts` に新しい順で書く。ユーザーに見える変更を入れるときは追加して `package.json` / `package-lock.json` の version も同じ値に上げる(CI の `lint-build-test` の先頭 step「Release notes check」が検査。依存更新などは PR ラベル `no-release-note` か本文の `[skip release-note]` で除外)。
 
 ホームのカレンダーは今日より後の日を選べない。ログアウトすると、この端末のPush購読(ブラウザ側とサーバーの行)・端末内のDB・入力途中の下書き・選択中の子ども・リマインドを閉じた日付を消す。想定外のエラーと存在しないURLは、日本語の専用画面(`error.tsx` / `global-error.tsx` / `not-found.tsx`)を出す。
 

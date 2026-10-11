@@ -43,9 +43,9 @@ npm run dev
 
 PR ごとに GitHub Actions で次が走ります。
 
-- `lint-build-test`: 依存の脆弱性検査(本番依存のみ)、lint、`check:schema`、型検査、単体テスト(カバレッジ)、ビルド
+- `lint-build-test`: 更新履歴の検査(下の「Release notes check」。先頭の step)、依存の脆弱性検査(本番依存のみ)、lint、`check:schema`、型検査、単体テスト(カバレッジ)、ビルド
 - `Supabase type drift check`: 素のPostgresへ `schema.sql` を2回適用(べき等の確認)し、生成した型が `src/lib/db/database.types.ts` と一致するか確認
-- `Release notes check`: ユーザーに見える変更があるのに `src/data/releases.ts` が更新されていない、またはversionが `releases.ts` / `package.json` / `package-lock.json` でずれていると失敗(例外は PR ラベル `no-release-note` か `[skip release-note]`)
+- 「Release notes check」(`lint-build-test` の先頭の step。以前は別ジョブ): ユーザーに見える変更があるのに `src/data/releases.ts` が更新されていない、またはversionが `releases.ts` / `package.json` / `package-lock.json` でずれていると失敗(例外は PR ラベル `no-release-note` か `[skip release-note]`)
 - `E2E (Playwright)`: ビルドしたアプリをスマホ幅のブラウザで操作(ログイン無し・端末内のデータだけ)。実DB・同期は対象外
 
 ## 現在の状況

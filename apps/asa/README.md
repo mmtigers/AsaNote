@@ -101,7 +101,7 @@ npm run build           # 型チェック込みの本番ビルド
 ```
 
 push・PR毎に `.github/workflows/ci.yml` が上記を自動実行する（`lint-build-test` / E2E の
-Playwright / Supabase型ドリフト検査 / 更新履歴チェックの4ジョブ）。ワークフローは最小権限（`permissions: contents: read`）で
+Playwright / Supabase型ドリフト検査の3ジョブ。更新履歴チェックは `lint-build-test` の先頭の step）。ワークフローは最小権限（`permissions: contents: read`）で
 動き、各ジョブに `timeout-minutes` を設定している。カバレッジは閾値でブロックせず、
 `coverage-report` 成果物として14日間保存し推移を見る（Issue #60）。
 
@@ -112,6 +112,6 @@ Playwright / Supabase型ドリフト検査 / 更新履歴チェックの4ジョ�
 
 ユーザー向けの変更(`src/app` `src/components` `src/lib` `src/constants` `public`)は、同じPRで
 `src/data/releases.ts` に更新履歴を追加し、version(`package.json` / `package-lock.json` も)を上げる。
-CIの `release-notes-check` が検出する。載せない変更は PR に `no-release-note` ラベル、または
+CIの「Release notes check」(`lint-build-test` の先頭の step)が検出する。載せない変更は PR に `no-release-note` ラベル、または
 本文・コミットに `[skip release-note]` を付ける。仕様書(docs/SPEC.md)の更新はCIでは強制されないため、
 挙動を変えるPRでは同じPRで更新する。
