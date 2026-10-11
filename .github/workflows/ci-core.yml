@@ -44,3 +44,8 @@ jobs:
 
       - name: Unit tests (with coverage)
         run: npm run test:coverage
+
+      # 数値を job summary に出す(#207)。閾値でのブロックはしない。
+      - name: Coverage summary
+        if: always()
+        run: node ../../scripts/coverage-summary.mjs coverage/coverage-summary.json packages/core

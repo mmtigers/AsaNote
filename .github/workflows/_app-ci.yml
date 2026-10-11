@@ -92,6 +92,13 @@ jobs:
         # 閾値は設けず(vitest.config.mts のコメント参照)、成果物として残して推移を見る。
         run: npm run test:coverage
 
+      # 数値を job summary に出す(#207)。成果物を開かなくても、PR の画面から推移が分かる。閾値でのブロックはしない。
+      - name: Coverage summary
+        if: always()
+        env:
+          APP: ${{ inputs.app }}
+        run: node ../../scripts/coverage-summary.mjs coverage/coverage-summary.json "$APP"
+
       - name: Upload coverage report
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

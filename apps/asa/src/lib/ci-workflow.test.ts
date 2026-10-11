@@ -196,3 +196,20 @@ describe("バージョンの散在を防ぐ(#206)", () => {
     expect(range("yoru")).toBe(range("asa"));
   });
 });
+
+describe("カバレッジの job summary(#207)", () => {
+  // 数値を成果物の中に隠さず、PR の画面から推移が見えるようにする。閾値でのブロックはしない(#60)。
+  it("lint-build-test と core の CI が、Coverage summary step を always() で実行する", () => {
+    for (const name of ["_app-ci.yml", "ci-core.yml"]) {
+      const yaml = readFileSync(`${WORKFLOWS_DIR}${name}`, "utf8");
+      expect(yaml, name).toMatch(/- name: Coverage summary\n\s+if: always\(\)\n(?:\s+env:\n\s+APP: .*\n)?\s+run: node \.\.\/\.\.\/scripts\/coverage-summary\.mjs coverage\/coverage-summary\.json/);
+    }
+  });
+
+  it("vitest の coverage reporter に json-summary がある(あさノート・よるノート・core)", () => {
+    const ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
+    for (const dir of ["apps/asa", "apps/yoru", "packages/core"]) {
+      expect(readFileSync(`${ROOT}${dir}/vitest.config.mts`, "utf8"), dir).toContain('"json-summary"');
+    }
+  });
+});

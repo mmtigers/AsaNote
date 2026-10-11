@@ -103,7 +103,7 @@ npm run build           # 型チェック込みの本番ビルド
 push・PR毎に `.github/workflows/ci.yml` が上記を自動実行する（`lint-build-test` / E2E の
 Playwright / Supabase型ドリフト検査の3ジョブ。更新履歴チェックは `lint-build-test` の先頭の step）。ワークフローは最小権限（`permissions: contents: read`）で
 動き、各ジョブに `timeout-minutes` を設定している。カバレッジは閾値でブロックせず、
-`coverage-report` 成果物として14日間保存し推移を見る（Issue #60）。
+数値を CI の job summary に出し、`coverage-report` 成果物として14日間保存して推移を見る（Issue #60・#207）。
 
 依存更新は `.github/dependabot.yml` が週次で minor/patch をまとめた1本のPRとして起票する。
 メジャー更新は個別PRで、`eslint` と `typescript` のメジャーは周辺ツールが未対応のため無視している。
