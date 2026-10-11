@@ -7,9 +7,12 @@ apps/asa/      あさノート(本番運用中)
 apps/yoru/     よるノート(公開前)
 packages/core/ 共通コード(@note/core。日付・祝日・エラー表示・localStorage ストアなど。Phase 1 で少しずつ移している)
 supabase/      あさノートの schema・Edge Functions・cron(共有DBの共通表の「正」。移動しない)
-.github/       CI・DB反映ワークフロー(アプリごとに分けてある)
+.github/       CI・DB反映ワークフロー(アプリごとに分け、共通のジョブは `_app-ci.yml` / `_db-types-check.yml` に切り出してある)
 docs/          モノレポ全体の運用ドキュメント(アプリ固有の docs は apps/*/docs)
 ```
+
+Node のバージョンは [.nvmrc](.nvmrc) が正(CI の `setup-node` も、これを読む)。上げるときは `.nvmrc` だけを直す。
+Vercel・`engines`・`@types/node` の major(現在 26)は、これとは別に管理している(意図的。#116)。
 
 アプリごとの README・仕様は `apps/asa/README.md` / `apps/yoru/README.md`、`apps/*/docs/SPEC.md` を参照。
 構成の経緯・Vercel の設定・切り戻し手順は [docs/MONOREPO.md](docs/MONOREPO.md)。

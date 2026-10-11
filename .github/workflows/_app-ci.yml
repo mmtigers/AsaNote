@@ -35,7 +35,7 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
 
       # 以前は別ジョブ(release-notes-check)だったが、数秒で終わるのに1ジョブ=最低1分で課金されるため、

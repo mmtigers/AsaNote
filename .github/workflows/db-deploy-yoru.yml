@@ -51,7 +51,7 @@ jobs:
 
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 22
+          node-version-file: .nvmrc
 
       # 共通表に触れる変更を、本番へ流す前に必ず止める。
       - name: Check schema.sql only touches evening_* objects
