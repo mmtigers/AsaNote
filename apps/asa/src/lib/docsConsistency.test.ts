@@ -70,3 +70,62 @@ describe("ログの保管期間・上限(#199・#216)", () => {
     expect(doc).toContain("supabase/cron-cleanup-logs.sql");
   });
 });
+
+describe("apps/yoru の README・SPEC・docs(#228)", () => {
+  const ROOT = resolve(APP_ROOT, "../../");
+  const YORU = `${ROOT}/apps/yoru`;
+  const readme = readFileSync(`${YORU}/README.md`, "utf8");
+  const spec = readFileSync(`${YORU}/docs/SPEC.md`, "utf8");
+
+  // Markdown の相対リンク(#以降のアンカーは除く)。外部URL・同一ページ内のアンカーは対象外。
+  const relativeLinks = (md: string) => [...md.matchAll(/\]\((\.{1,2}\/[^)#\s]+)/g)].map((m) => m[1] ?? "");
+
+  it("README・SPEC・docs の相対リンク先が実在する", () => {
+    for (const file of ["README.md", "docs/SPEC.md", "docs/push-notifications-setup.md", "docs/device-verification.md"]) {
+      const md = readFileSync(`${YORU}/${file}`, "utf8");
+      for (const link of relativeLinks(md)) {
+        expect(existsSync(resolve(dirname(`${YORU}/${file}`), link)), `${file}: ${link}`).toBe(true);
+      }
+    }
+    expect(relativeLinks(readme).length).toBeGreaterThan(0);
+  });
+
+  it("あさノートの README の見出しへのリンクは、実在する見出しを指す", () => {
+    const asaReadme = readFileSync(`${APP_ROOT}README.md`, "utf8");
+    // GitHub の見出しのアンカー: 記号(全角の括弧など)を除いた文字列
+    const anchors = [...asaReadme.matchAll(/^#+ (.+)$/gm)].map((m) => (m[1] ?? "").replace(/[()（）\s]/g, ""));
+    for (const md of [readme, spec]) {
+      for (const m of md.matchAll(/\]\((?:\.{1,2}\/)+asa\/README\.md#([^)\s]+)\)/g)) {
+        expect(anchors, m[1]).toContain(decodeURIComponent(m[1] ?? ""));
+      }
+    }
+  });
+
+  it("セットアップは npm ci(運用・ルート README と同じ)", () => {
+    expect(readme).toContain("npm ci");
+    expect(readme).not.toMatch(/^npm install\b/m);
+  });
+
+  it("本番DBへの自動適用は、よるノート用のワークフロー(db-deploy-yoru.yml)を案内している", () => {
+    expect(readme).toContain("db-deploy-yoru.yml");
+    expect(readme).not.toMatch(/`\.github\/workflows\/db-deploy\.yml`/);
+    expect(existsSync(`${ROOT}/.github/workflows/db-deploy-yoru.yml`)).toBe(true);
+  });
+
+  it("SPEC の「### N.M」の節番号が重複していない", () => {
+    const numbers = [...spec.matchAll(/^### (\d+\.\d+) /gm)].map((m) => m[1] ?? "");
+    expect(numbers.length).toBeGreaterThan(0);
+    expect(numbers.filter((n, i) => numbers.indexOf(n) !== i)).toEqual([]);
+  });
+
+  it("SPEC の決定事項(Q3)は、本文(§6)の「廃止」と食い違わない", () => {
+    expect(spec).toContain("兄弟への共通項目のコピー機能は廃止した");
+    expect(spec).not.toMatch(/\| Q3 \|[^\n]*\*\*第2段階\*\*/);
+  });
+
+  it("手順書に実在の子どもの名前を書かない(SPEC §6: 子ども名はハードコードしない)", () => {
+    const doc = readFileSync(`${YORU}/docs/device-verification.md`, "utf8");
+    expect(doc).not.toContain("智矢");
+    expect(doc).not.toContain("涼花");
+  });
+});
