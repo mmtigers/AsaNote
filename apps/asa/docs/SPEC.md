@@ -758,7 +758,7 @@ npm run test:e2e:supabase  # 実Supabaseテストプロジェクト向けE2E（S
 
 ### 10.3 CIジョブ（`.github/workflows/ci.yml`）
 
-トリガー: `main` / `master` へのPR（**push では走らない**。マージ前のPRのCIで済ませ、無料枠の月2,000分を守る、#225。また `paths` で、`apps/asa/`・`packages/core/`・`supabase/`・`scripts/`・`docs/`・ルートの `*.md` と package・`.nvmrc`・`.github/` に関わる変更だけが対象。よるノートのみの変更では走らない）。種別は（`opened` / `synchronize` / `reopened` / `labeled` / `unlabeled` / `edited`。ラベル・PR本文による例外指定を直後に反映するため）。同じ参照の古い実行は打ち切る。全ジョブ読み取り専用権限（`contents: read`）で、タイムアウトを設定している。
+トリガー: `main` / `master` へのPR（**push では走らず、ドラフトのPRでも走らない**。`ready_for_review` で起動する。マージ前のPRのCIで済ませ、無料枠の月2,000分を守る、#225。また `paths` で、`apps/asa/`・`packages/core/`・`supabase/`・`scripts/`・`docs/`・ルートの `*.md` と package・`.nvmrc`・`.github/` に関わる変更だけが対象。よるノートのみの変更では走らない）。種別は（`opened` / `synchronize` / `reopened` / `ready_for_review` / `labeled` / `unlabeled` / `edited`。ラベル・PR本文による例外指定を直後に反映するため）。同じ参照の古い実行は打ち切る。全ジョブ読み取り専用権限（`contents: read`）で、タイムアウトを設定している。
 
 | ジョブ | 内容 |
 |---|---|
