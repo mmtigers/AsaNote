@@ -16,11 +16,11 @@
   },
   "dependencies": {
     "@holiday-jp/holiday_jp": "^2.5.2",
-    "@supabase/supabase-js": "^2.117.2"
+    "@supabase/supabase-js": "^2.117.3"
   },
   "peerDependencies": {
     "react": "19.3.0",
-    "next": "^16.3.4"
+    "next": "^16.4.0"
   },
   "devDependencies": {
     "@testing-library/dom": "^10.4.2",
@@ -29,9 +29,9 @@
     "@types/react": "^19",
     "@vitest/coverage-v8": "^5.0.3",
     "eslint": "^9.39.5",
-    "eslint-config-next": "16.3.8",
-    "jsdom": "^30.1.1",
-    "next": "^16.3.4",
+    "eslint-config-next": "16.4.0",
+    "jsdom": "^30.1.2",
+    "next": "^16.4.0",
     "react-dom": "19.3.0",
     "typescript": "^6.0.3",
     "vitest": "^5.0.3"
