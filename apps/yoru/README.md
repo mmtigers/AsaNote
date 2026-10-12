@@ -42,7 +42,7 @@ npm run dev
 
 ## CI
 
-`main` への PR ごとに GitHub Actions で次が走ります(`.github/workflows/ci-yoru.yml`。`main` への push では走らず、あさノートだけの変更でも走りません。対象のパスを絞っています、#225)。
+`main` への PR ごとに GitHub Actions で次が走ります(`.github/workflows/ci-yoru.yml`。`main` への push・ドラフトの PR では走らず(ready にすると走ります)、あさノートだけの変更でも走りません。対象のパスを絞っています、#225)。
 
 - `lint-build-test`: 更新履歴の検査(下の「Release notes check」。先頭の step)、依存の脆弱性検査(本番依存のみ)、lint、`check:schema`、型検査、単体テスト(カバレッジ)、ビルド
 - `Supabase type drift check`(あさノートと共用の再利用ワークフロー `_db-types-check.yml`): 素のPostgresへ `schema.sql` を2回適用(べき等の確認)し、生成した型が `src/lib/db/database.types.ts` と一致するか確認
