@@ -14,7 +14,7 @@ on:
       - "package.json"
       - "package-lock.json"
       - ".nvmrc"
-      - ".github/**"
+      - ".github/workflows/ci-core.yml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

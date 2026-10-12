@@ -18,11 +18,15 @@ on:
       - "package.json"
       - "package-lock.json"
       - ".nvmrc"
-      - ".github/**"
+      - ".github/workflows/ci.yml"
+      - ".github/workflows/_app-ci.yml"
+      - ".github/workflows/_db-types-check.yml"
 
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  # ラベル付与(Dependabot が PR 作成直後に付ける dependencies 等)で走る実行は、全ジョブを skip する(下記 if)。
+  # skip する実行が本番の実行を cancel-in-progress で打ち切らないよう、グループを分ける。
+  group: ${{ github.workflow }}-${{ github.ref }}-${{ (github.event.action == 'labeled' || github.event.action == 'unlabeled') && github.event.label.name != 'no-release-note' && 'label-noop' || 'ci' }}
   cancel-in-progress: true
 
 # Issue #60: 明示しないとリポジトリ設定次第で write 権限のトークンが供給される。全ジョブ読み取り専用。
@@ -33,11 +37,15 @@ permissions:
 # ここにはあさノート固有のもの(E2E・型ずれの検査)だけを置く。
 jobs:
   lint-build-test:
+    # label 付与だけで走った実行(release-notes の例外ラベル以外)は何もしない。ランナーを起動せず分数を使わない。
+    if: ${{ github.event.action != 'labeled' && github.event.action != 'unlabeled' || github.event.label.name == 'no-release-note' }}
     uses: ./.github/workflows/_app-ci.yml
     with:
       app: apps/asa
 
   e2e-test:
+    # label 付与だけで走った実行(release-notes の例外ラベル以外)は何もしない。ランナーを起動せず分数を使わない。
+    if: ${{ github.event.action != 'labeled' && github.event.action != 'unlabeled' || github.event.label.name == 'no-release-note' }}
     name: E2E test (Playwright)
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -72,6 +80,8 @@ jobs:
           retention-days: 7
 
   db-types-check:
+    # label 付与だけで走った実行(release-notes の例外ラベル以外)は何もしない。ランナーを起動せず分数を使わない。
+    if: ${{ github.event.action != 'labeled' && github.event.action != 'unlabeled' || github.event.label.name == 'no-release-note' }}
     uses: ./.github/workflows/_db-types-check.yml
     with:
       sql-files: supabase/ci/auth-stub.sql supabase/schema.sql supabase/schema.sql
