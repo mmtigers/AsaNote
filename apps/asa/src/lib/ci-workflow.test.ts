@@ -82,6 +82,19 @@ describe("DBスキーマを適用するワークフローの psql(#196)", () => 
       }
     },
   );
+
+  // ローカルで型を再生成するスクリプトも同じ(#227)。途中までしか適用されていない DB から型を作ってしまう。
+  it("ローカルの型の再生成スクリプト(apps/*/scripts/gen-db-types.sh)の psql -f も、ON_ERROR_STOP=1 を付けている", () => {
+    const ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
+    for (const app of ["asa", "yoru"]) {
+      const sh = readFileSync(`${ROOT}apps/${app}/scripts/gen-db-types.sh`, "utf8");
+      const commands = sh.split("\n").filter((line) => !line.trim().startsWith("#") && /\bpsql\b[^\n]*\s-f\s/.test(line));
+      expect(commands.length, app).toBeGreaterThan(0);
+      for (const line of commands) {
+        expect(line, app).toContain("ON_ERROR_STOP=1");
+      }
+    }
+  });
 });
 
 describe("実Supabase E2E(e2e-supabase.yml)の skip の見える化(#198)", () => {
