@@ -781,6 +781,7 @@ npm run test:e2e:supabase  # 実Supabaseテストプロジェクト向けE2E（S
 ### 11.1 送信の方針
 
 - **ログイン前（オフライン専用利用）は何も送らない**。
+- `context` が2000字を超えたら、全体を捨てず、`where`・`phase`・`online`・`standalone` を優先して残し、ほかの項目を後ろから落とす。`handled-error` では PostgrestError の `details`（値が入りうる）を200字で切る。
 - fire-and-forget。送信失敗は `console.error` に留め、記録の保存（Dexie/Supabase）には影響させない。オフラインキューは持たず、完全オフライン中のイベントは失う（許容）。
 - `record_id` には各記録の `FormState.id`（UUID）を使い、フロー内の一連のイベントを紐づける。
 - 送るのは件数・真偽値・区分名のみで、メモやタグの文言は含めない。
@@ -817,11 +818,12 @@ npm run test:e2e:supabase  # 実Supabaseテストプロジェクト向けE2E（S
 
 - 送る契機: `error.tsx` / `global-error.tsx`（`source=error-boundary`）、`window` の `error`（`window-error`）、`unhandledrejection`（`unhandled-rejection`）。後2つは `ClientErrorReporter` がルートレイアウトで拾う。
   画面側で握りつぶして表示だけしているエラーも送る: 同期の失敗（`source=sync-failure`。`sync.ts` の各失敗箇所。`context.phase` に段階、`count` に件数）と、よるノートの端末DB不可（`local-db`。`LocalDbNotice`）。
+  try/catch で受け止めたエラーは `source=handled-error` で送り、**場所を `context.where` で区別する**（#213。`reportHandledError(where, error)`。アプリ・版は `ClientErrorReporter` が覚える）。今あるのは認証・ログアウト（`auth/push-unsubscribe` / `auth/sign-out` / `auth/clear-local-data` / `auth/sync-before-logout`）、グループ操作（`group/action`。`runAction` の共通経路）、招待の共有（`group/share-invite`）。一覧取得・Service Worker・Push 購読・よるノートの写真は続きの PR。計測（`analytics.ts`）の送信失敗は、障害の記録と混ざるので対象外。
 - 送る内容: エラーの文言・スタック・画面のパス（クエリ除く）・UA・アプリの版・付帯情報 `context`（オンライン状態・PWAか・同期の段階と件数）・ログイン中ならユーザーID。**記録の内容（メモ・タグ等）は送らない**。
 - fire-and-forget。送信失敗は `console.warn` に留める。
-- 送信の上限は、1ページ読み込みあたり **source ごとに枠を分ける**（#214）: 想定外エラー系（`error-boundary` / `window-error` / `unhandled-rejection`）は合わせて10件、`sync-failure` は5件、`local-db` は1件（合計で最大16件）。同期は復帰のたびに繰り返し走り、原因ごとに文言も変わるため、枠を共有すると同期失敗で使い切って、あとから起きた想定外エラーが送られなくなるのを防ぐ。
-- 同じエラーは1回のみ。`sync-failure` は同じ文言でも `context.phase`（失敗した段階）が違えば別のエラーとして数える（`count` の違いだけでは別にしない）。
-- 確認はSupabaseダッシュボードのSQL Editor／service roleから（`select * from client_errors order by created_at desc`。件数の集計は `select * from client_errors_summary_7d`＝直近7日を画面・種類・文言ごと）。
+- 送信の上限は、1ページ読み込みあたり **source ごとに枠を分ける**（#214）: 想定外エラー系（`error-boundary` / `window-error` / `unhandled-rejection`）は合わせて10件、`sync-failure` は5件、`local-db` は1件、`handled-error` は5件（合計で最大21件）。同期は復帰のたびに繰り返し走り、原因ごとに文言も変わるため、枠を共有すると同期失敗で使い切って、あとから起きた想定外エラーが送られなくなるのを防ぐ。
+- 同じエラーは1回のみ。`sync-failure` は同じ文言でも `context.phase`（失敗した段階）が違えば別のエラーとして数える（`count` の違いだけでは別にしない）。`handled-error` は `context.where` が同じ役目。
+- 確認はSupabaseダッシュボードのSQL Editor／service roleから（`select * from client_errors order by created_at desc`。件数の集計は `select * from client_errors_summary_7d`＝直近7日を画面・種類・文言ごと。`where` の列つき）。
 - 保管は90日（`cleanup_old_logs()` が `pg_cron` で毎日消す。**登録は手動**: §8.3）。総行数が20,000行に達すると、anon を含め insert が失敗する（`client_errors_enforce_cap`。クライアントは fire-and-forget のため画面には影響せず、ログが入らなくなるだけ。`pg_cron` を登録していないと、いずれここに達する）。
 
 ## 12. 非機能要件

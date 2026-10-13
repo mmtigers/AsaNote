@@ -1,13 +1,15 @@
 import { getSupabaseClient } from "./supabase/client";
 
 export type ClientErrorApp = "asa" | "yoru";
+// handled-error は、try/catch で受け止めて画面に出す(または黙って続ける)ことにしたエラーで、場所は context.where で区別する(#213)。
 // sync-failure / local-db は、画面側で握りつぶして表示だけしているエラー(同期の失敗・端末DBが使えない)。
 export type ClientErrorSource =
   | "error-boundary"
   | "window-error"
   | "unhandled-rejection"
   | "sync-failure"
-  | "local-db";
+  | "local-db"
+  | "handled-error";
 /** 調査用の付帯情報。記録の内容(メモ・タグなど)は入れない。 */
 export type ClientErrorContext = Record<string, string | number | boolean | null>;
 
@@ -19,25 +21,28 @@ const MAX_CONTEXT = 2000;
 // 1回のページ読み込みで送る上限。無限ループするエラーでDBや回線を埋めないための歯止め。
 // 同期はオンライン復帰・画面復帰のたびに繰り返し走り、失敗の原因ごとに文言も変わる。同じ枠を共有すると、
 // 同期失敗で使い切ってしまい、あとから起きた本当の想定外エラーが送られなくなるため、枠を分ける(#214)。
-type ReportBucket = "unexpected" | "sync" | "local-db";
+type ReportBucket = "unexpected" | "sync" | "local-db" | "handled";
 const BUCKET_OF_SOURCE: Record<ClientErrorSource, ReportBucket> = {
   "error-boundary": "unexpected",
   "window-error": "unexpected",
   "unhandled-rejection": "unexpected",
   "sync-failure": "sync",
   "local-db": "local-db",
+  "handled-error": "handled",
 };
-// 1ページの最大は合計 16 件(想定外エラー系は3つの source で10件を共有)。
+// 1ページの最大は合計 21 件(想定外エラー系は3つの source で10件を共有)。
 const MAX_REPORTS_PER_BUCKET: Record<ReportBucket, number> = {
   unexpected: 10,
   sync: 5,
   "local-db": 1,
+  handled: 5,
 };
 
 const reportedKeys: Record<ReportBucket, Set<string>> = {
   unexpected: new Set(),
   sync: new Set(),
   "local-db": new Set(),
+  handled: new Set(),
 };
 
 function truncate(value: string, max: number): string {
@@ -62,9 +67,53 @@ function describe(error: unknown): { message: string; stack: string | null } {
   }
 }
 
+// context が上限を超えたら、全体を捨てずに、優先度の低い項目から落とす(#213)。
+// where / phase は切り分けの要なので最後まで残し、次いで online・standalone。それ以外(付帯情報)は後ろの項目から落とす。
+const KEEP_FIRST = ["where", "phase", "online", "standalone"];
+function fitContext(context: ClientErrorContext): ClientErrorContext | null {
+  if (JSON.stringify(context).length <= MAX_CONTEXT) return context;
+  const entries = Object.entries(context);
+  const rank = (key: string) => {
+    const i = KEEP_FIRST.indexOf(key);
+    return i === -1 ? KEEP_FIRST.length : i;
+  };
+  const kept: [string, string | number | boolean | null][] = [];
+  // 優先度の高い順(同順位は元の並び)に、収まる限り入れる。
+  const sorted = entries.map((e, i) => ({ e, i })).sort((a, b) => rank(a.e[0]) - rank(b.e[0]) || a.i - b.i);
+  for (const { e } of sorted) {
+    const next = Object.fromEntries([...kept, e]);
+    if (JSON.stringify(next).length <= MAX_CONTEXT) kept.push(e);
+  }
+  return kept.length > 0 ? Object.fromEntries(kept) : null;
+}
+
+// ClientErrorReporter が、どのアプリか・版を覚えておく。core の共通処理(runAction など)が、アプリを知らずに
+// reportHandledError を呼べるようにするため。
+let registered: { app: ClientErrorApp; appVersion?: string } | null = null;
+export function registerClientErrorApp(app: ClientErrorApp, appVersion?: string): void {
+  registered = { app, appVersion };
+}
+
+// PostgrestError の details には値が入りうるので、handled-error では短く切る。
+const MAX_HANDLED_DETAILS = 200;
+
+/**
+ * 受け止めて握りつぶしていたエラー(認証・グループ操作など)を client_errors へ送る(#213)。
+ * where は場所の区分名(例: "auth/sign-in")。アプリ未登録(ClientErrorReporter が未マウント)なら何もしない。
+ */
+export function reportHandledError(where: string, error: unknown, context?: ClientErrorContext): void {
+  if (!registered) return;
+  let safe = error;
+  if (typeof error === "object" && error !== null && !(error instanceof Error) && typeof (error as { details?: unknown }).details === "string") {
+    safe = { ...(error as object), details: truncate((error as { details: string }).details, MAX_HANDLED_DETAILS) };
+  }
+  reportClientError(registered.app, "handled-error", safe, registered.appVersion, { where, ...context });
+}
+
 /** テスト用: 送信済みの重複判定と上限カウントを初期化する。 */
 export function resetClientErrorReports(): void {
   for (const keys of Object.values(reportedKeys)) keys.clear();
+  registered = null;
 }
 
 /**
@@ -85,7 +134,9 @@ export function reportClientError(
     const { message, stack } = describe(error);
     // 同じエラーの連投(再レンダーごとの再送など)は1回にする。
     // 同期失敗は、同じ文言でも失敗した段階(phase)が違えば原因の切り分けに役立つので、別のエラーとして数える。
-    const phase = source === "sync-failure" && typeof context?.phase === "string" ? context.phase : "";
+    // handled-error も同じ考え方で、場所(where)が違えば別のエラーとして数える。
+    const phaseKey = source === "sync-failure" ? "phase" : source === "handled-error" ? "where" : null;
+    const phase = phaseKey && typeof context?.[phaseKey] === "string" ? (context[phaseKey] as string) : "";
     const key = `${source}:${phase}:${message}:${stack?.slice(0, 200) ?? ""}`;
     const bucket = BUCKET_OF_SOURCE[source];
     const keys = reportedKeys[bucket];
@@ -98,9 +149,9 @@ export function reportClientError(
       standalone: typeof window !== "undefined" && typeof window.matchMedia === "function" ? window.matchMedia("(display-mode: standalone)").matches : null,
       ...context,
     };
-    const contextJson = JSON.stringify(baseContext);
+    const fittedContext = fitContext(baseContext);
     const row = {
-      context: contextJson.length <= MAX_CONTEXT ? baseContext : null,
+      context: fittedContext,
       app,
       source,
       message: truncate(message, MAX_MESSAGE),

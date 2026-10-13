@@ -9,7 +9,7 @@ vi.mock("./supabase/client", () => ({
   getSupabaseClient: () => getSupabaseClientMock(),
 }));
 
-const { reportClientError, resetClientErrorReports } = await import("./clientErrors");
+const { reportClientError, reportHandledError, registerClientErrorApp, resetClientErrorReports } = await import("./clientErrors");
 
 // fire-and-forget の Promise チェーンが流れ切るのを待つ。
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -129,13 +129,14 @@ describe("reportClientError", () => {
       expect(countOf("local-db")).toBe(1);
     });
 
-    it("1ページの最大は 10 + 5 + 1 = 16 件", async () => {
+    it("1ページの最大は 10 + 5 + 1 + 5 = 21 件", async () => {
       for (let i = 0; i < 20; i++) reportClientError("asa", "window-error", new Error(`u${i}`));
       for (let i = 0; i < 20; i++) reportClientError("asa", "sync-failure", new Error(`s${i}`));
       for (let i = 0; i < 20; i++) reportClientError("asa", "local-db", new Error(`l${i}`));
+      for (let i = 0; i < 20; i++) reportClientError("asa", "handled-error", new Error(`h${i}`), undefined, { where: `w${i}` });
       await flush();
 
-      expect(insertMock).toHaveBeenCalledTimes(16);
+      expect(insertMock).toHaveBeenCalledTimes(21);
     });
   });
 
@@ -195,5 +196,75 @@ describe("reportClientError", () => {
     await flush();
 
     expect(insertMock.mock.calls[0]?.[0]?.message).toBe("permission denied | 42501 | check RLS");
+  });
+});
+
+describe("handled-error(#213)", () => {
+  it("handled-error は5件まで。ほかの枠は使い切られない", async () => {
+    for (let i = 0; i < 20; i++) reportClientError("asa", "handled-error", new Error(`h${i}`), undefined, { where: `w${i}` });
+    reportClientError("asa", "window-error", new Error("unexpected"));
+    await flush();
+
+    const sources = insertMock.mock.calls.map(([row]) => row.source);
+    expect(sources.filter((s) => s === "handled-error")).toHaveLength(5);
+    expect(sources).toContain("window-error");
+  });
+
+  it("同じ文言でも where が違えば別のエラー。where も同じなら1回だけ", async () => {
+    const error = new Error("x");
+    reportClientError("asa", "handled-error", error, undefined, { where: "auth/sign-out" });
+    reportClientError("asa", "handled-error", error, undefined, { where: "group/action" });
+    reportClientError("asa", "handled-error", error, undefined, { where: "group/action" });
+    await flush();
+
+    expect(insertMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("context が長すぎても全体は捨てず、where と online を残して低優先の項目から落とす", async () => {
+    reportClientError("asa", "handled-error", new Error("big"), undefined, {
+      where: "list/children",
+      extra: "e".repeat(1500),
+      tail: "t".repeat(1500),
+    });
+    await flush();
+
+    const context = insertMock.mock.calls[0]?.[0]?.context;
+    expect(context).toMatchObject({ where: "list/children" });
+    expect(context).toHaveProperty("online");
+    expect(JSON.stringify(context).length).toBeLessThanOrEqual(2000);
+    expect(context).not.toHaveProperty("tail");
+  });
+
+  describe("reportHandledError", () => {
+    it("登録されたアプリ・版で、where 付きの handled-error を送る", async () => {
+      registerClientErrorApp("yoru", "2.0.0");
+      reportHandledError("auth/sign-in", new Error("denied"));
+      await flush();
+
+      expect(insertMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          app: "yoru",
+          source: "handled-error",
+          app_version: "2.0.0",
+          context: expect.objectContaining({ where: "auth/sign-in" }),
+        })
+      );
+    });
+
+    it("アプリが未登録なら何も送らない", async () => {
+      reportHandledError("auth/sign-in", new Error("denied"));
+      await flush();
+
+      expect(insertMock).not.toHaveBeenCalled();
+    });
+
+    it("PostgrestError の details は200字で切る", async () => {
+      registerClientErrorApp("asa");
+      reportHandledError("list/children", { message: "bad", code: "22P02", details: "d".repeat(500) });
+      await flush();
+
+      const message = insertMock.mock.calls[0]?.[0]?.message as string;
+      expect(message).toBe(`bad | 22P02 | ${"d".repeat(200)}`);
+    });
   });
 });
