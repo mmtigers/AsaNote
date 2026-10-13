@@ -7,6 +7,8 @@ on:
   # main への push では走らせない(マージ前の PR の CI で済ませる。#225)。
   pull_request:
     branches: [main, master]
+    # ドラフトから ready にした時(ready_for_review)にも走らせる。#225
+    types: [opened, synchronize, reopened, ready_for_review]
     # Issue #225: 無料枠(月2,000分)を守るため、core・ルートの設定・CI の定義に関わる変更だけ走らせる。
     paths:
       - "packages/core/**"
@@ -25,6 +27,8 @@ permissions:
 
 jobs:
   lint-typecheck-test:
+    # ドラフトの PR では走らせない(Issue #225。ready にした時と、その後の push で走る)。
+    if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     defaults:
