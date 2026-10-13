@@ -9,7 +9,7 @@ on:
   pull_request:
     branches: [main, master]
     # ラベル・PR本文による例外指定(release-notes-check)を、付けた/書き換えた直後に反映させる(あさノート用の ci.yml と同じ)。
-    types: [opened, synchronize, reopened, labeled, unlabeled, edited]
+    types: [opened, synchronize, reopened, labeled, unlabeled, edited, ready_for_review]
     # Issue #225: Actions の無料枠(月2,000分)を守るため、関係のない変更では走らせない。
     # このアプリ・共通コード・DB・CI の定義・ドキュメント(docsConsistency が読む)が対象。
     paths:
@@ -35,12 +35,16 @@ permissions:
 
 jobs:
   lint-build-test:
+    # ドラフトの PR では走らせない(Issue #225。ready にした時と、その後の push で走る)。
+    if: ${{ !github.event.pull_request.draft }}
     uses: ./.github/workflows/_app-ci.yml
     with:
       app: apps/yoru
       check-schema: true
 
   e2e:
+    # ドラフトの PR では走らせない(Issue #225。ready にした時と、その後の push で走る)。
+    if: ${{ !github.event.pull_request.draft }}
     name: E2E (Playwright)
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -85,6 +89,8 @@ jobs:
           retention-days: 7
 
   db-types-check:
+    # ドラフトの PR では走らせない(Issue #225。ready にした時と、その後の push で走る)。
+    if: ${{ !github.event.pull_request.draft }}
     uses: ./.github/workflows/_db-types-check.yml
     with:
       # 素のPostgresへ、共通表・auth・storage のスタブ → schema.sql の順に適用する。

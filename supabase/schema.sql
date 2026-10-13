@@ -126,20 +126,11 @@ create policy "group_members are readable by fellow members"
     or is_fellow_group_member(group_members.group_id)
   );
 
--- 招待コード経由の参加はredeem_group_invite() (SECURITY DEFINER、下記)のみで許可し、
--- 直接のINSERTは「自分が作成したグループに自分自身を追加する」場合のみに限定する。
+-- group_members への参加は、create_group() と redeem_group_invite()(どちらも SECURITY DEFINER で
+-- RLS を通らない)だけで行う。クライアントからの直接INSERTは許可しない(INSERTポリシーを作らない)。
+-- 以前は「自分が作成したグループに自分自身を追加する」直接INSERTを許可していたため、作成者が一度
+-- 脱退しても、招待コードなしで自分のグループへ戻れた(groups の SELECT は created_by = 自分も許す)。
 drop policy if exists "group_members are insertable by the founding creator" on group_members;
-
-create policy "group_members are insertable by the founding creator"
-  on group_members for insert
-  to authenticated
-  with check (
-    user_id = auth.uid()
-    and exists (
-      select 1 from groups g
-      where g.id = group_members.group_id and g.created_by = auth.uid()
-    )
-  );
 
 drop policy if exists "group_members are deletable by themselves" on group_members;
 
@@ -480,6 +471,41 @@ create policy "records are deletable by owner"
   to authenticated
   using (auth.uid() = user_id);
 
+-- records.child_id には、自分から見える子ども(作成者が自分、または同じグループのメンバーが作成)
+-- だけを指定できる。RLS の insert / update の with check では「他人の子どもIDを指定できない」を
+-- 表現できても、グループを抜けた後に見えなくなった子どものIDが残る古い記録の再同期(クライアントは
+-- upsert する)まで拒否してしまうため、トリガーで「child_id が今回変わる場合だけ」確かめる。
+-- SECURITY INVOKER(既定)なので、下の select は children の RLS(見える子どもだけ)に従う。
+create or replace function records_check_child_access()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if new.child_id is null then
+    return new;
+  end if;
+
+  -- 既存の記録で child_id が変わらない場合(upsert の insert 側を含む)は確かめない。
+  if new.child_id is not distinct from (select r.child_id from records r where r.id = new.id) then
+    return new;
+  end if;
+
+  if not exists (select 1 from children c where c.id = new.child_id) then
+    raise exception 'child_not_accessible' using errcode = '42501';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_records_check_child_access on records;
+
+create trigger trg_records_check_child_access
+  before insert or update of child_id on records
+  for each row
+  execute function records_check_child_access();
+
 -- 未入力日のリマインドPush通知(#3-2)。本体の送信は Edge Function
 -- (supabase/functions/send-reminders)がservice roleで行うため、以下のRLSは
 -- クライアント(記録した本人)が自分の購読・設定を読み書きする用途のみを想定する。
@@ -753,8 +779,11 @@ $$;
 -- 以下、analytics_eventsの集計用ビュー。analytics_events自体がSELECTを一切許可しない
 -- 書き込み専用ログである(#計測)のと同じ理由で、これらのビューもauthenticated/anon
 -- へは意図的にgrantしない。ビューはマイグレーション実行ロール(RLSをバイパスする)の
--- 所有物になるため、grantしない限りPostgREST経由では公開されず、Supabase
--- ダッシュボードのSQL Editor/service role接続からの分析専用となる。
+-- 所有物になるため、Supabase ダッシュボードのSQL Editor/service role接続からの
+-- 分析専用とする。
+-- 注意: Supabase は新しいテーブル・ビューに anon / authenticated への権限を自動で付ける
+-- (default privileges)。「grantしない」だけでは公開されてしまうため、ファイル末尾で
+-- 明示的に revoke している。ビューを足したら、そこへ必ず追加すること。
 
 -- analytics_eventsをrecord_id(=記録1件)×セッション単位に再構成したもの。
 -- record_flow_started/record_flow_resumedをセッションの開始、
@@ -856,3 +885,28 @@ from analytics_record_flow_sessions s
 where s.paused
 group by day, s.pause_reason
 order by day, s.pause_reason;
+
+-- 上の analytics_* ビューは anon / authenticated から読めてはならない(user_id・操作時刻を含み、
+-- ビューは RLS をバイパスするため、権限が残っていると anon キーだけで全ユーザー分が読める)。
+-- ビューの作成後に実行する必要があるので、ファイル末尾に置く。create or replace view は権限を
+-- 保つため、毎回の適用後に再度 revoke してよい(冪等)。
+-- ロールが無い環境(CI の素のPostgres)でも失敗しないよう、存在するロールだけを対象にする。
+do $$
+declare
+  v_role text;
+  v_view text;
+begin
+  foreach v_role in array array['anon', 'authenticated'] loop
+    if exists (select 1 from pg_roles where rolname = v_role) then
+      foreach v_view in array array[
+        'analytics_record_flow_sessions',
+        'analytics_flow_duration_daily',
+        'analytics_step_funnel_daily',
+        'analytics_pause_resume_daily'
+      ] loop
+        execute format('revoke all on table %I from %I', v_view, v_role);
+      end loop;
+    end if;
+  end loop;
+end
+$$;

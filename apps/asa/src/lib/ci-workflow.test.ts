@@ -82,6 +82,19 @@ describe("DBスキーマを適用するワークフローの psql(#196)", () => 
       }
     },
   );
+
+  // ローカルで型を再生成するスクリプトも同じ(#227)。途中までしか適用されていない DB から型を作ってしまう。
+  it("ローカルの型の再生成スクリプト(apps/*/scripts/gen-db-types.sh)の psql -f も、ON_ERROR_STOP=1 を付けている", () => {
+    const ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
+    for (const app of ["asa", "yoru"]) {
+      const sh = readFileSync(`${ROOT}apps/${app}/scripts/gen-db-types.sh`, "utf8");
+      const commands = sh.split("\n").filter((line) => !line.trim().startsWith("#") && /\bpsql\b[^\n]*\s-f\s/.test(line));
+      expect(commands.length, app).toBeGreaterThan(0);
+      for (const line of commands) {
+        expect(line, app).toContain("ON_ERROR_STOP=1");
+      }
+    }
+  });
 });
 
 describe("実Supabase E2E(e2e-supabase.yml)の skip の見える化(#198)", () => {
@@ -239,5 +252,33 @@ describe("Actions の分数を守るトリガー(#225)", () => {
   it("アプリの CI は自分のアプリ、core の CI は core を対象にしている", () => {
     expect(onBlock(readFileSync(`${WORKFLOWS_DIR}ci.yml`, "utf8"))).toContain('"apps/asa/**"');
     expect(onBlock(readFileSync(`${WORKFLOWS_DIR}ci-yoru.yml`, "utf8"))).toContain('"apps/yoru/**"');
+  });
+});
+
+describe("ドラフトの PR では CI を走らせない(#225)", () => {
+  // ドラフトは作業中で、push のたびに全ジョブ(約5〜11分)を消費していた。ready にした時から走らせる。
+  const CI_WORKFLOWS = ["ci.yml", "ci-yoru.yml", "ci-core.yml"];
+  const DRAFT_GUARD = "if: ${{ !github.event.pull_request.draft }}";
+
+  it("あさノート・よるノート・core の CI は、すべてのジョブにドラフト除外の if がある", () => {
+    for (const name of CI_WORKFLOWS) {
+      const yaml = readFileSync(`${WORKFLOWS_DIR}${name}`, "utf8");
+      const jobsBlock = yaml.slice(yaml.indexOf("\njobs:"));
+      const jobKeys = [...jobsBlock.matchAll(/^ {2}([\w-]+):$/gm)].map((m) => m[1] ?? "");
+      expect(jobKeys.length, name).toBeGreaterThan(0);
+      for (const key of jobKeys) {
+        const start = jobsBlock.indexOf(`\n  ${key}:\n`);
+        const next = jobsBlock.slice(start + 1).search(/\n {2}[\w-]+:\n/);
+        const body = next < 0 ? jobsBlock.slice(start) : jobsBlock.slice(start, start + 1 + next);
+        expect(body, `${name} / ${key}`).toContain(DRAFT_GUARD);
+      }
+    }
+  });
+
+  it("ready にした時(ready_for_review)にも起動する", () => {
+    for (const name of CI_WORKFLOWS) {
+      const yaml = readFileSync(`${WORKFLOWS_DIR}${name}`, "utf8");
+      expect(yaml.slice(yaml.indexOf("\non:"), yaml.indexOf("\nconcurrency:")), name).toContain("ready_for_review");
+    }
   });
 });
