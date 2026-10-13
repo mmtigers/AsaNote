@@ -395,6 +395,7 @@ export type Database = {
           message: string | null
           occurrences: number | null
           source: string | null
+          where: string | null
         }
         Relationships: []
       }
