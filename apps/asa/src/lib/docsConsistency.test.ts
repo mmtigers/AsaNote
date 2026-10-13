@@ -123,6 +123,19 @@ describe("apps/yoru の README・SPEC・docs(#228)", () => {
     expect(spec).not.toMatch(/\| Q3 \|[^\n]*\*\*第2段階\*\*/);
   });
 
+  it("schema.sql の reminder_time の既定値とコメントが、SPEC の決定事項(§10 Q5)と一致する", () => {
+    const schema = readFileSync(`${YORU}/supabase/schema.sql`, "utf8");
+    const specTime = /\| Q5 \|[^\n]*\*\*(\d{1,2}:\d{2})\*\*/.exec(spec)?.[1];
+    expect(specTime).toBeDefined();
+    expect(schema).toContain(`reminder_time time not null default '${specTime}'`);
+    // コメントの参照先は、既定時刻を決めた §10 Q5(§4 は画面の章で、時刻の決定は書かれていない)
+    expect(schema).toContain(`reminder_time の既定は${specTime}(SPEC §10 Q5)`);
+  });
+
+  it("SPEC の Q6 は、無関係な Issue(#16)を未了の根拠として参照していない", () => {
+    expect(spec.match(/\| Q6 \|[^\n]*/)?.[0] ?? "").not.toContain("(Issue #16)");
+  });
+
   it("手順書の期待結果は、子どもの名前を書かない一般的な表現になっている(SPEC §6: 子ども名はハードコードしない)", () => {
     // 実名そのものを、このテストに書いてはいけない(公開リポジトリのため)。名前を書かない表現が
     // 残っていることを、肯定形で検査する。名前を戻すと、この行が書き換わって失敗する。
