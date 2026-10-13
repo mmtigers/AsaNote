@@ -410,9 +410,9 @@ export type Database = {
       cleanup_old_logs: {
         Args: never
         Returns: {
+          deleted_analytics_events: number
           deleted_client_errors: number
           deleted_reminder_deliveries: number
-          deleted_analytics_events: number
         }[]
       }
       create_group: {

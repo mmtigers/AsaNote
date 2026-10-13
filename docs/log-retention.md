@@ -14,7 +14,7 @@
 | `analytics_events` | **365日** | あさノート・よるノートが共有する表。集計(`analytics_*` ビュー)は日別なので、年単位で比べられれば足りる。新しい行が増え続けない |
 
 保管期間を変えるときは `supabase/schema.sql` の `cleanup_old_logs()`(`interval '90 days'` / `- 7` / `interval '365 days'`)を直す。
-戻り値の列(`deleted_*`)を変えるときは、`create or replace` では変えられないので、関数の前の `drop function if exists cleanup_old_logs();` を残したまま直し、`database.types.ts` も合わせる(`db-types-check` が検出する)。
+戻り値の列(`deleted_*`)を変えるときは、`create or replace` では変えられないので、関数の前の `drop function if exists cleanup_old_logs();` を残したまま直し、`database.types.ts` も合わせる(`db-types-check` が検出する。**型は `supabase gen types` が戻り値の列を列名のアルファベット順に出す**ので、手で足すときは宣言順ではなくその順に置く。`npm run db:types`(要Docker)で再生成するのが確実)。
 
 ## 総行数の上限(濫用対策)
 
