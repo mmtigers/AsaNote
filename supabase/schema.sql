@@ -753,8 +753,11 @@ $$;
 -- 以下、analytics_eventsの集計用ビュー。analytics_events自体がSELECTを一切許可しない
 -- 書き込み専用ログである(#計測)のと同じ理由で、これらのビューもauthenticated/anon
 -- へは意図的にgrantしない。ビューはマイグレーション実行ロール(RLSをバイパスする)の
--- 所有物になるため、grantしない限りPostgREST経由では公開されず、Supabase
--- ダッシュボードのSQL Editor/service role接続からの分析専用となる。
+-- 所有物になるため、Supabase ダッシュボードのSQL Editor/service role接続からの
+-- 分析専用とする。
+-- 注意: Supabase は新しいテーブル・ビューに anon / authenticated への権限を自動で付ける
+-- (default privileges)。「grantしない」だけでは公開されてしまうため、ファイル末尾で
+-- 明示的に revoke している。ビューを足したら、そこへ必ず追加すること。
 
 -- analytics_eventsをrecord_id(=記録1件)×セッション単位に再構成したもの。
 -- record_flow_started/record_flow_resumedをセッションの開始、
@@ -856,3 +859,28 @@ from analytics_record_flow_sessions s
 where s.paused
 group by day, s.pause_reason
 order by day, s.pause_reason;
+
+-- 上の analytics_* ビューは anon / authenticated から読めてはならない(user_id・操作時刻を含み、
+-- ビューは RLS をバイパスするため、権限が残っていると anon キーだけで全ユーザー分が読める)。
+-- ビューの作成後に実行する必要があるので、ファイル末尾に置く。create or replace view は権限を
+-- 保つため、毎回の適用後に再度 revoke してよい(冪等)。
+-- ロールが無い環境(CI の素のPostgres)でも失敗しないよう、存在するロールだけを対象にする。
+do $$
+declare
+  v_role text;
+  v_view text;
+begin
+  foreach v_role in array array['anon', 'authenticated'] loop
+    if exists (select 1 from pg_roles where rolname = v_role) then
+      foreach v_view in array array[
+        'analytics_record_flow_sessions',
+        'analytics_flow_duration_daily',
+        'analytics_step_funnel_daily',
+        'analytics_pause_resume_daily'
+      ] loop
+        execute format('revoke all on table %I from %I', v_view, v_role);
+      end loop;
+    end if;
+  end loop;
+end
+$$;
