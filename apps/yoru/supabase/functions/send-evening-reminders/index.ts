@@ -18,7 +18,7 @@
 //
 // あさノートの notification_settings / push_subscriptions とは別の表を使う
 // (共有モードでは同じ DB に同居するため、混ざるとあさノートの通知が届いてしまう)。
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.117.3";
 import webpush from "npm:web-push@3.6.7";
 import { isAuthorizedSecret } from "../_shared/pushLogic.ts";
 import { runReminders, type ReminderDb } from "../_shared/reminderHandler.ts";

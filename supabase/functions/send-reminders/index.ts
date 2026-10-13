@@ -18,20 +18,17 @@
 //      入れられた=自分が担当したユーザーだけが送る)、そのユーザーのpush_subscriptions全件へ通知を送る。
 //      購読があるのに1件も送れなかったユーザーは、行を消して次の分に再試行させる。
 //      送信に失敗した購読(410 Gone等、失効した購読)はその場で削除する。
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.117.3";
 import webpush from "npm:web-push@3.6.7";
-import {
-  isAuthorizedSecret,
-  jstDateNow,
-  jstTimeNow,
-  reminderPayload,
-  selectDueReminderUserIds,
-  selectReminderTargets,
-  selectUsersToRelease,
-  sendToSubscriptions,
-  type GroupMembership,
-  type PushSubscriptionRow,
-} from "../_shared/pushLogic.ts";
+import { isAuthorizedSecret } from "../_shared/pushLogic.ts";
+import { runReminders, type ReminderDb } from "../_shared/reminderHandler.ts";
+
+// 処理の本体は _shared/reminderHandler.ts(テストあり)。ここは環境変数と本物のクライアントの組み立てだけ。
+const json = (body: unknown, status = 200) =>
+  new Response(typeof body === "string" ? body : JSON.stringify(body), {
+    status,
+    headers: typeof body === "string" ? undefined : { "content-type": "application/json" },
+  });
 
 Deno.serve(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -59,145 +56,12 @@ Deno.serve(async (req) => {
   }
 
   webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
-  const supabase = createClient(supabaseUrl, serviceRoleKey);
+  const db = createClient(supabaseUrl, serviceRoleKey) as unknown as ReminderDb;
 
-  const now = new Date();
-  const currentTime = jstTimeNow(now);
-  const today = jstDateNow(now);
-
-  const { data: enabledSettings, error: settingsError } = await supabase
-    .from("notification_settings")
-    .select("user_id, reminder_time")
-    .eq("enabled", true);
-
-  if (settingsError) {
-    console.error("notification_settingsの取得に失敗しました:", settingsError);
-    return new Response("failed to load notification_settings", { status: 500 });
-  }
-
-  const { data: sentToday, error: sentError } = await supabase
-    .from("reminder_deliveries")
-    .select("user_id")
-    .eq("sent_on", today);
-
-  if (sentError) {
-    console.error("reminder_deliveriesの取得に失敗しました:", sentError);
-    return new Response("failed to load reminder_deliveries", { status: 500 });
-  }
-
-  const dueUserIds = selectDueReminderUserIds(
-    (enabledSettings ?? []) as { user_id: string; reminder_time: string }[],
-    now,
-    (sentToday ?? []).map((row) => row.user_id as string)
+  const result = await runReminders(
+    db,
+    (subscription, payload) => webpush.sendNotification(subscription, payload),
+    new Date()
   );
-  if (dueUserIds.length === 0) {
-    return new Response(JSON.stringify({ checked: 0, sent: 0 }), {
-      headers: { "content-type": "application/json" },
-    });
-  }
-
-  // 同じグループの人が記録済みかも見るため、due ユーザーの所属グループとその全メンバーを集める。
-  const { data: ownMemberships, error: ownMembershipsError } = await supabase
-    .from("group_members")
-    .select("user_id, group_id")
-    .in("user_id", dueUserIds);
-  if (ownMembershipsError) {
-    console.error("group_membersの取得に失敗しました:", ownMembershipsError);
-    return new Response("failed to load group_members", { status: 500 });
-  }
-  const groupIds = [...new Set((ownMemberships ?? []).map((m) => m.group_id as string))];
-  const { data: groupMemberships, error: groupMembershipsError } = groupIds.length
-    ? await supabase.from("group_members").select("user_id, group_id").in("group_id", groupIds)
-    : { data: [] as GroupMembership[], error: null };
-  if (groupMembershipsError) {
-    console.error("group_membersの取得に失敗しました:", groupMembershipsError);
-    return new Response("failed to load group_members", { status: 500 });
-  }
-  const memberships = (groupMemberships ?? []) as GroupMembership[];
-  const involvedUserIds = [...new Set([...dueUserIds, ...memberships.map((m) => m.user_id)])];
-
-  // 今日(JST)、outcomeまで入った記録が本人または同じグループの誰かに既にあれば、対象から除く。
-  const { data: todaysRecords, error: recordsError } = await supabase
-    .from("records")
-    .select("user_id")
-    .eq("record_date", today)
-    .not("outcome", "is", null)
-    .in("user_id", involvedUserIds);
-
-  if (recordsError) {
-    console.error("recordsの取得に失敗しました:", recordsError);
-    return new Response("failed to load records", { status: 500 });
-  }
-
-  const candidateUserIds = selectReminderTargets(
-    dueUserIds,
-    (todaysRecords ?? []).map((row) => row.user_id as string),
-    memberships
-  );
-
-  if (candidateUserIds.length === 0) {
-    return new Response(JSON.stringify({ checked: dueUserIds.length, sent: 0 }), {
-      headers: { "content-type": "application/json" },
-    });
-  }
-
-  // 「今日送信済み」の印を先に付け、付けられた(=他の実行に先を越されなかった)ユーザーだけに送る。
-  // 既存の行は ignoreDuplicates でスキップされ、返ってくるのは新規に入れた行だけ。
-  const { data: claimed, error: claimError } = await supabase
-    .from("reminder_deliveries")
-    .upsert(
-      candidateUserIds.map((user_id) => ({ user_id, sent_on: today })),
-      { onConflict: "user_id,sent_on", ignoreDuplicates: true }
-    )
-    .select("user_id");
-  if (claimError) {
-    console.error("reminder_deliveriesへの記録に失敗しました:", claimError);
-    return new Response("failed to record reminder_deliveries", { status: 500 });
-  }
-  const targetUserIds = (claimed ?? []).map((row) => row.user_id as string);
-  if (targetUserIds.length === 0) {
-    return new Response(JSON.stringify({ checked: dueUserIds.length, targeted: 0, sent: 0 }), {
-      headers: { "content-type": "application/json" },
-    });
-  }
-
-  const { data: subscriptions, error: subscriptionsError } = await supabase
-    .from("push_subscriptions")
-    .select("id, user_id, endpoint, p256dh, auth_key")
-    .in("user_id", targetUserIds);
-
-  if (subscriptionsError) {
-    console.error("push_subscriptionsの取得に失敗しました:", subscriptionsError);
-    // 印だけ残ると今日は届かなくなるので、外して次の分に再試行させる。
-    await supabase.from("reminder_deliveries").delete().eq("sent_on", today).in("user_id", targetUserIds);
-    return new Response("failed to load push_subscriptions", { status: 500 });
-  }
-
-  const subscriptionRows = (subscriptions ?? []) as (PushSubscriptionRow & { user_id: string })[];
-  const idByEndpoint = new Map(subscriptionRows.map((row) => [row.endpoint, row.id]));
-  const sentSubscriptionIds: string[] = [];
-  const { sent, staleSubscriptionIds } = await sendToSubscriptions(
-    async (subscription, payload) => {
-      await webpush.sendNotification(subscription, payload);
-      const id = idByEndpoint.get(subscription.endpoint);
-      if (id) sentSubscriptionIds.push(id);
-    },
-    subscriptionRows,
-    reminderPayload()
-  );
-
-  // 購読があるのに1件も届かなかったユーザー(一時的な通信エラー等)は、印を外して次の分に再試行する。
-  const releaseUserIds = selectUsersToRelease(subscriptionRows, sentSubscriptionIds);
-  if (releaseUserIds.length > 0) {
-    await supabase.from("reminder_deliveries").delete().eq("sent_on", today).in("user_id", releaseUserIds);
-  }
-
-  if (staleSubscriptionIds.length > 0) {
-    await supabase.from("push_subscriptions").delete().in("id", staleSubscriptionIds);
-  }
-
-  return new Response(
-    JSON.stringify({ checked: dueUserIds.length, targeted: targetUserIds.length, sent }),
-    { headers: { "content-type": "application/json" } }
-  );
+  return json(result.body, result.status);
 });
