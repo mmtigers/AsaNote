@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "../auth";
+import { reportHandledError } from "../clientErrors";
 
 /**
  * 未ログインが確定したときに何を返すか。
@@ -21,12 +22,14 @@ type SignedOutValue = "null" | "empty";
  * 読み込み中は `null`、取得できれば(0件含め)配列を返す。取得に失敗した場合は
  * 空配列にフォールバックする(一覧が出ないだけで画面自体は使えるようにするため)。
  *
+ * `where` は失敗時に client_errors へ送る場所の区分名(例: "list/children")。
+ *
  * `fetchList` は**モジュールレベルの安定した関数**を渡すこと。レンダーごとに
  * 新しい関数を渡すと、依存配列が毎回変わって取得を繰り返す。
  */
 export function useAuthedList<T>(
   fetchList: () => Promise<T[]>,
-  { whenSignedOut }: { whenSignedOut: SignedOutValue }
+  { whenSignedOut, where }: { whenSignedOut: SignedOutValue; where: string }
 ): T[] | null {
   const { session, loading } = useAuth();
   const [items, setItems] = useState<T[] | null>(null);
@@ -44,13 +47,15 @@ export function useAuthedList<T>(
       .then((data) => {
         if (active) setItems(data);
       })
-      .catch(() => {
+      .catch((error: unknown) => {
+        // 一覧が空になるだけで画面は動くが、原因が分からなくなるので記録する(#213)。
+        reportHandledError(where, error);
         if (active) setItems([]);
       });
     return () => {
       active = false;
     };
-  }, [loading, session, fetchList, whenSignedOut]);
+  }, [loading, session, fetchList, whenSignedOut, where]);
 
   return items;
 }

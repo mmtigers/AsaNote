@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { reportHandledError } from "./clientErrors";
 
 /**
  * 「localStorage に1つの文字列を持ち、変更を同一タブへ通知して React から購読する」
@@ -42,7 +43,8 @@ export function createLocalStorageStore(
   function get(): string | null {
     try {
       return window.localStorage.getItem(key);
-    } catch {
+    } catch (error) {
+      reportHandledError("storage/unavailable", error, { op: "get" });
       return null;
     }
   }
@@ -56,8 +58,9 @@ export function createLocalStorageStore(
       if (value === null) window.localStorage.removeItem(key);
       else window.localStorage.setItem(key, value);
       notify();
-    } catch {
+    } catch (error) {
       // 書けない環境ではあきらめる(呼び出し元の操作自体は続行できる)
+      reportHandledError("storage/unavailable", error, { op: "set" });
     }
   }
 
