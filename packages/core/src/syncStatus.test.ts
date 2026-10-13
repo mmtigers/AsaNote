@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createSyncStatus } from "./syncStatus";
 
-const { dismissSyncFailureNotice, getSyncFailing, reportSyncOutcome } = createSyncStatus("test-app");
+const { dismissSyncFailureNotice, getLastSuccessAt, getSyncFailing, reportSyncOutcome } = createSyncStatus("test-app");
 
 beforeEach(() => {
   // 各テストの前に、成功報告でカウンタとdismiss状態を確実にリセットする。
@@ -75,5 +75,21 @@ describe("createSyncStatus", () => {
     for (let i = 0; i < 3; i++) status.reportSyncOutcome(false);
     window.removeEventListener("app-c:sync-status-changed", listener);
     expect(listener).toHaveBeenCalledTimes(1);
+  });
+
+  it("最後に同期が成功した時刻を覚える。失敗では更新しない(#213)", () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-10-13T00:00:00Z"));
+      reportSyncOutcome(true);
+      const at = getLastSuccessAt();
+      expect(at).toBe(new Date("2026-10-13T00:00:00Z").getTime());
+
+      vi.setSystemTime(new Date("2026-10-13T00:10:00Z"));
+      reportSyncOutcome(false);
+      expect(getLastSuccessAt()).toBe(at);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

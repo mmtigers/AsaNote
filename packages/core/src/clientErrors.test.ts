@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const insertMock = vi.fn();
 const fromMock = vi.fn(() => ({ insert: insertMock }));
@@ -9,7 +9,7 @@ vi.mock("./supabase/client", () => ({
   getSupabaseClient: () => getSupabaseClientMock(),
 }));
 
-const { reportClientError, reportHandledError, registerClientErrorApp, resetClientErrorReports } = await import("./clientErrors");
+const { reportClientError, reportHandledError, registerClientErrorApp, registerClientErrorContextProvider, resetClientErrorReports } = await import("./clientErrors");
 
 // fire-and-forget の Promise チェーンが流れ切るのを待つ。
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -266,5 +266,67 @@ describe("handled-error(#213)", () => {
       const message = insertMock.mock.calls[0]?.[0]?.message as string;
       expect(message).toBe(`bad | 22P02 | ${"d".repeat(200)}`);
     });
+  });
+});
+
+describe("付帯情報の取得(#213)", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    Reflect.deleteProperty(navigator, "storage");
+  });
+
+  it("アプリが登録した取得元の値(未同期の件数など)を context に入れる", async () => {
+    registerClientErrorContextProvider(async () => ({ pendingCount: 3, lastSyncOkSecAgo: 120 }));
+
+    reportClientError("asa", "handled-error", new Error("x"), undefined, { where: "list/children" });
+    await flush();
+
+    expect(insertMock.mock.calls[0]?.[0]?.context).toMatchObject({ where: "list/children", pendingCount: 3, lastSyncOkSecAgo: 120 });
+  });
+
+  it("Service Worker の状態とストレージの使用量・上限(MB)を入れる", async () => {
+    Object.defineProperty(navigator, "storage", {
+      value: { estimate: async () => ({ usage: 5 * 1024 * 1024, quota: 100 * 1024 * 1024 }) },
+      configurable: true,
+    });
+
+    reportClientError("asa", "window-error", new Error("x"));
+    await flush();
+
+    expect(insertMock.mock.calls[0]?.[0]?.context).toMatchObject({ swState: "unsupported", storageUsedMb: 5, storageQuotaMb: 100 });
+  });
+
+  it("取得元が失敗しても、付帯情報なしでエラー自体は送る", async () => {
+    registerClientErrorContextProvider(async () => {
+      throw new Error("db closed");
+    });
+
+    reportClientError("asa", "window-error", new Error("x"));
+    await flush();
+
+    expect(insertMock).toHaveBeenCalledTimes(1);
+    expect(insertMock.mock.calls[0]?.[0]?.context).toHaveProperty("online");
+    expect(insertMock.mock.calls[0]?.[0]?.context).not.toHaveProperty("pendingCount");
+  });
+
+  it("取得元が返ってこなくても、タイムアウトの後に送る", async () => {
+    vi.useFakeTimers();
+    registerClientErrorContextProvider(() => new Promise(() => {}));
+
+    reportClientError("asa", "window-error", new Error("x"));
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(insertMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("context が長すぎるときは、付帯情報から先に落とし、where は残す", async () => {
+    registerClientErrorContextProvider(async () => ({ pendingCount: 3, junk: "j".repeat(2500) }));
+
+    reportClientError("asa", "handled-error", new Error("x"), undefined, { where: "auth/sign-out" });
+    await flush();
+
+    const context = insertMock.mock.calls[0]?.[0]?.context;
+    expect(context).toMatchObject({ where: "auth/sign-out", pendingCount: 3 });
+    expect(context).not.toHaveProperty("junk");
   });
 });

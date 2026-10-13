@@ -782,6 +782,7 @@ npm run test:e2e:supabase  # 実Supabaseテストプロジェクト向けE2E（S
 
 - **ログイン前（オフライン専用利用）は何も送らない**。
 - `context` が2000字を超えたら、全体を捨てず、`where`・`phase`・`online`・`standalone` を優先して残し、ほかの項目を後ろから落とす。`handled-error` では PostgrestError の `details`（値が入りうる）を200字で切る。
+- 付帯情報は、**送ると決めた時にだけ**集める（非同期。取れない・1.5秒で返らないものは付けずに送る）: Service Worker の状態（`swState`）、ストレージの使用量と上限（`storageUsedMb` / `storageQuotaMb`。`navigator.storage.estimate()`）、アプリ側から未同期の件数（`pendingCount`）と最後に同期が成功してからの秒数（`lastSyncOkSecAgo`）。件数・時間・状態の区分だけで、記録の内容・写真・ファイル名は入れない。操作履歴（breadcrumb）は、個人情報の混入リスクのため入れない。大きすぎれば付帯情報から先に落とす。
 - fire-and-forget。送信失敗は `console.error` に留め、記録の保存（Dexie/Supabase）には影響させない。オフラインキューは持たず、完全オフライン中のイベントは失う（許容）。
 - `record_id` には各記録の `FormState.id`（UUID）を使い、フロー内の一連のイベントを紐づける。
 - 送るのは件数・真偽値・区分名のみで、メモやタグの文言は含めない。
@@ -818,7 +819,7 @@ npm run test:e2e:supabase  # 実Supabaseテストプロジェクト向けE2E（S
 
 - 送る契機: `error.tsx` / `global-error.tsx`（`source=error-boundary`）、`window` の `error`（`window-error`）、`unhandledrejection`（`unhandled-rejection`）。後2つは `ClientErrorReporter` がルートレイアウトで拾う。
   画面側で握りつぶして表示だけしているエラーも送る: 同期の失敗（`source=sync-failure`。`sync.ts` の各失敗箇所。`context.phase` に段階、`count` に件数）と、よるノートの端末DB不可（`local-db`。`LocalDbNotice`）。
-  try/catch で受け止めたエラーは `source=handled-error` で送り、**場所を `context.where` で区別する**（#213。`reportHandledError(where, error)`。アプリ・版は `ClientErrorReporter` が覚える）。今あるのは認証・ログアウト（`auth/push-unsubscribe` / `auth/sign-out` / `auth/clear-local-data` / `auth/sync-before-logout`）、グループ操作（`group/action`。`runAction` の共通経路）、招待の共有（`group/share-invite`）、一覧取得の失敗（`list/children` / `list/group-members`。`useAuthedList` の `where`）、localStorage が使えない・端末に覚えた子ども一覧の読み書き失敗（`storage/unavailable` / `storage/children-cache-read` / `storage/children-cache-write`）、Service Worker の登録失敗（`sw/register`）、Push 購読（`push/subscribe` / `push/save-subscription`）。よるノートの写真と付帯情報は続きの PR。計測（`analytics.ts`）の送信失敗は、障害の記録と混ざるので対象外。
+  try/catch で受け止めたエラーは `source=handled-error` で送り、**場所を `context.where` で区別する**（#213。`reportHandledError(where, error)`。アプリ・版は `ClientErrorReporter` が覚える）。今あるのは認証・ログアウト（`auth/push-unsubscribe` / `auth/sign-out` / `auth/clear-local-data` / `auth/sync-before-logout`）、グループ操作（`group/action`。`runAction` の共通経路）、招待の共有（`group/share-invite`）、一覧取得の失敗（`list/children` / `list/group-members`。`useAuthedList` の `where`）、localStorage が使えない・端末に覚えた子ども一覧の読み書き失敗（`storage/unavailable` / `storage/children-cache-read` / `storage/children-cache-write`）、Service Worker の登録失敗（`sw/register`）、Push 購読（`push/subscribe` / `push/save-subscription`）。よるノートの写真（`photo/process` / `photo/thumb`。縮小・保存・表示の失敗。枚数の上限は記録しない）。計測（`analytics.ts`）の送信失敗は、障害の記録と混ざるので対象外。
 - 送る内容: エラーの文言・スタック・画面のパス（クエリ除く）・UA・アプリの版・付帯情報 `context`（オンライン状態・PWAか・同期の段階と件数）・ログイン中ならユーザーID。**記録の内容（メモ・タグ等）は送らない**。
 - fire-and-forget。送信失敗は `console.warn` に留める。
 - 送信の上限は、1ページ読み込みあたり **source ごとに枠を分ける**（#214）: 想定外エラー系（`error-boundary` / `window-error` / `unhandled-rejection`）は合わせて10件、`sync-failure` は5件、`local-db` は1件、`handled-error` は5件（合計で最大21件）。同期は復帰のたびに繰り返し走り、原因ごとに文言も変わるため、枠を共有すると同期失敗で使い切って、あとから起きた想定外エラーが送られなくなるのを防ぐ。

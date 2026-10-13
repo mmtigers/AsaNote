@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { PHOTO_MAX_PER_RECORD } from "@/constants/choices";
+import { reportHandledError } from "@note/core/clientErrors";
 import { describeErrorForUser } from "@note/core/errors";
 import type { LocalPhoto } from "@/lib/db/localDb";
 import { addPhoto, getPhotoUrl, PhotoLimitError, removePhoto, useRecordPhotos } from "@/lib/db/photos";
@@ -22,7 +23,9 @@ function PhotoThumb({ photo, onRemove }: { photo: LocalPhoto; onRemove: () => vo
         if (result.revoke) revoke = result.url;
         setUrl(result.url);
       })
-      .catch(() => {});
+      .catch((error: unknown) => {
+        reportHandledError("photo/thumb", error);
+      });
     return () => {
       active = false;
       if (revoke) URL.revokeObjectURL(revoke);
@@ -63,6 +66,8 @@ export function PhotoStrip({ recordId }: { recordId: string }) {
         await addPhoto(recordId, file);
       }
     } catch (e) {
+      // 上限は想定どおりの案内なので記録しない。それ以外(縮小・保存の失敗)は原因を残す(#213)。
+      if (!(e instanceof PhotoLimitError)) reportHandledError("photo/process", e);
       setError(e instanceof PhotoLimitError ? e.message : describeErrorForUser(e, "写真を追加できませんでした"));
     } finally {
       setBusy(false);

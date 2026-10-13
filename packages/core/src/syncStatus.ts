@@ -14,6 +14,8 @@ export interface SyncStatus {
   /** フック外(テスト等)からも読める現在値。 */
   getSyncFailing(): boolean;
   reportSyncOutcome(ok: boolean): void;
+  /** 最後に同期が成功した時刻(ミリ秒)。まだ成功していなければ null。エラー報告の付帯情報に使う。 */
+  getLastSuccessAt(): number | null;
   /** トーストを閉じた後は、新たな失敗が積み重なるまで再表示しない(成功すればリセット)。 */
   dismissSyncFailureNotice(): void;
   useSyncFailing(): boolean;
@@ -24,6 +26,7 @@ export function createSyncStatus(appId: string): SyncStatus {
 
   let consecutiveFailures = 0;
   let dismissedAtCount = 0;
+  let lastSuccessAt: number | null = null;
 
   // useSyncExternalStoreのgetSnapshotはこれをそのまま渡す。
   function getSyncFailing(): boolean {
@@ -38,6 +41,7 @@ export function createSyncStatus(appId: string): SyncStatus {
     if (typeof window === "undefined") return;
     const wasFailing = getSyncFailing();
     if (ok) {
+      lastSuccessAt = Date.now();
       consecutiveFailures = 0;
       dismissedAtCount = 0;
     } else {
@@ -62,5 +66,5 @@ export function createSyncStatus(appId: string): SyncStatus {
     return useSyncExternalStore(subscribe, getSyncFailing, () => false);
   }
 
-  return { getSyncFailing, reportSyncOutcome, dismissSyncFailureNotice, useSyncFailing };
+  return { getSyncFailing, reportSyncOutcome, getLastSuccessAt: () => lastSuccessAt, dismissSyncFailureNotice, useSyncFailing };
 }
