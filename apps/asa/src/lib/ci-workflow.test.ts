@@ -111,6 +111,28 @@ describe("実Supabase E2E(e2e-supabase.yml)の skip の見える化(#198)", () =
     expect(yaml).toContain("GITHUB_STEP_SUMMARY");
     expect(yaml).toContain("実Supabase E2E は未実行");
   });
+
+  // 公開リポジトリは分数が無料のため、判定ジョブを毎回走らせて、未稼働の理由を必ず見えるようにする。
+  // (以前は #209 の分数対策で、変数が無いとジョブごと起動せず、警告も summary も出なかった。)
+  // 非公開に戻して分数を気にするときは、ジョブに vars の if を足す(#237)。
+  it("変数 E2E_SUPABASE_ENABLED が無くても判定ジョブは起動し、未稼働の理由を警告と summary に出す", () => {
+    expect(yaml).not.toMatch(/^ {4}if: .*vars\.E2E_SUPABASE_ENABLED/m);
+    expect(yaml).toContain("E2E_SUPABASE_ENABLED: ${{ vars.E2E_SUPABASE_ENABLED }}");
+    expect(yaml).toContain('"$E2E_SUPABASE_ENABLED" != "true"');
+    expect(yaml).toContain("リポジトリ変数 E2E_SUPABASE_ENABLED が true ではありません");
+  });
+
+  it("変数が true でないとき、以降のステップ(E2E の実行など)は実行しない", () => {
+    // 判定が enabled=true を出す分岐は、変数が true で、かつ Secrets が揃っているときだけ。
+    const check = /name: Check secrets are configured[\s\S]*?(?=\n {6}- uses:)/.exec(yaml)?.[0] ?? "";
+    expect(check.match(/echo "enabled=true"/g)).toHaveLength(1);
+    expect(check).toMatch(/if \[ "\$E2E_SUPABASE_ENABLED" != "true" \][\s\S]*?enabled=false[\s\S]*?elif[\s\S]*?missing[\s\S]*?enabled=false[\s\S]*?else[\s\S]*?enabled=true/);
+  });
+
+  it("ドラフトの PR では起動せず(#225・#236 と同じ)、ready にした時にも起動する", () => {
+    expect(yaml).toContain("if: ${{ !github.event.pull_request.draft }}");
+    expect(yaml).toMatch(/types: \[opened, synchronize, reopened, ready_for_review\]/);
+  });
 });
 
 describe("実Supabase E2E の準備手順(docs/e2e-supabase.md)と workflow の整合(#198)", () => {
@@ -194,10 +216,6 @@ describe("Actions の分数を減らす構成(#209)", () => {
     expect(appCi.indexOf("- name: Release notes check")).toBeLessThan(appCi.indexOf("- name: Install dependencies"));
   });
 
-  it("実Supabase E2E は、リポジトリ変数が有効でなければジョブごと起動しない(step で飛ばすだけでは課金される)", () => {
-    const e2e = readFileSync(`${WORKFLOWS_DIR}e2e-supabase.yml`, "utf8");
-    expect(e2e).toMatch(/^ {4}if: \$\{\{ vars\.E2E_SUPABASE_ENABLED == 'true' \}\}$/m);
-  });
 });
 
 describe("バージョンの散在を防ぐ(#206)", () => {

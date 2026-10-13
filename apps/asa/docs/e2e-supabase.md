@@ -9,7 +9,7 @@
 - [ ] GitHub の Secrets を登録する(手順5)
 - [ ] リポジトリ変数 `E2E_SUPABASE_ENABLED` = `true` を足して有効にする(手順6)
 
-稼働するまで、CI の「E2E test (real Supabase test project)」は **skipped** と表示される(実行されていない。緑の成功ではない。見分け方は「CI の表示の見分け方」)。
+稼働するまで、CI の「E2E test (real Supabase test project)」は **警告つきの成功(緑)** で終わる。**実行されておらず、実DBでは検証されていない**(警告と job summary に理由が出る。見分け方は「CI の表示の見分け方」)。
 テストを手元で実行して Secrets 相当の環境変数が無いときは、テストが自動で skip され、赤くならない。
 
 ## 絶対のルール: 本番Supabaseには接続しない
@@ -102,7 +102,7 @@ Settings → Secrets and variables → Actions → **Variables** タブ → New 
 | --- | --- |
 | `E2E_SUPABASE_ENABLED` | `true` |
 
-この変数が `true` でない間は、ジョブごと起動しない(skipped)。無効に戻したいときは、値を `true` 以外にするか、変数を削除する。
+この変数が `true` でない間は、E2E は実行されず、警告つきの成功で終わる(理由は job summary に出る)。無効に戻したいときは、値を `true` 以外にするか、変数を削除する。
 
 ### 7. 初回の動作確認
 
@@ -116,8 +116,11 @@ Actions タブ → 「E2E (実Supabaseテストプロジェクト)」→ Run wor
 
 `.github/workflows/e2e-supabase.yml`(通常のCI `ci.yml` とは別ワークフロー)。`main` への push、`main` 向けのPR、手動実行(workflow_dispatch)で動く。
 
-- リポジトリ変数 `E2E_SUPABASE_ENABLED` が `true` でない間は、ジョブごと起動しない(skipped。Actions の分数を消費しない。#209)。テスト専用プロジェクトと Secrets を用意したら、Settings > Secrets and variables > Actions > **Variables** に `E2E_SUPABASE_ENABLED` = `true` を追加して有効にする。
-- 有効なのに Secrets 未設定 → 判定ステップが `::warning::` と job summary(「実Supabase E2E は未実行」)を出し、以降を飛ばして成功で終わる。緑でも実DBでは検証されていない(#198)。
+- 判定ステップが最初に走り、E2E を実行してよいか(変数 `E2E_SUPABASE_ENABLED` が `true` で、Secrets が全部揃っているか)を決める。実行しないときは、理由を `::warning::` と job summary(「実Supabase E2E は未実行」)に出し、以降を飛ばして**成功で終わる**。緑でも実DBでは検証されていない(#198)。
+- 変数が `true` でない間 → 上のとおり警告つきの成功(未稼働)。テスト専用プロジェクトと Secrets を用意したら、Settings > Secrets and variables > Actions > **Variables** に `E2E_SUPABASE_ENABLED` = `true` を追加して有効にする。
+- 有効なのに Secrets 未設定 → 同じく警告つきの成功。
+- ドラフトの PR では起動しない(ready にした時と、その後の push で起動する)。
+- 判定ジョブは毎回走る(数秒)。公開リポジトリは分数が無料のため。**非公開に戻して分数を気にするときは**、ジョブに `if: ${{ vars.E2E_SUPABASE_ENABLED == 'true' }}` を足してジョブごと止める(step で飛ばすだけでは最低1分課金される。#209・#237)。
 - fork のPR → Secrets が渡されないので同様に skip。`pull_request_target` は使わない(fork のコードを Secrets 付きで動かさないため)。
 - 同じテストユーザーを共有するため、実行は同時に1つだけ(`concurrency`、打ち切りなし)。
 - トレース・スクリーンショットは取らない(ログイン済みセッションのトークンを含むため)。失敗時はHTMLレポートのみ7日保存。
@@ -130,8 +133,9 @@ Actions タブ → 「E2E (実Supabaseテストプロジェクト)」→ Run wor
 
 | 表示 | 意味 |
 | --- | --- |
-| **skipped**(灰色、ジョブが実行されない) | 変数 `E2E_SUPABASE_ENABLED` が `true` でない。**未稼働**(現在の状態) |
-| 成功 + 警告「実SupabaseのE2Eは実行されていません(未設定のSecrets: …)」+ job summary「実Supabase E2E は未実行(skip)」 | 変数は有効だが、Secrets が欠けている、または fork の PR。**実DBでは検証されていない** |
+| 成功 + 警告「実SupabaseのE2Eは実行されていません(リポジトリ変数 E2E_SUPABASE_ENABLED が true ではありません…)」+ job summary「実Supabase E2E は未実行(skip)」 | 変数 `E2E_SUPABASE_ENABLED` が `true` でない。**未稼働**(現在の状態)。**実DBでは検証されていない** |
+| 成功 + 警告「実SupabaseのE2Eは実行されていません(未設定のSecrets: …)」+ 同じ summary | 変数は有効だが、Secrets が欠けている、または fork の PR。**実DBでは検証されていない** |
+| **skipped**(灰色、ジョブが実行されない) | ドラフトの PR。ready にすると起動する |
 | 成功 + 「Run E2E tests against the Supabase test project」ステップが実行されている(数十秒〜数分かかる) | 実際に実行され、通った |
 | 失敗 | 実行されて落ちた。Playwright のレポートを見る |
 
