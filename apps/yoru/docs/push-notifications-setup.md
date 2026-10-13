@@ -69,6 +69,12 @@ npx supabase functions deploy send-evening-reminders --project-ref <PROJECT_REF>
 デプロイ後、手順6のあとに、cron からの呼び出しが `200` で通っていることを確認する(トラブルシューティング参照)。
 匿名キーでの呼び出しが `401` になることも確かめる。
 
+## 5.5 依存の版と、再デプロイ
+
+`npm:` で取り込む依存(`@supabase/supabase-js`・`web-push`)は、版を固定している(あさノートの関数と同じ版。
+`supabase/functions/_shared/npmPins.test.ts` が検査する)。版を上げるときは、あさノート・よるノートの**4つの
+`index.ts` を同時に**直し、4つとも再デプロイする。関数のコードを変えても、再デプロイするまで本番には反映されない。
+
 ## 6. pg_cronで定期実行する
 
 SQL Editor で `supabase/cron-evening-reminders.sql` の `<PROJECT_REF>`・`<SERVICE_ROLE_KEY>`・`<CRON_SECRET>` を置き換えて実行する

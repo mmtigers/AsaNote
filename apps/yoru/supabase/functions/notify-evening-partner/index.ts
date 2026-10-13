@@ -10,7 +10,7 @@
 //
 // 処理の本体は _shared/partnerHandler.ts(テストあり)。ここは環境変数・認証・入力の読み取りと、
 // 本物のクライアントの組み立てだけを行う。
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.117.3";
 import webpush from "npm:web-push@3.6.7";
 import { isAuthorizedSecret } from "../_shared/pushLogic.ts";
 import { runPartnerNotify } from "../_shared/partnerHandler.ts";

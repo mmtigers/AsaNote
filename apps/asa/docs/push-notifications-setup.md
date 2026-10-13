@@ -80,6 +80,18 @@ select status_code, content, created from net._http_response order by created de
 
 `401`(`unauthorized`)が並ぶなら、cron の合言葉と、関数の `CRON_SECRET` が違う。手順6を、同じ値で登録し直す。
 
+## 5.5 依存の版と、再デプロイ
+
+Edge Function が `npm:` で取り込む依存(`@supabase/supabase-js`・`web-push`)は、版を固定している(例:
+`npm:@supabase/supabase-js@2.117.3`)。`@2` のような範囲指定だと、デプロイのたびに最新を取り込み、手元でテストした版と
+違うものが本番の通知で動きうるため。`supabase/functions/_shared/npmPins.test.ts` が、あさノート・よるノートの4つの
+`index.ts` で、固定されていて、同じパッケージは同じ版であることを検査する。
+
+- 版を上げるときは、**4つの `index.ts` を同時に**直し(あさノート2・よるノート2)、4つとも再デプロイする。
+- **関数のコードを変えても、再デプロイするまで本番には反映されない**(自動では反映されない)。処理の本体は
+  `_shared/` のハンドラ(`reminderHandler.ts`・`partnerHandler.ts`)に分けてあり、テストがある(#204)。
+  変更したら `npx supabase functions deploy send-reminders` と `notify-partner` を行う。
+
 ## 6. pg_cronで定期実行する
 
 Supabaseダッシュボードの SQL Editor で `supabase/cron-reminders.sql` を開き、

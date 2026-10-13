@@ -13,15 +13,18 @@
 //   2. そのうち notification_settings.notify_partner_record=true のメンバーの全購読へ送る。
 //   3. 通知文言の「〇〇さん」は記録した人のメールアドレスの@より前(表示名を持たないための割り切り)。
 //      送信に失敗した購読(410/404)はその場で削除する。
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.117.3";
 import webpush from "npm:web-push@3.6.7";
-import {
-  displayNameFromEmail,
-  isAuthorizedSecret,
-  partnerRecordPayload,
-  sendToSubscriptions,
-  type PushSubscriptionRow,
-} from "../_shared/pushLogic.ts";
+import { isAuthorizedSecret } from "../_shared/pushLogic.ts";
+import { runPartnerNotify, type PartnerDb } from "../_shared/partnerHandler.ts";
+
+// 処理の本体は _shared/partnerHandler.ts(テストあり)。ここは環境変数・合言葉・リクエストの読み取りと、
+// 本物のクライアントの組み立てだけ。
+const json = (body: unknown, status = 200) =>
+  new Response(typeof body === "string" ? body : JSON.stringify(body), {
+    status,
+    headers: typeof body === "string" ? undefined : { "content-type": "application/json" },
+  });
 
 Deno.serve(async (req) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -59,63 +62,16 @@ Deno.serve(async (req) => {
 
   webpush.setVapidDetails(vapidSubject, vapidPublicKey, vapidPrivateKey);
   const supabase = createClient(supabaseUrl, serviceRoleKey);
-  const json = (body: unknown) => new Response(JSON.stringify(body), { headers: { "content-type": "application/json" } });
 
-  const { data: membership, error: membershipError } = await supabase
-    .from("group_members")
-    .select("group_id")
-    .eq("user_id", authorId)
-    .maybeSingle();
-  if (membershipError) {
-    console.error("group_membersの取得に失敗しました:", membershipError);
-    return new Response("failed to load group_members", { status: 500 });
-  }
-  if (!membership) return json({ partners: 0, sent: 0 });
-
-  const { data: members, error: membersError } = await supabase
-    .from("group_members")
-    .select("user_id")
-    .eq("group_id", membership.group_id)
-    .neq("user_id", authorId);
-  if (membersError) {
-    console.error("group_membersの取得に失敗しました:", membersError);
-    return new Response("failed to load group members", { status: 500 });
-  }
-  const partnerIds = (members ?? []).map((row) => row.user_id as string);
-  if (partnerIds.length === 0) return json({ partners: 0, sent: 0 });
-
-  const { data: settings, error: settingsError } = await supabase
-    .from("notification_settings")
-    .select("user_id")
-    .eq("notify_partner_record", true)
-    .in("user_id", partnerIds);
-  if (settingsError) {
-    console.error("notification_settingsの取得に失敗しました:", settingsError);
-    return new Response("failed to load notification_settings", { status: 500 });
-  }
-  const targetIds = (settings ?? []).map((row) => row.user_id as string);
-  if (targetIds.length === 0) return json({ partners: partnerIds.length, sent: 0 });
-
-  const { data: subscriptions, error: subscriptionsError } = await supabase
-    .from("push_subscriptions")
-    .select("id, endpoint, p256dh, auth_key")
-    .in("user_id", targetIds);
-  if (subscriptionsError) {
-    console.error("push_subscriptionsの取得に失敗しました:", subscriptionsError);
-    return new Response("failed to load push_subscriptions", { status: 500 });
-  }
-
-  const { data: author } = await supabase.auth.admin.getUserById(authorId);
-  const name = displayNameFromEmail(author?.user?.email);
-  const { sent, staleSubscriptionIds } = await sendToSubscriptions(
+  const result = await runPartnerNotify(
+    supabase as unknown as PartnerDb,
     (subscription, payload) => webpush.sendNotification(subscription, payload),
-    (subscriptions ?? []) as PushSubscriptionRow[],
-    partnerRecordPayload(name)
+    authorId,
+    async (userId) => {
+      // 記録した人のメール(通知文言の「〇〇さん」用)。取れなくても通知は送る(名前なしの文言になる)。
+      const { data: author } = await supabase.auth.admin.getUserById(userId);
+      return author?.user?.email;
+    }
   );
-
-  if (staleSubscriptionIds.length > 0) {
-    await supabase.from("push_subscriptions").delete().in("id", staleSubscriptionIds);
-  }
-
-  return json({ partners: partnerIds.length, targeted: targetIds.length, sent });
+  return json(result.body, result.status);
 });
