@@ -17,9 +17,28 @@ const MAX_STACK = 8000;
 const MAX_USER_AGENT = 500;
 const MAX_CONTEXT = 2000;
 // 1回のページ読み込みで送る上限。無限ループするエラーでDBや回線を埋めないための歯止め。
-const MAX_REPORTS_PER_PAGE = 10;
+// 同期はオンライン復帰・画面復帰のたびに繰り返し走り、失敗の原因ごとに文言も変わる。同じ枠を共有すると、
+// 同期失敗で使い切ってしまい、あとから起きた本当の想定外エラーが送られなくなるため、枠を分ける(#214)。
+type ReportBucket = "unexpected" | "sync" | "local-db";
+const BUCKET_OF_SOURCE: Record<ClientErrorSource, ReportBucket> = {
+  "error-boundary": "unexpected",
+  "window-error": "unexpected",
+  "unhandled-rejection": "unexpected",
+  "sync-failure": "sync",
+  "local-db": "local-db",
+};
+// 1ページの最大は合計 16 件(想定外エラー系は3つの source で10件を共有)。
+const MAX_REPORTS_PER_BUCKET: Record<ReportBucket, number> = {
+  unexpected: 10,
+  sync: 5,
+  "local-db": 1,
+};
 
-const reportedKeys = new Set<string>();
+const reportedKeys: Record<ReportBucket, Set<string>> = {
+  unexpected: new Set(),
+  sync: new Set(),
+  "local-db": new Set(),
+};
 
 function truncate(value: string, max: number): string {
   return value.length > max ? value.slice(0, max) : value;
@@ -45,7 +64,7 @@ function describe(error: unknown): { message: string; stack: string | null } {
 
 /** テスト用: 送信済みの重複判定と上限カウントを初期化する。 */
 export function resetClientErrorReports(): void {
-  reportedKeys.clear();
+  for (const keys of Object.values(reportedKeys)) keys.clear();
 }
 
 /**
@@ -65,9 +84,13 @@ export function reportClientError(
   try {
     const { message, stack } = describe(error);
     // 同じエラーの連投(再レンダーごとの再送など)は1回にする。
-    const key = `${source}:${message}:${stack?.slice(0, 200) ?? ""}`;
-    if (reportedKeys.has(key) || reportedKeys.size >= MAX_REPORTS_PER_PAGE) return;
-    reportedKeys.add(key);
+    // 同期失敗は、同じ文言でも失敗した段階(phase)が違えば原因の切り分けに役立つので、別のエラーとして数える。
+    const phase = source === "sync-failure" && typeof context?.phase === "string" ? context.phase : "";
+    const key = `${source}:${phase}:${message}:${stack?.slice(0, 200) ?? ""}`;
+    const bucket = BUCKET_OF_SOURCE[source];
+    const keys = reportedKeys[bucket];
+    if (keys.has(key) || keys.size >= MAX_REPORTS_PER_BUCKET[bucket]) return;
+    keys.add(key);
 
     const supabase = getSupabaseClient();
     const baseContext: ClientErrorContext = {

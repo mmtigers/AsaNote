@@ -817,7 +817,9 @@ npm run test:e2e:supabase  # 実Supabaseテストプロジェクト向けE2E（S
 - 送る契機: `error.tsx` / `global-error.tsx`（`source=error-boundary`）、`window` の `error`（`window-error`）、`unhandledrejection`（`unhandled-rejection`）。後2つは `ClientErrorReporter` がルートレイアウトで拾う。
   画面側で握りつぶして表示だけしているエラーも送る: 同期の失敗（`source=sync-failure`。`sync.ts` の各失敗箇所。`context.phase` に段階、`count` に件数）と、よるノートの端末DB不可（`local-db`。`LocalDbNotice`）。
 - 送る内容: エラーの文言・スタック・画面のパス（クエリ除く）・UA・アプリの版・付帯情報 `context`（オンライン状態・PWAか・同期の段階と件数）・ログイン中ならユーザーID。**記録の内容（メモ・タグ等）は送らない**。
-- fire-and-forget。送信失敗は `console.warn` に留める。1ページ読み込みあたり10件まで、同じエラーは1回のみ。
+- fire-and-forget。送信失敗は `console.warn` に留める。
+- 送信の上限は、1ページ読み込みあたり **source ごとに枠を分ける**（#214）: 想定外エラー系（`error-boundary` / `window-error` / `unhandled-rejection`）は合わせて10件、`sync-failure` は5件、`local-db` は1件（合計で最大16件）。同期は復帰のたびに繰り返し走り、原因ごとに文言も変わるため、枠を共有すると同期失敗で使い切って、あとから起きた想定外エラーが送られなくなるのを防ぐ。
+- 同じエラーは1回のみ。`sync-failure` は同じ文言でも `context.phase`（失敗した段階）が違えば別のエラーとして数える（`count` の違いだけでは別にしない）。
 - 確認はSupabaseダッシュボードのSQL Editor／service roleから（`select * from client_errors order by created_at desc`。件数の集計は `select * from client_errors_summary_7d`＝直近7日を画面・種類・文言ごと）。
 - 保管は90日（`cleanup_old_logs()` が `pg_cron` で毎日消す。**登録は手動**: §8.3）。総行数が20,000行に達すると、anon を含め insert が失敗する（`client_errors_enforce_cap`。クライアントは fire-and-forget のため画面には影響せず、ログが入らなくなるだけ。`pg_cron` を登録していないと、いずれここに達する）。
 
