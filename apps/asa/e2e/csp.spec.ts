@@ -1,12 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
 
-// CSP(#197)。いまは Report-Only(違反を報告するだけで、ブロックはしない)で配っている。
-// Report-Only でも、ブラウザは違反のたびに securitypolicyviolation を発火するので、通常の操作で
-// 違反が1件も出ないことを確かめれば、そのまま強制(Content-Security-Policy)へ切り替えても壊れない。
-// 強制へ切り替えるときは、next.config.ts のキーと、下の ENFORCED を変える。
+// CSP(#197)。強制(Content-Security-Policy。違反をブロックする)で配っている。
+// 強制でも Report-Only でも、ブラウザは違反のたびに securitypolicyviolation を発火するので、通常の操作で
+// 違反が1件も出ないことを確かめる。Report-Only に戻すときは、next.config.ts のキーと、下の ENFORCED を変える。
 // ビルド時の NEXT_PUBLIC_SUPABASE_URL(E2E では placeholder)が接続先として許可される。
 const SUPABASE_ORIGIN = "https://placeholder.supabase.co";
-const ENFORCED = false;
+const ENFORCED = true;
 
 // ページ内で起きた CSP 違反(securitypolicyviolation)を集める。
 async function collectViolations(page: Page) {
@@ -22,7 +21,7 @@ async function collectViolations(page: Page) {
     page.evaluate(() => (window as unknown as { __cspViolations: string[] }).__cspViolations);
 }
 
-test("CSP ヘッダが付いている(いまは Report-Only。強制に切り替えるまで、ブロックはしない)", async ({ request }) => {
+test("CSP ヘッダが付いている(強制。違反はブロックされる)", async ({ request }) => {
   const headers = (await request.get("/")).headers();
   const enforced = headers["content-security-policy"];
   const reportOnly = headers["content-security-policy-report-only"];
@@ -30,7 +29,7 @@ test("CSP ヘッダが付いている(いまは Report-Only。強制に切り替
   expect(csp).toBeTruthy();
   expect(csp).toContain("object-src 'none'");
   expect(csp).toContain(SUPABASE_ORIGIN);
-  // 段階を取り違えない(Report-Only の段階では、強制のヘッダを付けない)。
+  // 段階を取り違えない(強制の段階では、Report-Only のヘッダを付けない)。
   expect(ENFORCED ? reportOnly : enforced).toBeFalsy();
 });
 

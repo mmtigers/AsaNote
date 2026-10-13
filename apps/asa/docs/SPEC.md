@@ -528,7 +528,7 @@ stateDiagram-v2
 
 ### 6.7 その他の防御
 
-- セキュリティヘッダ（`next.config.ts`）: `X-Content-Type-Options: nosniff`、`X-Frame-Options: DENY`、`Referrer-Policy: strict-origin-when-cross-origin`、`Permissions-Policy`（camera / microphone / geolocation を無効）。CSP は `Content-Security-Policy-Report-Only`（**違反を報告するだけでブロックしない**）で配っている（#197）。方針はよるノートと共用の `packages/core/src/csp.ts`（nonce なしの静的な方式。接続先は Supabase、フォントは Google Fonts だけ許可し、`object-src 'none'`・`base-uri` / `form-action` は自分のみ）。違反はブラウザの開発者ツールのコンソールに出る。通常の操作で違反が出ないことを E2E（`e2e/csp.spec.ts`）で確認してあり、実運用で違反が出ないことを確かめてから、`next.config.ts` のキーを `Content-Security-Policy` に変えて強制する（`e2e/csp.spec.ts` の `ENFORCED` も合わせて変える）。
+- セキュリティヘッダ（`next.config.ts`）: `X-Content-Type-Options: nosniff`、`X-Frame-Options: DENY`、`Referrer-Policy: strict-origin-when-cross-origin`、`Permissions-Policy`（camera / microphone / geolocation を無効）。CSP は `Content-Security-Policy`（**違反をブロックする強制**）で配っている（#197）。Report-Only で導入し、実運用の通常の操作（ログイン・記録・同期・Push 通知の購読）で違反が出ないことを確かめてから、強制へ切り替えた。方針はよるノートと共用の `packages/core/src/csp.ts`（nonce なしの静的な方式。接続先は Supabase、フォントは Google Fonts だけ許可し、`object-src 'none'`・`base-uri` / `form-action` は自分のみ）。違反はブラウザの開発者ツールのコンソールに出る。通常の操作で違反が出ないことを E2E（`e2e/csp.spec.ts`）で確認している。新しい接続先・外部リソースを足すときは、`csp.ts` の許可も合わせて直す（直さないとブロックされる）。許可の漏れで本番が壊れたときは、`next.config.ts` のキーを `Content-Security-Policy-Report-Only` に戻せば、ブロックを止められる（`e2e/csp.spec.ts` の `ENFORCED` も合わせて変える）。
 - Edge Function: `send-reminders` は cron 専用の合言葉（`x-cron-secret` = `CRON_SECRET`）、`notify-partner` はトリガー専用の合言葉（`x-notify-secret` = `PARTNER_NOTIFY_SECRET`）を要求する（どちらも `isAuthorizedSecret`）。Supabase の JWT 検証は公開の anon キーでも通してしまうため、関数側で確かめる。`SUPABASE_SERVICE_ROLE_KEY` は非推奨で、値がダッシュボードの鍵と同じとは限らないため、どちらの関数でも使わない。
 - CI: GitHub Actions はコミットSHAで固定（テストで固定。`src/lib/ci-workflow.test.ts`）、ワークフローは最小権限（`contents: read`）、`npm audit --omit=dev` で本番依存の脆弱性を検査（§10）。
 
@@ -852,7 +852,7 @@ npm run test:e2e:supabase  # 実Supabaseテストプロジェクト向けE2E（S
 | 体調（`conditionScale`）の入力 | 入力項目としては不要と判断し、UI・型・保存・同期のコードを削除した（#137）。DB列 `condition_scale` は残る（§5.1） |
 | ピンチ拡大 | §12 |
 | 計測のオフラインキュー | 記録データ本体と違い、失っても影響が小さいため |
-| CSP | Report-Only で導入済み（§6.7）。強制への切り替えは、実運用で違反が出ないことを確かめてから |
+| CSP | 強制で導入済み（§6.7）。許可の漏れで本番が壊れたら、Report-Only に戻せる |
 
 ### 13.2 既知の制約・未解決事項
 
