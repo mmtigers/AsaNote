@@ -641,6 +641,13 @@ create table if not exists analytics_events (
 create index if not exists idx_analytics_events_user_id on analytics_events(user_id);
 create index if not exists idx_analytics_events_record_id on analytics_events(record_id);
 
+-- properties の大きさの上限(#199)。ログイン済みなら誰でも insert できるため、大きな値で表を膨らませられない
+-- ようにする(client_errors.context と同じ 2000 字。クライアントが送るのは数十字の区分名・真偽値・件数のみ)。
+-- not valid: 既存の行は検査せず、これから入る行だけ検査する(再適用しても同じ結果になるよう、作り直す)。
+alter table analytics_events drop constraint if exists analytics_events_properties_check;
+alter table analytics_events add constraint analytics_events_properties_check
+  check (char_length(properties::text) <= 2000) not valid;
+
 alter table analytics_events enable row level security;
 
 drop policy if exists "analytics_events are insertable by their own user" on analytics_events;
@@ -718,11 +725,15 @@ create trigger client_errors_enforce_cap
   for each row execute function client_errors_enforce_cap();
 
 -- 古いログの掃除(#199・#216)。保管期間: client_errors は 90 日、reminder_deliveries は 7 日
--- (send-reminders が使うのは当日の行だけで、残りは調査用)。analytics_events は計測データの扱いが
--- 未決定のため、自動では消さない。cleanup_empty_groups_and_invites() と同じ方式で、実行できるのは
--- service_role と pg_cron(postgres)だけ。定期実行の登録(supabase/cron-cleanup-logs.sql)は手動。
-create or replace function cleanup_old_logs()
-returns table (deleted_client_errors integer, deleted_reminder_deliveries integer)
+-- (send-reminders が使うのは当日の行だけで、残りは調査用)、analytics_events は 365 日(あさノート・
+-- よるノートが共有する表。集計は日別なので、年単位で比べられれば足りる)。
+-- cleanup_empty_groups_and_invites() と同じ方式で、実行できるのは service_role と pg_cron(postgres)だけ。
+-- 定期実行の登録(supabase/cron-cleanup-logs.sql)は手動。
+-- 戻り値の列を変えるときは create or replace では変えられないため、先に drop する(権限は下の do ブロックで
+-- 付け直す。db-deploy.yml は --single-transaction で適用するので、権限の無い状態は外から見えない)。
+drop function if exists cleanup_old_logs();
+create function cleanup_old_logs()
+returns table (deleted_client_errors integer, deleted_reminder_deliveries integer, deleted_analytics_events integer)
 language plpgsql
 security definer
 set search_path = public
@@ -730,6 +741,7 @@ as $$
 declare
   v_errors integer;
   v_deliveries integer;
+  v_events integer;
 begin
   delete from client_errors
   where created_at < now() - interval '90 days';
@@ -739,7 +751,11 @@ begin
   where sent_on < (now() at time zone 'Asia/Tokyo')::date - 7;
   get diagnostics v_deliveries = row_count;
 
-  return query select v_errors, v_deliveries;
+  delete from analytics_events
+  where created_at < now() - interval '365 days';
+  get diagnostics v_events = row_count;
+
+  return query select v_errors, v_deliveries, v_events;
 end;
 $$;
 revoke all on function cleanup_old_logs() from public;

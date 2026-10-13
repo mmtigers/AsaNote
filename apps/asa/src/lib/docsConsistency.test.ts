@@ -57,6 +57,39 @@ describe("ログの保管期間・上限(#199・#216)", () => {
     expect(doc).toContain("20,000");
   });
 
+  it("analytics_events は365日で消す。schema.sql・運用手順書・SPEC の数値が一致する(#199)", () => {
+    expect(schema).toMatch(/delete from analytics_events\s+where created_at < now\(\) - interval '365 days'/);
+    expect(doc).toContain("**365日**");
+    const spec = readFileSync(`${ROOT}/apps/asa/docs/SPEC.md`, "utf8");
+    expect(spec).toContain("`analytics_events` は365日");
+    expect(spec).toContain("**365日で掃除**");
+    expect(spec).not.toContain("`analytics_events` の保持期間は決まっていない");
+    expect(doc).not.toContain("自動では消さない");
+  });
+
+  it("cleanup_old_logs() の戻り値の列が、schema.sql・型定義(database.types.ts)・運用手順書で一致する(#199)", () => {
+    // 戻り値の列を変えるには、create or replace ではなく drop が要る(先に drop している)。
+    expect(schema).toContain("drop function if exists cleanup_old_logs();\ncreate function cleanup_old_logs()");
+    expect(schema).toContain(
+      "returns table (deleted_client_errors integer, deleted_reminder_deliveries integer, deleted_analytics_events integer)"
+    );
+    const types = readFileSync(`${APP_ROOT}src/lib/db/database.types.ts`, "utf8");
+    const block = /cleanup_old_logs: \{[\s\S]*?\}\[\]/.exec(types)?.[0] ?? "";
+    for (const column of ["deleted_client_errors", "deleted_reminder_deliveries", "deleted_analytics_events"]) {
+      expect(block, column).toContain(column);
+      expect(doc, column).toContain(column);
+    }
+  });
+
+  it("analytics_events.properties に2000字の上限(not valid。既存の行は検査しない)があり、手順書に載っている(#199)", () => {
+    expect(schema).toContain("alter table analytics_events drop constraint if exists analytics_events_properties_check;");
+    expect(schema).toMatch(
+      /add constraint analytics_events_properties_check\s+check \(char_length\(properties::text\) <= 2000\) not valid;/
+    );
+    expect(doc).toContain("analytics_events_properties_check");
+    expect(doc).toContain("既存の行は検査しない");
+  });
+
   it("掃除の関数・確認用ビューは anon / authenticated から使えない(revoke)", () => {
     expect(schema).toContain("revoke all on function cleanup_old_logs() from public");
     expect(schema).toContain("revoke all on function cleanup_old_logs() from %I");

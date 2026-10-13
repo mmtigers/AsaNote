@@ -412,6 +412,7 @@ export type Database = {
         Returns: {
           deleted_client_errors: number
           deleted_reminder_deliveries: number
+          deleted_analytics_events: number
         }[]
       }
       create_group: {
