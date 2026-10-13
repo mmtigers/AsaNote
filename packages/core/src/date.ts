@@ -76,3 +76,5 @@ export function parseTimeToMinutes(value: string): number | null {
   if (hours > 23 || minutes > 59) return null;
   return hours * 60 + minutes;
 }
+
+// #226 の確認用(CI の動作確認。マージしない)。
