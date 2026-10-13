@@ -86,6 +86,21 @@
 - コード中の `#62` などの Issue 番号は、取り込み前のリポジトリでは別々の番号体系だった。
   よるノート側(`apps/yoru`)の番号は、アーカイブした旧 `yorunote` リポジトリの Issue を指す。
 
+## Edge Function の共通ロジック(`pushCommon.ts`。生成コピー)
+
+あさノート(ルートの `supabase/functions/`)とよるノート(`apps/yoru/supabase/functions/`)の Edge Function は、別々の場所から
+デプロイする。そのため、`packages/core` のような共有や、ディレクトリをまたぐ import は使えない(プロジェクトの外のファイルを
+デプロイで取り込めるかは、実際にデプロイしないと分からず、失敗するとリマインドが止まる。#202)。
+
+- 認証(`isAuthorizedSecret`)・購読への送信(`sendToSubscriptions`)・日時・リマインド対象の選択など、**コードが同一のもの**は
+  `supabase/functions/_shared/pushCommon.ts` に置く。**正はあさノート側**。
+- よるノート側(`apps/yoru/supabase/functions/_shared/pushCommon.ts`)は、`node scripts/sync-push-common.mjs` が作る
+  **バイト単位で同一のコピー**。**直接編集しない**。正を直したら、スクリプトを実行してコピーを作り直し、一緒にコミットする。
+- ずれたら CI が失敗する(`pushCommonSync.test.ts`。あさノート側・よるノート側の両方にある。片方のアプリだけを直しても、
+  どちらかの CI が気づく)。
+- アプリごとに違うもの(通知の文言 `reminderPayload` / `partnerRecordPayload`、あさノートだけが使う追いつき窓・印の解除)は、
+  各アプリの `pushLogic.ts` に残す。`pushLogic.ts` は共通部分を再 export するので、呼び出し側の import は変わらない。
+
 ## 共通コード(`packages/core`)の方針
 
 - **2つのアプリで同一にしたいものだけ**を移す。先回りの抽象化はしない。アプリ固有のもの(記録フロー・同期・選択肢など)は各アプリに残す。

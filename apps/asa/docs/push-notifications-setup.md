@@ -87,6 +87,7 @@ Edge Function が `npm:` で取り込む依存(`@supabase/supabase-js`・`web-pu
 違うものが本番の通知で動きうるため。`supabase/functions/_shared/npmPins.test.ts` が、あさノート・よるノートの4つの
 `index.ts` で、固定されていて、同じパッケージは同じ版であることを検査する。
 
+- 認証・送信などの共通ロジック(`_shared/pushCommon.ts`)は、**あさノート側が正**で、よるノート側は同一のコピー(`node scripts/sync-push-common.mjs` で作る。直接編集しない)。直したら、**よるノートの関数も再デプロイが要る**(コピーは別の場所からデプロイされる)。
 - 版を上げるときは、**4つの `index.ts` を同時に**直し(あさノート2・よるノート2)、4つとも再デプロイする。
 - **関数のコードを変えても、再デプロイするまで本番には反映されない**(自動では反映されない)。処理の本体は
   `_shared/` のハンドラ(`reminderHandler.ts`・`partnerHandler.ts`)に分けてあり、テストがある(#204)。
