@@ -113,6 +113,33 @@ describe("実Supabase E2E(e2e-supabase.yml)の skip の見える化(#198)", () =
   });
 });
 
+describe("実Supabase E2E の準備手順(docs/e2e-supabase.md)と workflow の整合(#198)", () => {
+  // 手順どおりに進めても有効にならない(変数の登録が抜けている、Secrets の名前が違う)のを防ぐ。
+  const yaml = readFileSync(`${WORKFLOWS_DIR}e2e-supabase.yml`, "utf8");
+  const doc = readFileSync(fileURLToPath(new URL("../../docs/e2e-supabase.md", import.meta.url)), "utf8");
+  // 「## 用意する手順」から次の「## 」見出しの直前まで。
+  const procedure = /^## 用意する手順[\s\S]*?(?=^## )/m.exec(doc)?.[0] ?? "";
+
+  it("workflow が必須と判定している Secrets は、すべて手順の表に載っている", () => {
+    const required = /for name in ([A-Z0-9_ ]+); do/.exec(yaml)?.[1]?.split(" ") ?? [];
+    expect(required).toHaveLength(6);
+    for (const name of required) expect(procedure, name).toContain(`\`${name}\``);
+  });
+
+  it("手順に、ジョブを有効にするリポジトリ変数 E2E_SUPABASE_ENABLED=true の登録が含まれる(無いと skipped のまま)", () => {
+    expect(yaml).toContain("vars.E2E_SUPABASE_ENABLED == 'true'");
+    // 表(`E2E_SUPABASE_ENABLED` | `true`)でも、`E2E_SUPABASE_ENABLED` = `true` の文でもよい。
+    expect(procedure).toMatch(/`E2E_SUPABASE_ENABLED`\s*(?:=|\|)\s*`true`/);
+  });
+
+  it("CI の表示(skipped / 警告つきの成功 / 実行して成功)の見分け方を載せている", () => {
+    expect(doc).toContain("skipped");
+    expect(doc).toContain("実SupabaseのE2Eは実行されていません");
+    expect(doc).toContain("Run E2E tests against the Supabase test project");
+    expect(yaml).toContain("name: Run E2E tests against the Supabase test project");
+  });
+});
+
 describe("本番DBへの反映ワークフローの concurrency(#203)", () => {
   // あさノート・よるノートは同じ本番DB(SUPABASE_DB_URL)へ DDL を流す。
   // group 名が別だと、両方の schema.sql を変えた PR のマージで同時に走ってしまう。

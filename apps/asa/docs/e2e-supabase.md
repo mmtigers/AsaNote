@@ -3,8 +3,14 @@
 グループ作成 → 招待コード発行 → 別ユーザーで参加 → 脱退 を、**テスト専用のSupabaseプロジェクト**に対して通しで確かめるE2E。
 認証経路(ログイン済みセッションでの操作)と RLS(未ログイン・グループ外・脱退後のユーザーから見えない/書けない)の検証を含む。
 
-状態: **コードとCIは準備済み。テストプロジェクトの用意と Secrets の登録待ち**(下の「用意する手順」)。
-Secrets が無い間は、テストは自動で skip され、CI も赤くならない。
+状態: **未稼働**。コードとCIは準備済みだが、次の3つがまだ(下の「用意する手順」。ユーザーの作業)。
+
+- [ ] テスト専用のSupabaseプロジェクトを作り、`supabase/schema.sql` を適用し、テストユーザーを2人作る(手順1〜4)
+- [ ] GitHub の Secrets を登録する(手順5)
+- [ ] リポジトリ変数 `E2E_SUPABASE_ENABLED` = `true` を足して有効にする(手順6)
+
+稼働するまで、CI の「E2E test (real Supabase test project)」は **skipped** と表示される(実行されていない。緑の成功ではない。見分け方は「CI の表示の見分け方」)。
+テストを手元で実行して Secrets 相当の環境変数が無いときは、テストが自動で skip され、赤くならない。
 
 ## 絶対のルール: 本番Supabaseには接続しない
 
@@ -86,7 +92,23 @@ Authentication → Users → **Add user → Create new user** で、次の2人�
 | `E2E_USER_B_EMAIL` / `E2E_USER_B_PASSWORD` | ユーザーB |
 | `E2E_PRODUCTION_SUPABASE_URL`(任意) | **本番**のProject URL(誤接続の検出用) |
 
-6つ(必須)が全部揃ったときだけ、`.github/workflows/e2e-supabase.yml` がE2Eを実行する。1つでも欠けていれば skip(成功)。
+6つ(必須)が全部揃っていないと、E2E は実行されない(警告つきの成功で終わる)。**Secrets を登録しただけでは、ジョブは起動しない。次の手順6が要る。**
+
+### 6. リポジトリ変数 `E2E_SUPABASE_ENABLED` を足して有効にする
+
+Settings → Secrets and variables → Actions → **Variables** タブ → New repository variable(Secrets タブではない)。
+
+| Variable | 値 |
+| --- | --- |
+| `E2E_SUPABASE_ENABLED` | `true` |
+
+この変数が `true` でない間は、ジョブごと起動しない(skipped)。無効に戻したいときは、値を `true` 以外にするか、変数を削除する。
+
+### 7. 初回の動作確認
+
+Actions タブ → 「E2E (実Supabaseテストプロジェクト)」→ Run workflow(`workflow_dispatch`)で手動実行する。
+「Run E2E tests against the Supabase test project」ステップが**実行され**、成功すれば稼働している(見分け方は「CI の表示の見分け方」)。
+赤くなった場合は、Playwright のレポート(`playwright-report-supabase`、7日保存)を見る。「既知の限界」のとおり、初回はロケータや RLS の期待値の微調整が要るかもしれない。
 
 ## 実行のしかた
 
@@ -100,7 +122,18 @@ Authentication → Users → **Add user → Create new user** で、次の2人�
 - 同じテストユーザーを共有するため、実行は同時に1つだけ(`concurrency`、打ち切りなし)。
 - トレース・スクリーンショットは取らない(ログイン済みセッションのトークンを含むため)。失敗時はHTMLレポートのみ7日保存。
 
-初回の動作確認は、Secrets を登録したあと Actions タブからこのワークフローを手動実行(Run workflow)するのが早い。
+初回の動作確認は、手順6までを済ませたあと、Actions タブからこのワークフローを手動実行(Run workflow)するのが早い(手順7)。
+
+### CI の表示の見分け方(#198)
+
+「E2E test (real Supabase test project)」の表示で、実DBで検証されたかどうかが分かる。**緑でも、検証されたとは限らない。**
+
+| 表示 | 意味 |
+| --- | --- |
+| **skipped**(灰色、ジョブが実行されない) | 変数 `E2E_SUPABASE_ENABLED` が `true` でない。**未稼働**(現在の状態) |
+| 成功 + 警告「実SupabaseのE2Eは実行されていません(未設定のSecrets: …)」+ job summary「実Supabase E2E は未実行(skip)」 | 変数は有効だが、Secrets が欠けている、または fork の PR。**実DBでは検証されていない** |
+| 成功 + 「Run E2E tests against the Supabase test project」ステップが実行されている(数十秒〜数分かかる) | 実際に実行され、通った |
+| 失敗 | 実行されて落ちた。Playwright のレポートを見る |
 
 ### ローカル
 
