@@ -143,6 +143,16 @@ describe("apps/yoru の README・SPEC・docs(#228)", () => {
     expect(q6).not.toContain("要確認");
   });
 
+  it("MONOREPO.md の Vercel の本番 URL の表は、オーナーが確認した URL と一致する(取り違えを戻さない。#228)", () => {
+    // あさノート=asa-note.vercel.app、よるノート=yorunote-mm.vercel.app(オーナーが共有した URL、2026-10-13)。
+    const monorepo = readFileSync(`${ROOT}/docs/MONOREPO.md`, "utf8");
+    expect(monorepo).toMatch(/^\| あさノート \| `asa-note` \| `asa-note\.vercel\.app` \|.*`apps\/asa`/m);
+    expect(monorepo).toMatch(/^\| よるノート \| `yoru-note` \| `yorunote-mm\.vercel\.app` \|.*`apps\/yoru`/m);
+    // 取り違えていた頃の記述(asa-note.vercel.app をよるノートの URL とする、存在しない go-to-school-one)を戻さない。
+    expect(monorepo).not.toContain("go-to-school-one");
+    expect(monorepo).toContain("https://yorunote-mm.vercel.app/**");
+  });
+
   it("手順書の期待結果は、子どもの名前を書かない一般的な表現になっている(SPEC §6: 子ども名はハードコードしない)", () => {
     // 実名そのものを、このテストに書いてはいけない(公開リポジトリのため)。名前を書かない表現が
     // 残っていることを、肯定形で検査する。名前を戻すと、この行が書き換わって失敗する。

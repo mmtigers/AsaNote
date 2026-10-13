@@ -45,14 +45,16 @@
 
 別プロジェクトで、Root Directory を `apps/yoru` にしている(「ルート外のファイルを含める」も有効)。
 
-| プロジェクト | 本番 URL | つなぐリポジトリ |
-|---|---|---|
-| あさノート | `go-to-school-one.vercel.app` | `mmtigers/AsaNote`(Root Directory `apps/asa`) |
-| よるノート | `asa-note.vercel.app` | `mmtigers/AsaNote`(Root Directory `apps/yoru`) |
+| アプリ | Vercel のプロジェクト名 | 本番 URL | つなぐリポジトリ |
+|---|---|---|---|
+| あさノート | `asa-note` | `asa-note.vercel.app` | `mmtigers/AsaNote`(Root Directory `apps/asa`) |
+| よるノート | `yoru-note` | `yorunote-mm.vercel.app` | `mmtigers/AsaNote`(Root Directory `apps/yoru`) |
+
+- 本番 URL は、オーナーが共有した URL で確認した(2026-10-13)。**よるノートの URL(`yorunote-mm`)は、プロジェクト名(`yoru-note`)と一致しない**ので、プロジェクト名から推測しないこと(以前は表が取り違えていた。#228)。
 
 - **つなぐリポジトリは、必ず `mmtigers/AsaNote`**(このリポジトリ)にする。2026-10-07 に、アーカイブした旧 `mmtigers/YoruNote` につないだプロジェクトで公開してしまい、#171 以降の版が届かず、`v0.2.0` のまま止まった(実機の更新履歴で発覚)。作ったら、Settings → Git で、つなぎ先のリポジトリを確かめること。
 - 環境変数は `NEXT_PUBLIC_SUPABASE_URL`・`NEXT_PUBLIC_SUPABASE_ANON_KEY`・`NEXT_PUBLIC_VAPID_PUBLIC_KEY`(Production と Preview)。
-- ログインのメールのリンク用に、Supabase の Authentication → URL Configuration の Redirect URLs へ、本番 URL(`https://asa-note.vercel.app/**`)を登録している(Site URL はあさノートのまま)。
+- ログインのメールのリンク用に、Supabase の Authentication → URL Configuration で、**Site URL をあさノートの本番 URL(`https://asa-note.vercel.app`)にし、Redirect URLs によるノートの本番 URL(`https://yorunote-mm.vercel.app/**`)を登録する**(あさノートとよるノートは同じ Supabase プロジェクトで、ログインのメールのリンクの戻り先は、Redirect URLs に無いと Site URL=あさノートへ飛ぶ)。
 - **本番 URL(ドメイン)を変えると、端末に入れた PWA は別のサイト扱いになる**(端末内のデータ・ログイン・通知の登録を引き継げない)。プロジェクト名の変更でドメインが変わりうるので、公開後は変えないこと。
 
 ### 切り替えの順序
