@@ -722,18 +722,18 @@ src/
 supabase/
   schema.sql              テーブル・RLS・SQL関数・計測ビュー（mainマージで自動適用）
   functions/send-reminders, notify-partner                        Edge Function（Deno。index.ts は環境変数・合言葉・クライアントの組み立てだけ）
-  functions/_shared/      pushLogic.ts（純粋関数）, reminderHandler.ts, partnerHandler.ts（処理の本体）と、そのテスト
+  functions/_shared/      pushCommon.ts（よるノートと共通の純粋関数。正はこちら）, pushLogic.ts（あさノート固有）, reminderHandler.ts, partnerHandler.ts（処理の本体）と、そのテスト
   cron-reminders.sql, partner-notify-trigger.sql                  手動適用
   ci/auth-stub.sql        CIの型ドリフト検査用スタブ
 public/                   sw.js, manifest.webmanifest, icons/, apple-touch-icon.png
-scripts/                  gen-db-types.sh, import-records.mjs(更新履歴の検査 check-release-notes.mjs はルートの scripts/)
+scripts/                  gen-db-types.sh, import-records.mjs(更新履歴の検査 check-release-notes.mjs と、Edge Function の共通ロジックの複製 sync-push-common.mjs はルートの scripts/)
 e2e/record-flow.spec.ts   Playwright E2E
 e2e-supabase/           実Supabaseテストプロジェクト向けE2E（spec・接続先ガード config.ts）。設定は playwright.supabase.config.ts
 docs/                     SPEC.md（本書）, push-notifications-setup.md, e2e-supabase.md
 .github/                  workflows/ci.yml, workflows/e2e-supabase.yml, workflows/db-deploy.yml, dependabot.yml
 ```
 
-- `supabase/functions/` はDeno向けで、このNode/Next.jsプロジェクトの `tsc` と ESLint の対象外（`tsconfig.json` の `exclude` と `eslint.config.mjs` の `globalIgnores`）。処理の本体は `_shared/` に切り出してあり（`pushLogic.ts` の純粋関数と、`reminderHandler.ts`・`partnerHandler.ts` のハンドラ。DB と送信関数は引数で受け取る。よるノートの同名ファイルと同じ形）、Vitestで検証する（二重送信防止の印・失敗時の印の解除・失効購読の削除・送らない条件など。#204）。`npm:` で取り込む依存は版を固定し、`_shared/npmPins.test.ts` が検査する（上げるときは4つの `index.ts` をそろえ、再デプロイする）。
+- `supabase/functions/` はDeno向けで、このNode/Next.jsプロジェクトの `tsc` と ESLint の対象外（`tsconfig.json` の `exclude` と `eslint.config.mjs` の `globalIgnores`）。処理の本体は `_shared/` に切り出してあり（`pushCommon.ts`・`pushLogic.ts` の純粋関数と、`reminderHandler.ts`・`partnerHandler.ts` のハンドラ。`pushCommon.ts` はよるノートと共通で、**正はこちら。よるノート側は `scripts/sync-push-common.mjs` の同一コピーで、ずれたら CI が失敗する**（#202、`docs/MONOREPO.md`）。DB と送信関数は引数で受け取る。よるノートの同名ファイルと同じ形）、Vitestで検証する（二重送信防止の印・失敗時の印の解除・失効購読の削除・送らない条件など。#204）。`npm:` で取り込む依存は版を固定し、`_shared/npmPins.test.ts` が検査する（上げるときは4つの `index.ts` をそろえ、再デプロイする）。
 - 選択肢（結果・理由タグ）を増減するときは `src/constants/choices.ts` だけを触る。旧フォーム由来の選択肢は、過去記録の表示のためだけに残している。
 
 ## 10. テスト・CI

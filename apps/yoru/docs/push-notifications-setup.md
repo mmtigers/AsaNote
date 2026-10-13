@@ -73,7 +73,10 @@ npx supabase functions deploy send-evening-reminders --project-ref <PROJECT_REF>
 
 `npm:` で取り込む依存(`@supabase/supabase-js`・`web-push`)は、版を固定している(あさノートの関数と同じ版。
 `supabase/functions/_shared/npmPins.test.ts` が検査する)。版を上げるときは、あさノート・よるノートの**4つの
-`index.ts` を同時に**直し、4つとも再デプロイする。関数のコードを変えても、再デプロイするまで本番には反映されない。
+`index.ts` を同時に**直し、4つとも再デプロイする。
+
+`_shared/pushCommon.ts`(認証・送信などの共通ロジック)は、**あさノート側が正で、これは `node scripts/sync-push-common.mjs` の同一コピー**。
+直接編集しない(ずれたら CI が失敗する)。通知の文言(`pushLogic.ts` の `reminderPayload` など)は、よるノート固有でここにある。関数のコードを変えても、再デプロイするまで本番には反映されない。
 
 ## 6. pg_cronで定期実行する
 
