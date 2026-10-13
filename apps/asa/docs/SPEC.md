@@ -417,7 +417,7 @@ Supabase Edge Function `send-reminders`（`supabase/functions/send-reminders/ind
 | `push_subscriptions` | `user_id`, `endpoint` **unique**, `p256dh`, `auth_key`。索引 `user_id` | Push購読。1ユーザーが複数端末を持てる |
 | `reminder_deliveries` | `(user_id, sent_on)` PK, `created_at` | 未入力リマインドの送信済み記録（ユーザー×JSTの日付。§4.3）。Edge Function（service role）専用。**7日で掃除**（使うのは当日の行だけ。`cleanup_old_logs()`） |
 | `notification_settings` | `user_id` PK, `reminder_time`(time, 既定 21:00), `enabled`(既定 true), `notify_partner_record`(既定 false), `updated_at` | 通知設定。ユーザー1人につき1行 |
-| `analytics_events` | `user_id`, `record_id`, `event_name`, `properties`(jsonb), `client_ts`, `created_at`。索引 `user_id` / `record_id` | 記録フローの計測（§11）。書き込み専用 |
+| `analytics_events` | `user_id`, `record_id`, `event_name`, `properties`(jsonb), `client_ts`, `created_at`。索引 `user_id` / `record_id` | 記録フローの計測（§11）。書き込み専用。あさノート・よるノート共用。`properties` は2000字まで（check 制約。既存の行は検査しない）。**365日で掃除**（`cleanup_old_logs()`、§8.3） |
 | `client_errors` | `user_id`(null可), `app`, `source`, `message`, `stack`, `path`, `user_agent`, `app_version`, `context`(jsonb), `client_ts`, `created_at`。索引 `created_at` | ブラウザ側の想定外エラーの記録（§11.4）。書き込み専用。あさノート・よるノート共用。**90日で掃除**（`cleanup_old_logs()`、§8.3）、匿名insertの濫用対策として**総行数の上限20,000行**（`client_errors_enforce_cap` トリガー）。確認用ビュー `client_errors_summary_7d` |
 
 `Group` / `GroupInvite` / `Child` / `GroupMemberProfile` の型は `src/types/models.ts`。
@@ -518,7 +518,7 @@ stateDiagram-v2
 | Push購読 | `endpoint` と鍵を本人のみ読み書きできる形で保存 |
 | 外部への通信 | Supabase、Push配信（ブラウザベンダのPushサービス）、Google Fonts（`globals.css` の `@import`。**要確認 Q18**） |
 
-退会（アカウント・データの削除）の機能はコードに無い。ログの保持期間は決めた（`client_errors` は90日、`reminder_deliveries` は7日。`cleanup_old_logs()`、§8.3、`docs/log-retention.md`）が、記録データ本体や `analytics_events` の保持期間は決まっていない。**要確認 Q13**
+退会（アカウント・データの削除）の機能はコードに無い。ログの保持期間は決めた（`client_errors` は90日、`reminder_deliveries` は7日、`analytics_events` は365日。`cleanup_old_logs()`、§8.3、`docs/log-retention.md`）が、記録データ本体の保持期間は決まっていない。**要確認 Q13**
 
 ### 6.6 端末内データの扱い
 
@@ -912,7 +912,7 @@ npm run test:e2e:supabase  # 実Supabaseテストプロジェクト向けE2E（S
 | Q9（解決済み #125） | 前面に戻ったとき、前回の取り込みから5分以上空いていれば `pullFromCloud` を呼ぶようにした。定期取得と Realtime は使わない | §7.3 | `src/lib/db/sync.ts`, `packages/core/src/pullOnResume.ts` |
 | Q11 | 招待コード（8文字×32種）にアプリ側の試行回数制限が無い。Supabase側のレート制限に任せる想定か | §6.4 | `src/lib/db/groups.ts`, `schema.sql` |
 | Q12 | 本番URL、対応ブラウザ・OSの公式な範囲（ホスティング先は Vercel と確認済み） | §8.1, §12 | `docs/push-notifications-setup.md`、PRのVercelプレビュー |
-| Q13 | 想定利用者の範囲（家族内の限定運用か一般公開か）、記録データ本体と `analytics_events` の保持期間（ログは決定済み: `client_errors` 90日・`reminder_deliveries` 7日）、退会（アカウント・データ削除）の方針。退会機能はコードに無い | §1.2, §6.5 | README、コード全般 |
+| Q13 | 想定利用者の範囲（家族内の限定運用か一般公開か）、記録データ本体の保持期間（ログは決定済み: `client_errors` 90日・`reminder_deliveries` 7日・`analytics_events` 365日）、退会（アカウント・データ削除）の方針。退会機能はコードに無い | §1.2, §6.5 | README、コード全般 |
 | Q14（解決済み #127） | タイムラインのカードに子ども名が出ない／エクスポートが子どもで分かれない。→ タイムライン・傾向は #180 でカードに子ども名と「未分類」の絞り込みを追加。エクスポートは子どもの絞り込みと、CSVの末尾の「子ども」列、印刷/PDFの子ども名を追加した | §3.2, §3.4 | `src/app/timeline/page.tsx`, `src/app/export/page.tsx`, `src/app/export/selectEntries.ts` |
 | Q15 | 初回訪問直後にオフラインで起動できるか（プリキャッシュは `/` とアイコンのみで、JS等は遅延キャッシュ）。未検証 | §7.7 | `public/sw.js` |
 | Q16（解消済み #131） | ログアウトで、IndexedDBに加え、`localStorage` の下書き・選択中の子ども・リマインドを閉じた日付も消すようにした | §3.6, §5.3, §6.6 | `src/lib/db/localDb.ts`, `src/components/AuthStatus.tsx` |
