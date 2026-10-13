@@ -5,11 +5,18 @@ name: E2E (実Supabaseテストプロジェクト)
 #
 # 通常のCI(ci.yml)とは別ワークフローにしてあり、ここが失敗・skipしても ci.yml の結果には影響しない。
 #
-# - リポジトリ変数 `E2E_SUPABASE_ENABLED` が `true` でなければ、ジョブごと起動しない(skipped。ランナーを使わないので
-#   Actions の分数を消費しない。#209)。以前は Secrets の判定だけのジョブが毎回走り、数秒でも1分課金されていた。
-#   テスト専用プロジェクトと Secrets を用意したら、Settings > Secrets and variables > Actions > Variables に
-#   `E2E_SUPABASE_ENABLED=true` を足して有効にする。
-# - 有効なのに Secrets が未設定なら(fork のPRなど)、E2E自体を実行せず成功(skip)で終わる。赤くならない。
+# - 判定ステップが最初に走り、実行してよいかを決める。実行しない場合は、理由を `::warning::` と job summary に出して
+#   成功(緑)で終わる。**緑でも実DBでは検証されていない**ので、理由を必ず見えるようにしている(#198)。
+#   - リポジトリ変数 `E2E_SUPABASE_ENABLED` が `true` でない: テストプロジェクトが未準備の間の、設計どおりの状態(未稼働)。
+#     テスト専用プロジェクトと Secrets を用意したら、Settings > Secrets and variables > Actions > Variables に
+#     `E2E_SUPABASE_ENABLED=true` を足して有効にする。
+#   - 有効なのに Secrets が未設定(fork のPRなど): E2E自体を実行しない。赤くならない。
+#   以前は、変数が `true` でなければジョブごと起動しなかった(分数の節約。#209)。ただしその間は警告も summary も
+#   出なかったため、公開リポジトリで分数が無料になったのを機に、判定ジョブを毎回走らせる形にした。
+#   **非公開に戻して分数を気にするときは**、ジョブに `if: ${{ vars.E2E_SUPABASE_ENABLED == 'true' }}` を足す
+#   (step で飛ばすだけではランナーが起動して最低1分課金される。#237)。
+# - ドラフトの PR では起動しない(ready にした時と、その後の push で起動する。#225・#236 と同じ)。同じテストプロジェクトを
+#   共有するため、作業中の push のたびに実DBを動かさない意味もある。
 # - fork からの PR では Secrets が渡されないので、同じく skip で終わる。
 #   (pull_request_target は使わない。fork のコードを Secrets 付きで動かさないため。)
 # - 本番Supabaseには接続しない。E2E_SUPABASE_URL が本番と一致する等の場合は、テスト側のガードが中止する
@@ -32,6 +39,8 @@ on:
       - ".github/workflows/e2e-supabase.yml"
   pull_request:
     branches: [main, master]
+    # ドラフトから ready にした時(ready_for_review)にも起動する。
+    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - "apps/asa/**"
       - "packages/core/**"
@@ -50,14 +59,15 @@ permissions:
 jobs:
   e2e-supabase:
     name: E2E test (real Supabase test project)
-    # ジョブ単位で止める(job-level の if)。step で飛ばすだけだとランナーが起動して最低1分課金される。
-    if: ${{ vars.E2E_SUPABASE_ENABLED == 'true' }}
+    # ドラフトの PR では走らせない。push・手動実行では github.event.pull_request が空なので、この条件は真になる。
+    if: ${{ !github.event.pull_request.draft }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
       run:
         working-directory: apps/asa
     env:
+      E2E_SUPABASE_ENABLED: ${{ vars.E2E_SUPABASE_ENABLED }}
       E2E_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
       E2E_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
       E2E_USER_A_EMAIL: ${{ secrets.E2E_USER_A_EMAIL }}
@@ -66,7 +76,8 @@ jobs:
       E2E_USER_B_PASSWORD: ${{ secrets.E2E_USER_B_PASSWORD }}
       E2E_PRODUCTION_SUPABASE_URL: ${{ secrets.E2E_PRODUCTION_SUPABASE_URL }}
     steps:
-      # Secrets が全て揃っているかを最初に判定する。揃っていなければ以降のステップは全て飛ばし、成功で終える。
+      # 実行してよいか(変数が true で、Secrets が全て揃っているか)を最初に判定する。
+      # 実行しないときは、以降のステップは全て飛ばし、理由を warning と job summary に出して成功で終える。
       # (値そのものはログに出さない。未設定の名前だけを出す。)
       - name: Check secrets are configured
         id: check
@@ -76,21 +87,28 @@ jobs:
           for name in E2E_SUPABASE_URL E2E_SUPABASE_ANON_KEY E2E_USER_A_EMAIL E2E_USER_A_PASSWORD E2E_USER_B_EMAIL E2E_USER_B_PASSWORD; do
             if [ -z "${!name}" ]; then missing="$missing $name"; fi
           done
-          if [ -n "$missing" ]; then
+          if [ "$E2E_SUPABASE_ENABLED" != "true" ]; then
+            reason="リポジトリ変数 E2E_SUPABASE_ENABLED が true ではありません。テスト専用プロジェクトの準備前は設計どおりです"
             echo "enabled=false" >> "$GITHUB_OUTPUT"
+          elif [ -n "$missing" ]; then
+            reason="未設定のSecrets:$missing。fork のPRまたは準備前は設計どおりです"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            reason=""
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+          if [ -n "$reason" ]; then
             # skip でも成功(緑)で終わるため、一覧では「実行された」ように見える(#198)。
             # warning と job summary で「実DB E2E は未実行」と明示する。
-            echo "::warning::実SupabaseのE2Eは実行されていません(未設定のSecrets:$missing)。fork のPRまたは準備前は設計どおりの動作ですが、この緑は実DBでの検証を意味しません。"
+            echo "::warning::実SupabaseのE2Eは実行されていません($reason)。この緑は実DBでの検証を意味しません。"
             {
               echo "## ⚠️ 実Supabase E2E は未実行(skip)"
               echo
-              echo "未設定の Secrets:$missing"
+              echo "理由: $reason"
               echo
               echo "このジョブの緑は、グループ作成・招待参加・脱退・RLS を実DBで確かめたことを意味しません。"
               echo "準備手順: apps/asa/docs/e2e-supabase.md"
             } >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "enabled=true" >> "$GITHUB_OUTPUT"
           fi
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
