@@ -128,7 +128,7 @@ export async function getGroupMembers(): Promise<GroupMemberProfile[]> {
 // 未ログイン時は [] を返す(useChildren と違う点)。未ログインならパートナーは居ないと
 // 言い切れるため、「0件で確定」として扱ってよい。
 export function useGroupMembers(): GroupMemberProfile[] | null {
-  return useAuthedList(getGroupMembers, { whenSignedOut: "empty" });
+  return useAuthedList(getGroupMembers, { whenSignedOut: "empty", where: "list/group-members" });
 }
 
 // タイムラインでuser_id→emailを引くための軽量マップ。

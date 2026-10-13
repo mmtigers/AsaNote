@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { reportHandledError } from "../clientErrors";
 import { CACHE_STATIC_URLS_MESSAGE, collectStaticAssetPaths } from "../staticAssets";
 
 /**
@@ -21,6 +22,7 @@ export function ServiceWorkerRegister({ onRegistered }: { onRegistered?: () => v
         })
         .catch((error) => {
           console.error("Service worker registration failed:", error);
+          reportHandledError("sw/register", error);
         });
     }
 

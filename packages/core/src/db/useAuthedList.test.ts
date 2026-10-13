@@ -6,6 +6,9 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const { useAuthMock } = vi.hoisted(() => ({ useAuthMock: vi.fn() }));
 vi.mock("../auth", () => ({ useAuth: useAuthMock }));
 
+const { reportHandledErrorMock } = vi.hoisted(() => ({ reportHandledErrorMock: vi.fn() }));
+vi.mock("../clientErrors", () => ({ reportHandledError: reportHandledErrorMock }));
+
 import { useAuthedList } from "./useAuthedList";
 
 // Session の実体は使わないので、真偽だけ合っていればよい
@@ -21,7 +24,7 @@ describe("useAuthedList", () => {
     useAuthMock.mockReturnValue({ session: null, loading: true });
     const fetchList = vi.fn().mockResolvedValue([1]);
 
-    const { result } = renderHook(() => useAuthedList(fetchList, { whenSignedOut: "empty" }));
+    const { result } = renderHook(() => useAuthedList(fetchList, { whenSignedOut: "empty", where: "list/test" }));
 
     expect(result.current).toBeNull();
     expect(fetchList).not.toHaveBeenCalled();
@@ -32,7 +35,7 @@ describe("useAuthedList", () => {
     useAuthMock.mockReturnValue({ session: null, loading: false });
     const fetchList = vi.fn().mockResolvedValue([1]);
 
-    const { result } = renderHook(() => useAuthedList(fetchList, { whenSignedOut: "null" }));
+    const { result } = renderHook(() => useAuthedList(fetchList, { whenSignedOut: "null", where: "list/test" }));
 
     await waitFor(() => expect(result.current).toBeNull());
     expect(fetchList).not.toHaveBeenCalled();
@@ -43,7 +46,7 @@ describe("useAuthedList", () => {
     useAuthMock.mockReturnValue({ session: null, loading: false });
     const fetchList = vi.fn().mockResolvedValue([1]);
 
-    const { result } = renderHook(() => useAuthedList(fetchList, { whenSignedOut: "empty" }));
+    const { result } = renderHook(() => useAuthedList(fetchList, { whenSignedOut: "empty", where: "list/test" }));
 
     await waitFor(() => expect(result.current).toEqual([]));
     expect(fetchList).not.toHaveBeenCalled();
@@ -53,7 +56,7 @@ describe("useAuthedList", () => {
     useAuthMock.mockReturnValue({ session: SIGNED_IN, loading: false });
     const fetchList = vi.fn().mockResolvedValue(["a", "b"]);
 
-    const { result } = renderHook(() => useAuthedList(fetchList, { whenSignedOut: "null" }));
+    const { result } = renderHook(() => useAuthedList(fetchList, { whenSignedOut: "null", where: "list/test" }));
 
     await waitFor(() => expect(result.current).toEqual(["a", "b"]));
     expect(fetchList).toHaveBeenCalledTimes(1);
@@ -63,7 +66,7 @@ describe("useAuthedList", () => {
     useAuthMock.mockReturnValue({ session: SIGNED_IN, loading: false });
     const fetchList = vi.fn().mockResolvedValue([]);
 
-    const { result } = renderHook(() => useAuthedList(fetchList, { whenSignedOut: "null" }));
+    const { result } = renderHook(() => useAuthedList(fetchList, { whenSignedOut: "null", where: "list/test" }));
 
     await waitFor(() => expect(result.current).toEqual([]));
   });
@@ -72,12 +75,12 @@ describe("useAuthedList", () => {
     useAuthMock.mockReturnValue({ session: SIGNED_IN, loading: false });
     const fetchList = vi.fn().mockRejectedValue(new Error("boom"));
 
-    const { result } = renderHook(() => useAuthedList(fetchList, { whenSignedOut: "null" }));
+    const { result } = renderHook(() => useAuthedList(fetchList, { whenSignedOut: "null", where: "list/test" }));
 
     await waitFor(() => expect(result.current).toEqual([]));
   });
 
-  // 呼び出し側は { whenSignedOut: "null" } をレンダーごとに新しく作って渡す。
+  // 呼び出し側は { whenSignedOut: "null", where: "list/test" } をレンダーごとに新しく作って渡す。
   // 依存配列にオブジェクトそのものを入れていると毎レンダー再取得して無限ループになるため、
   // 中で文字列へ分解している。再レンダーしても取得が増えないことを固定する。
   it("再レンダーしても取得を繰り返さない", async () => {
@@ -85,7 +88,7 @@ describe("useAuthedList", () => {
     const fetchList = vi.fn().mockResolvedValue(["a"]);
 
     const { result, rerender } = renderHook(() =>
-      useAuthedList(fetchList, { whenSignedOut: "null" })
+      useAuthedList(fetchList, { whenSignedOut: "null", where: "list/test" })
     );
     await waitFor(() => expect(result.current).toEqual(["a"]));
 
@@ -108,12 +111,23 @@ describe("useAuthedList", () => {
     );
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    const { unmount } = renderHook(() => useAuthedList(fetchList, { whenSignedOut: "null" }));
+    const { unmount } = renderHook(() => useAuthedList(fetchList, { whenSignedOut: "null", where: "list/test" }));
     unmount();
     resolveList(["late"]);
     await Promise.resolve();
 
     expect(errorSpy).not.toHaveBeenCalled();
     errorSpy.mockRestore();
+  });
+
+  it("取得に失敗したら空配列にして、場所つきで記録する(#213)", async () => {
+    useAuthMock.mockReturnValue({ session: SIGNED_IN, loading: false });
+    const failure = new Error("network");
+    const fetchList = vi.fn().mockRejectedValue(failure);
+
+    const { result } = renderHook(() => useAuthedList(fetchList, { whenSignedOut: "null", where: "list/test" }));
+
+    await waitFor(() => expect(result.current).toEqual([]));
+    expect(reportHandledErrorMock).toHaveBeenCalledWith("list/test", failure);
   });
 });

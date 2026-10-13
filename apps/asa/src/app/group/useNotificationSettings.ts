@@ -106,7 +106,8 @@ export function useNotificationSettings(
     const subscribeResult = await runAction(
       () => requestPushSubscription(vapidPublicKey),
       "通知の許可を取得できませんでした",
-      onError
+      onError,
+      "push/subscribe"
     );
     if (!subscribeResult.ok) return false;
     const subscriptionKeys = subscribeResult.value;
@@ -117,7 +118,8 @@ export function useNotificationSettings(
     const saveSubResult = await runAction(
       () => savePushSubscription(userId, subscriptionKeys),
       "通知購読の保存に失敗しました",
-      onError
+      onError,
+      "push/save-subscription"
     );
     return saveSubResult.ok;
   }

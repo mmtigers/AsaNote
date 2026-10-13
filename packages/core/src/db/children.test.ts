@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Child } from "../types/group";
 import { createChild, deleteChild, getChildren, resolveEffectiveChildId, updateChild, useChildren, clearChildrenCache } from "./children";
 
-const { useAuthMock } = vi.hoisted(() => ({ useAuthMock: vi.fn() }));
+const { useAuthMock, reportHandledErrorMock } = vi.hoisted(() => ({ useAuthMock: vi.fn(), reportHandledErrorMock: vi.fn() }));
+vi.mock("../clientErrors", () => ({ reportHandledError: reportHandledErrorMock }));
 vi.mock("../auth", () => ({ useAuth: useAuthMock }));
 
 const authGetUser = vi.fn();
@@ -215,6 +216,19 @@ describe("useChildren の端末キャッシュ(#126)", () => {
     const { result } = renderHook(() => useChildren());
 
     await waitFor(() => expect(result.current).toEqual([]));
+  });
+
+  it("取得に失敗したら list/children を、覚えている一覧が壊れていたら storage/children-cache-read を記録する(#213)", async () => {
+    reportHandledErrorMock.mockClear();
+    window.localStorage.setItem("note:childrenCache:user-1", "{broken");
+    fromMock.mockReturnValue(makeQueryBuilder({ data: null, error: new Error("offline") }));
+
+    const { result } = renderHook(() => useChildren());
+
+    await waitFor(() => expect(result.current).toEqual([]));
+    const places = reportHandledErrorMock.mock.calls.map(([where]) => where);
+    expect(places).toContain("storage/children-cache-read");
+    expect(places).toContain("list/children");
   });
 
   it("clearChildrenCache で覚えている一覧を消す", () => {

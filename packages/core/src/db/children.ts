@@ -1,6 +1,7 @@
 "use client";
 
 import { getSupabaseClient } from "../supabase/client";
+import { reportHandledError } from "../clientErrors";
 import { useAuthedList } from "./useAuthedList";
 import type { Child } from "../types/group";
 
@@ -29,7 +30,8 @@ function readChildrenCache(userId: string): Child[] | null {
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
     return Array.isArray(parsed) ? (parsed as Child[]) : null;
-  } catch {
+  } catch (error) {
+    reportHandledError("storage/children-cache-read", error);
     return null;
   }
 }
@@ -37,8 +39,9 @@ function readChildrenCache(userId: string): Child[] | null {
 function writeChildrenCache(userId: string, children: Child[]): void {
   try {
     window.localStorage.setItem(CHILDREN_CACHE_PREFIX + userId, JSON.stringify(children));
-  } catch {
+  } catch (error) {
     // 書けない環境ではあきらめる(キャッシュが無いだけで、通常の動作は変わらない)
+    reportHandledError("storage/children-cache-write", error);
   }
 }
 
@@ -125,7 +128,7 @@ export async function deleteChild(id: string): Promise<void> {
 // 「子ども0人」と解釈されると記録の絞り込みが誤るため、「まだ分からない」と同じ扱いにする
 // (src/app/page.tsx の editChildIdOverride はこの性質への同期的な回避策)。
 export function useChildren(): Child[] | null {
-  return useAuthedList(getChildrenWithCache, { whenSignedOut: "null" });
+  return useAuthedList(getChildrenWithCache, { whenSignedOut: "null", where: "list/children" });
 }
 
 // 選択中の子どもIDを、実際に存在する子ども一覧に照らして解決する。子どもが0〜1人の

@@ -1,5 +1,8 @@
 import { cleanup, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+const { reportHandledErrorMock } = vi.hoisted(() => ({ reportHandledErrorMock: vi.fn() }));
+vi.mock("../clientErrors", () => ({ reportHandledError: reportHandledErrorMock }));
+
 import { ServiceWorkerRegister } from "./ServiceWorkerRegister";
 
 const register = vi.fn();
@@ -37,6 +40,7 @@ describe("ServiceWorkerRegister", () => {
     await Promise.resolve();
 
     expect(onRegistered).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(reportHandledErrorMock).toHaveBeenCalledWith("sw/register", expect.any(Error)));
     spy.mockRestore();
   });
 
