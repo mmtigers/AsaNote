@@ -123,9 +123,10 @@ describe("apps/yoru の README・SPEC・docs(#228)", () => {
     expect(spec).not.toMatch(/\| Q3 \|[^\n]*\*\*第2段階\*\*/);
   });
 
-  it("手順書に実在の子どもの名前を書かない(SPEC §6: 子ども名はハードコードしない)", () => {
+  it("手順書の期待結果は、子どもの名前を書かない一般的な表現になっている(SPEC §6: 子ども名はハードコードしない)", () => {
+    // 実名そのものを、このテストに書いてはいけない(公開リポジトリのため)。名前を書かない表現が
+    // 残っていることを、肯定形で検査する。名前を戻すと、この行が書き換わって失敗する。
     const doc = readFileSync(`${YORU}/docs/device-verification.md`, "utf8");
-    expect(doc).not.toContain("智矢");
-    expect(doc).not.toContain("涼花");
+    expect(doc).toContain("期待: あさノートで登録済みのグループと子どもが表示される。");
   });
 });
