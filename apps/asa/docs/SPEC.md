@@ -467,9 +467,9 @@ stateDiagram-v2
 
 | テーブル | SELECT | INSERT | UPDATE | DELETE |
 |---|---|---|---|---|
-| `records` | 本人＋同じグループのメンバー | 本人のみ | 本人のみ | 本人のみ |
+| `records` | 本人＋同じグループのメンバー | 本人のみ（`child_id` は自分から見える子どものみ。トリガー `records_check_child_access()`） | 本人のみ（同上。`child_id` を変える場合だけ検証する） | 本人のみ |
 | `groups` | 作成者本人＋所属メンバー | 作成者本人のみ | なし | なし |
-| `group_members` | 本人＋同じグループのメンバー（`is_fellow_group_member()` 経由） | 「自分が作成したグループに自分自身を追加」の場合のみ（招待経由の参加は下記関数） | なし | 本人のみ（脱退） |
+| `group_members` | 本人＋同じグループのメンバー（`is_fellow_group_member()` 経由） | なし（参加は `create_group()` と `redeem_group_invite()` のみ。脱退した作成者も招待コードなしでは戻れない） | なし | 本人のみ（脱退） |
 | `group_invites` | 同じグループのメンバー | 同じグループのメンバー本人かつ有効期限が24時間+5分以内 | なし | なし |
 | `children` | 作成者本人＋同じグループのメンバー | 作成者本人のみ | 作成者本人のみ | 作成者本人のみ |
 | `push_subscriptions` | 本人のみ | 本人のみ | 本人のみ | 本人のみ |
