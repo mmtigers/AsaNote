@@ -68,7 +68,7 @@ describe("ファイル名", () => {
 describe("buildCsvContent", () => {
   const ctx = {
     currentUserId: "me",
-    childNames: new Map([["c1", "智矢"]]),
+    childNames: new Map([["c1", "たろう"]]),
     photoCounts: new Map([["r1", 2]]),
   };
 
@@ -82,7 +82,7 @@ describe("buildCsvContent", () => {
     );
     const [header = "", first = "", second = ""] = csv.split("\r\n");
     expect(header.split(",")).toHaveLength(first.split(",").length);
-    expect(first).toContain("2026-10-03,土,智矢,少し荒れた,,15〜17時");
+    expect(first).toContain("2026-10-03,土,たろう,少し荒れた,,15〜17時");
     expect(first).toContain("少し,,,,宿題、食事");
     expect(first.endsWith(",2,自分")).toBe(true);
     expect(second.endsWith(",0,パートナー")).toBe(true);

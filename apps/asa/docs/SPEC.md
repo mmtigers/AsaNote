@@ -467,9 +467,9 @@ stateDiagram-v2
 
 | テーブル | SELECT | INSERT | UPDATE | DELETE |
 |---|---|---|---|---|
-| `records` | 本人＋同じグループのメンバー | 本人のみ | 本人のみ | 本人のみ |
+| `records` | 本人＋同じグループのメンバー | 本人のみ（`child_id` は自分から見える子どものみ。トリガー `records_check_child_access()`） | 本人のみ（同上。`child_id` を変える場合だけ検証する） | 本人のみ |
 | `groups` | 作成者本人＋所属メンバー | 作成者本人のみ | なし | なし |
-| `group_members` | 本人＋同じグループのメンバー（`is_fellow_group_member()` 経由） | 「自分が作成したグループに自分自身を追加」の場合のみ（招待経由の参加は下記関数） | なし | 本人のみ（脱退） |
+| `group_members` | 本人＋同じグループのメンバー（`is_fellow_group_member()` 経由） | なし（参加は `create_group()` と `redeem_group_invite()` のみ。脱退した作成者も招待コードなしでは戻れない） | なし | 本人のみ（脱退） |
 | `group_invites` | 同じグループのメンバー | 同じグループのメンバー本人かつ有効期限が24時間+5分以内 | なし | なし |
 | `children` | 作成者本人＋同じグループのメンバー | 作成者本人のみ | 作成者本人のみ | 作成者本人のみ |
 | `push_subscriptions` | 本人のみ | 本人のみ | 本人のみ | 本人のみ |
@@ -528,7 +528,7 @@ stateDiagram-v2
 
 ### 6.7 その他の防御
 
-- セキュリティヘッダ（`next.config.ts`）: `X-Content-Type-Options: nosniff`、`X-Frame-Options: DENY`、`Referrer-Policy: strict-origin-when-cross-origin`、`Permissions-Policy`（camera / microphone / geolocation を無効）。CSP は `Content-Security-Policy-Report-Only`（**違反を報告するだけでブロックしない**）で配っている（#197）。方針はよるノートと共用の `packages/core/src/csp.ts`（nonce なしの静的な方式。接続先は Supabase、フォントは Google Fonts だけ許可し、`object-src 'none'`・`base-uri` / `form-action` は自分のみ）。違反はブラウザの開発者ツールのコンソールに出る。通常の操作で違反が出ないことを E2E（`e2e/csp.spec.ts`）で確認してあり、実運用で違反が出ないことを確かめてから、`next.config.ts` のキーを `Content-Security-Policy` に変えて強制する（`e2e/csp.spec.ts` の `ENFORCED` も合わせて変える）。
+- セキュリティヘッダ（`next.config.ts`）: `X-Content-Type-Options: nosniff`、`X-Frame-Options: DENY`、`Referrer-Policy: strict-origin-when-cross-origin`、`Permissions-Policy`（camera / microphone / geolocation を無効）。CSP は `Content-Security-Policy`（**違反をブロックする強制**）で配っている（#197）。Report-Only で導入し、実運用の通常の操作（ログイン・記録・同期・Push 通知の購読）で違反が出ないことを確かめてから、強制へ切り替えた。方針はよるノートと共用の `packages/core/src/csp.ts`（nonce なしの静的な方式。接続先は Supabase、フォントは Google Fonts だけ許可し、`object-src 'none'`・`base-uri` / `form-action` は自分のみ）。違反はブラウザの開発者ツールのコンソールに出る。通常の操作で違反が出ないことを E2E（`e2e/csp.spec.ts`）で確認している。新しい接続先・外部リソースを足すときは、`csp.ts` の許可も合わせて直す（直さないとブロックされる）。許可の漏れで本番が壊れたときは、`next.config.ts` のキーを `Content-Security-Policy-Report-Only` に戻せば、ブロックを止められる（`e2e/csp.spec.ts` の `ENFORCED` も合わせて変える）。
 - Edge Function: `send-reminders` は cron 専用の合言葉（`x-cron-secret` = `CRON_SECRET`）、`notify-partner` はトリガー専用の合言葉（`x-notify-secret` = `PARTNER_NOTIFY_SECRET`）を要求する（どちらも `isAuthorizedSecret`）。Supabase の JWT 検証は公開の anon キーでも通してしまうため、関数側で確かめる。`SUPABASE_SERVICE_ROLE_KEY` は非推奨で、値がダッシュボードの鍵と同じとは限らないため、どちらの関数でも使わない。
 - CI: GitHub Actions はコミットSHAで固定（テストで固定。`src/lib/ci-workflow.test.ts`）、ワークフローは最小権限（`contents: read`）、`npm audit --omit=dev` で本番依存の脆弱性を検査（§10）。
 
@@ -758,7 +758,7 @@ npm run test:e2e:supabase  # 実Supabaseテストプロジェクト向けE2E（S
 
 ### 10.3 CIジョブ（`.github/workflows/ci.yml`）
 
-トリガー: `main` / `master` へのPR（**push では走らない**。マージ前のPRのCIで済ませ、無料枠の月2,000分を守る、#225。また `paths` で、`apps/asa/`・`packages/core/`・`supabase/`・`scripts/`・`docs/`・ルートの `*.md` と package・`.nvmrc`・`.github/` に関わる変更だけが対象。よるノートのみの変更では走らない）。種別は（`opened` / `synchronize` / `reopened` / `labeled` / `unlabeled` / `edited`。ラベル・PR本文による例外指定を直後に反映するため）。同じ参照の古い実行は打ち切る。全ジョブ読み取り専用権限（`contents: read`）で、タイムアウトを設定している。
+トリガー: `main` / `master` へのPR（**push では走らず、ドラフトのPRでも走らない**。`ready_for_review` で起動する。マージ前のPRのCIで済ませ、無料枠の月2,000分を守る、#225。また `paths` で、`apps/asa/`・`packages/core/`・`supabase/`・`scripts/`・`docs/`・ルートの `*.md` と package・`.nvmrc`・`.github/` に関わる変更だけが対象。よるノートのみの変更では走らない）。種別は（`opened` / `synchronize` / `reopened` / `ready_for_review` / `labeled` / `unlabeled` / `edited`。ラベル・PR本文による例外指定を直後に反映するため）。同じ参照の古い実行は打ち切る。全ジョブ読み取り専用権限（`contents: read`）で、タイムアウトを設定している。
 
 | ジョブ | 内容 |
 |---|---|
@@ -852,7 +852,7 @@ npm run test:e2e:supabase  # 実Supabaseテストプロジェクト向けE2E（S
 | 体調（`conditionScale`）の入力 | 入力項目としては不要と判断し、UI・型・保存・同期のコードを削除した（#137）。DB列 `condition_scale` は残る（§5.1） |
 | ピンチ拡大 | §12 |
 | 計測のオフラインキュー | 記録データ本体と違い、失っても影響が小さいため |
-| CSP | Report-Only で導入済み（§6.7）。強制への切り替えは、実運用で違反が出ないことを確かめてから |
+| CSP | 強制で導入済み（§6.7）。許可の漏れで本番が壊れたら、Report-Only に戻せる |
 
 ### 13.2 既知の制約・未解決事項
 

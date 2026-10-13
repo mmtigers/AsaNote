@@ -29,8 +29,8 @@ until docker exec "$CONTAINER_NAME" pg_isready -U postgres >/dev/null 2>&1; do
   sleep 1
 done
 
-psql "$DB_URL" -f "$SUPABASE_DIR/ci/auth-stub.sql"
-psql "$DB_URL" -f "$SUPABASE_DIR/schema.sql"
+psql "$DB_URL" -v ON_ERROR_STOP=1 -f "$SUPABASE_DIR/ci/auth-stub.sql"
+psql "$DB_URL" -v ON_ERROR_STOP=1 -f "$SUPABASE_DIR/schema.sql"
 
 npx supabase gen types typescript --db-url "$DB_URL" > src/lib/db/database.types.ts
 

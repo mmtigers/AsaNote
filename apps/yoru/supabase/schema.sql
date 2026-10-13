@@ -217,7 +217,7 @@ create policy "evening_push_subscriptions are updatable by owner"
 create policy "evening_push_subscriptions are deletable by owner"
   on evening_push_subscriptions for delete to authenticated using (auth.uid() = user_id);
 
--- 通知設定。ユーザー1人につき1行。reminder_time の既定は21:00(SPEC §4)。
+-- 通知設定。ユーザー1人につき1行。reminder_time の既定は21:00(SPEC §10 Q5)。
 create table if not exists evening_notification_settings (
   user_id uuid primary key references auth.users(id) on delete cascade,
   reminder_time time not null default '21:00',
