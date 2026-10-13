@@ -679,7 +679,7 @@ create table if not exists client_errors (
 );
 
 -- 後から足した列と制約(create table if not exists は既存テーブルを変えないため、ここで冪等に足す)。
--- source: 捕まえたエラーに加え、握りつぶされる同期失敗(sync-failure)と端末DB不可(local-db)も記録する。
+-- source: 捕まえたエラーに加え、握りつぶされる同期失敗(sync-failure)・端末DB不可(local-db)・受け止めたエラー(handled-error。場所は context.where。#213)も記録する。
 -- context: 調査用の付帯情報(オンライン状態・同期待ち件数など)。記録の内容は入れない。
 alter table client_errors add column if not exists context jsonb;
 alter table client_errors drop constraint if exists client_errors_context_check;
@@ -687,7 +687,7 @@ alter table client_errors add constraint client_errors_context_check
   check (char_length(context::text) <= 2000);
 alter table client_errors drop constraint if exists client_errors_source_check;
 alter table client_errors add constraint client_errors_source_check
-  check (source in ('error-boundary', 'window-error', 'unhandled-rejection', 'sync-failure', 'local-db'));
+  check (source in ('error-boundary', 'window-error', 'unhandled-rejection', 'sync-failure', 'local-db', 'handled-error'));
 
 create index if not exists idx_client_errors_created_at on client_errors(created_at desc);
 
@@ -769,10 +769,11 @@ select
   message,
   count(*) as occurrences,
   min(created_at) as first_seen,
-  max(created_at) as last_seen
+  max(created_at) as last_seen,
+  context ->> 'where' as "where"
 from client_errors
 where created_at >= now() - interval '7 days'
-group by app, source, message
+group by app, source, message, context ->> 'where'
 order by occurrences desc, last_seen desc;
 
 do $$

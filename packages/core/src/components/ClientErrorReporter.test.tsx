@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const reportMock = vi.fn();
 vi.mock("../clientErrors", () => ({
   reportClientError: (...args: unknown[]) => reportMock(...args),
+  registerClientErrorApp: () => {},
 }));
 
 const { ClientErrorReporter } = await import("./ClientErrorReporter");

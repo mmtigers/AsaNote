@@ -1,5 +1,6 @@
 "use client";
 
+import { reportHandledError } from "@note/core/clientErrors";
 import Link from "next/link";
 import { useState } from "react";
 import { ConfirmDialog } from "@note/core/components/ConfirmDialog";
@@ -29,11 +30,13 @@ export function AuthStatus() {
       await removeThisDevicePushSubscription();
     } catch (error) {
       console.error(error);
+      reportHandledError("auth/push-unsubscribe", error);
     }
     try {
       await getSupabaseClient().auth.signOut();
     } catch (error) {
       console.error(error);
+      reportHandledError("auth/sign-out", error);
     } finally {
       // 共有端末で前ユーザーのローカルデータが残り、次にログインした別ユーザーのアカウントへ
       // 誤同期されるのを防ぐため、ログアウト時にローカルDBを全テーブルクリアする。
@@ -41,6 +44,7 @@ export function AuthStatus() {
         await clearLocalData();
       } catch (error) {
         console.error(error);
+        reportHandledError("auth/clear-local-data", error);
       }
       // localStorage 側の入力途中の下書き(メモを含む)と選択中の子どもも消す。
       // 共有端末で、前の人の内容が次の人の画面に出ないようにする。
@@ -58,6 +62,7 @@ export function AuthStatus() {
       await syncPendingChanges();
     } catch (error) {
       console.error(error);
+      reportHandledError("auth/sync-before-logout", error);
     }
     const remaining = await countUnsyncedChanges();
     if (remaining > 0) {

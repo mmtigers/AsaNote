@@ -11,6 +11,7 @@ import {
   leaveGroup,
 } from "../db/groups";
 import type { Group, GroupInvite, GroupMemberProfile } from "../types/group";
+import { reportHandledError } from "../clientErrors";
 import { runAction, runSilently } from "./runAction";
 
 const SHARE_COPIED_VISIBLE_MS = 2000;
@@ -159,7 +160,10 @@ export function useGroupAdmin({
       try {
         await navigator.share({ title: `${appName} グループ招待`, text });
       } catch (error) {
-        if ((error as DOMException).name !== "AbortError") console.error(error);
+        if ((error as DOMException).name !== "AbortError") {
+          console.error(error);
+          reportHandledError("group/share-invite", error);
+        }
       }
       return;
     }

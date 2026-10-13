@@ -1,5 +1,6 @@
 "use client";
 
+import { reportHandledError } from "@note/core/clientErrors";
 import Link from "next/link";
 import { useState } from "react";
 import { ConfirmDialog } from "@note/core/components/ConfirmDialog";
@@ -28,11 +29,13 @@ export function AuthStatus() {
       await removeThisDevicePushSubscription();
     } catch (error) {
       console.error(error);
+      reportHandledError("auth/push-unsubscribe", error);
     }
     try {
       await getSupabaseClient().auth.signOut();
     } catch (error) {
       console.error(error);
+      reportHandledError("auth/sign-out", error);
     } finally {
       // 共有端末で前ユーザーのローカルデータが残り、次にログインした別ユーザーの
       // アカウントへ誤同期されるのを防ぐため、ログアウト時にローカルDexie DBを
@@ -41,6 +44,7 @@ export function AuthStatus() {
         await clearLocalData();
       } catch (error) {
         console.error(error);
+        reportHandledError("auth/clear-local-data", error);
       }
       // localStorageに残る下書き(メモを含む)と選択中の子どもも、次に使う人へ
       // 引き継がれないよう消す(#131)。
@@ -58,6 +62,7 @@ export function AuthStatus() {
       await syncPendingChanges();
     } catch (error) {
       console.error(error);
+      reportHandledError("auth/sync-before-logout", error);
     }
     const remaining = await countUnsyncedChanges();
     if (remaining > 0) {

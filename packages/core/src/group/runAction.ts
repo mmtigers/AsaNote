@@ -1,3 +1,4 @@
+import { reportHandledError } from "../clientErrors";
 import { describeErrorForUser } from "../errors";
 
 export type ActionResult<T> = { ok: true; value: T } | { ok: false };
@@ -9,13 +10,15 @@ export type ActionResult<T> = { ok: true; value: T } | { ok: false };
 export async function runAction<T>(
   fn: () => Promise<T>,
   fallbackMessage: string,
-  onError: (message: string) => void
+  onError: (message: string) => void,
+  where = "group/action"
 ): Promise<ActionResult<T>> {
   try {
     const value = await fn();
     return { ok: true, value };
   } catch (error) {
     console.error(error);
+    reportHandledError(where, error);
     onError(describeErrorForUser(error, fallbackMessage));
     return { ok: false };
   }

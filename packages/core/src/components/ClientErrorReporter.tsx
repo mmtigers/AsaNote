@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { reportClientError, type ClientErrorApp } from "../clientErrors";
+import { registerClientErrorApp, reportClientError, type ClientErrorApp } from "../clientErrors";
 
 /**
  * error.tsx では捕まらないエラー(イベントハンドラ・非同期処理の例外、握りつぶされた Promise の
@@ -9,6 +9,7 @@ import { reportClientError, type ClientErrorApp } from "../clientErrors";
  */
 export function ClientErrorReporter({ app, appVersion }: { app: ClientErrorApp; appVersion?: string }) {
   useEffect(() => {
+    registerClientErrorApp(app, appVersion);
     function onError(event: ErrorEvent) {
       // リソース(画像など)の読み込み失敗は event.error が無いので、ここでは拾わない。
       if (!event.error) return;
