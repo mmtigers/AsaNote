@@ -919,7 +919,7 @@ npm run test:e2e:supabase  # 実Supabaseテストプロジェクト向けE2E（S
 | Q6 | (解消) `send-reminders` と `notify-partner` を、専用の合言葉(`CRON_SECRET` / `PARTNER_NOTIFY_SECRET`)で確かめるようにした。非推奨の `SUPABASE_SERVICE_ROLE_KEY` との一致は、正しい鍵でも 401 になったため使わない | §4.6, §6.7 | `supabase/functions/*/index.ts`, `docs/push-notifications-setup.md` |
 | Q7 | `manifest` の `theme_color` / `background_color`（`#f6f3ec`）と、`layout.tsx` の `themeColor`・CSSの背景（`#fff5f6`）が不一致 | §13.2 | `public/manifest.webmanifest`, `src/app/layout.tsx`, `globals.css` |
 | Q8 | 子ども一覧の取得に失敗（オフライン起動など）すると「子どもなし」扱いになり、複数の子どもがいても `childId: null` で保存される。許容か | §3.1.7 | `src/lib/db/children.ts`, `src/lib/db/useAuthedList.ts` |
-| Q9（解決済み #125） | 前面に戻ったとき、前回の取り込みから5分以上空いていれば `pullFromCloud` を呼ぶようにした。定期取得と Realtime は使わない | §7.3 | `src/lib/db/sync.ts`, `packages/core/src/pullOnResume.ts` |
+| Q9（解決済み #125） | 前面に戻ったとき、前回の取り込みから5分以上空いていれば `pullFromCloud` を呼ぶようにした。定期取得と Realtime は使わない | §7.3 | `src/lib/db/sync.ts`, `packages/core/src/pullOnResume.ts`, `packages/core/src/cloudSync.ts` |
 | Q11 | 招待コード（8文字×32種）にアプリ側の試行回数制限が無い。Supabase側のレート制限に任せる想定か | §6.4 | `src/lib/db/groups.ts`, `schema.sql` |
 | Q12 | 本番URL、対応ブラウザ・OSの公式な範囲（ホスティング先は Vercel と確認済み） | §8.1, §12 | `docs/push-notifications-setup.md`、PRのVercelプレビュー |
 | Q13 | 想定利用者の範囲（家族内の限定運用か一般公開か）、記録データ本体の保持期間（ログは決定済み: `client_errors` 90日・`reminder_deliveries` 7日・`analytics_events` 365日）、退会（アカウント・データ削除）の方針。退会機能はコードに無い | §1.2, §6.5 | README、コード全般 |

@@ -115,6 +115,8 @@
   - アプリごとの値に依存する部分(例: `useEffectiveChildId` は選択中の子ども)は、アプリ側のラッパー(`src/lib/db/children.ts`)に残す。
     各アプリの `src/lib/appStorageKeys.test.ts` が、キー名とイベント名が変わっていないことを固定している(変えると端末の保存済みの値が消える)。
   - 例: ログイン画面(`LoginView`)と更新履歴の画面(`UpdatesView`)は core にあり、各アプリの `app/login/page.tsx`・`app/updates/page.tsx` は、アプリの値(`createOtpCooldown(APP_ID)` のインスタンス、`releases`、`markVersionSeen`)を渡すだけの薄いラッパー。
+  - 例: 同期(`sync.ts`)のうち、両アプリで同一の部分(ページ送りの取得 `fetchAllPages`、前面に戻ったときの取り込みの組み立て、同期の起動の購読、失敗の報告)は `@note/core/cloudSync`。
+    **push・pull の本体(どのテーブルを、どう変換して送る・取り込むか。よるノートは写真もある)は、アプリごとに違うので各アプリの `sync.ts` に残す**(#202 で、同期の流れ全体を core に置く案は、読みにくさと事故のリスクが重複の解消を上回るとして見送った)。
 - 端末内データのキー名は変えない(変えるとユーザーの保存済みの状態が消える)。
 - **UI 部品は「表示は core、値はアプリ」に分ける**(例: `SyncFailureNotice` は `failing` と `onDismiss` を props で受け取り、
   アプリ側のラッパーが自分の `syncStatus` を渡す)。リリース一覧や同期のように、アプリの値・関数に依存するものは core に直接 import しない。

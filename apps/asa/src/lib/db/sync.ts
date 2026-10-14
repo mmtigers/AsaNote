@@ -1,5 +1,4 @@
-import { reportClientError } from "@note/core/clientErrors";
-import { createResumePuller } from "@note/core/pullOnResume";
+import { createCloudResumePuller, createSyncFailureReporter, createSyncListenersRegistrar, fetchAllPages, PULL_PAGE_SIZE } from "@note/core/cloudSync";
 import { getSupabaseClient } from "@note/core/supabase/client";
 import type { Outcome } from "@/constants/choices";
 import type { SchoolRecord } from "@/types/models";
@@ -8,20 +7,13 @@ import { releases } from "@/data/releases";
 import { localDb, type LocalRecord } from "./localDb";
 import { reportSyncOutcome } from "./syncStatus";
 
-// 画面には「同期に失敗しています」としか出ないので、原因(Supabaseのエラー内容)は client_errors へ送る。
-// 記録の中身は送らず、どの段階で何件失敗したかだけを付ける。
-function reportSyncFailure(phase: string, error: unknown, count?: number) {
-  reportClientError("asa", "sync-failure", error, releases[0]?.version, { phase, count: count ?? null });
-}
+const reportSyncFailure = createSyncFailureReporter("asa", releases[0]?.version);
 
 let syncing = false;
 let pulling = false;
 
-// pullの1ページあたりの取得件数。PostgRESTは1リクエストの最大行数(既定 max-rows=1000)を
-// 黙って切り捨てるため、record_date, id の安定した順序でこの件数ずつ全ページ取得する(#55)。
-// 以前はページングが無く、取得できなかった行を「クラウドから見えなくなった」と誤判定して
-// ローカルから削除してしまう経路があった。
-export const PULL_PAGE_SIZE = 500;
+// pullの1ページあたりの取得件数とページ送りの取得は @note/core/cloudSync。テストが参照するので再エクスポートする。
+export { PULL_PAGE_SIZE };
 
 // user_idはRLSのINSERT/UPDATEポリシーが要求するため必須で付与する。
 // records.condition_scale 列はサーバーに残るが(#137、列の削除は #114 で行う)、アプリは
@@ -170,13 +162,7 @@ export async function syncPendingChanges() {
 // 「見えなくなった行の削除」も行わない(部分的な結果で削除判定すると取得漏れ行が消えるため)。
 // 前面に戻ったときの取り込み(#125)。前回の取り込み時刻は、起動時・ログイン時などの pullFromCloud も更新する。
 // ログイン済みかはローカルのセッションで見る(getUser はサーバーへ問い合わせるため、復帰のたびには使わない)。
-const resumePuller = createResumePuller({
-  pull: () => pullFromCloud(),
-  isSignedIn: async () => {
-    const { data } = await getSupabaseClient().auth.getSession();
-    return data.session !== null;
-  },
-});
+const resumePuller = createCloudResumePuller(() => pullFromCloud());
 
 export async function pullFromCloud() {
   if (pulling) return;
@@ -193,23 +179,13 @@ export async function pullFromCloud() {
     if (!userId) return;
 
     hadWork = true;
-    const remoteRecords: CloudRecordRow[] = [];
-    for (let from = 0; ; from += PULL_PAGE_SIZE) {
-      const { data, error } = await supabase
-        .from("records")
-        .select("*")
-        .order("record_date", { ascending: true })
-        .order("id", { ascending: true })
-        .range(from, from + PULL_PAGE_SIZE - 1);
-      if (error) {
-        console.warn(`recordsのpullに失敗しました(offset=${from}):`, error);
-        reportSyncFailure("pull-page", error);
-        hadError = true;
-        return;
-      }
-      const page = (data ?? []) as CloudRecordRow[];
-      remoteRecords.push(...page);
-      if (page.length < PULL_PAGE_SIZE) break;
+    const remoteRecords = await fetchAllPages<CloudRecordRow>("records", "record_date", (error, offset) => {
+      console.warn(`recordsのpullに失敗しました(offset=${offset}):`, error);
+      reportSyncFailure("pull-page", error);
+    });
+    if (!remoteRecords) {
+      hadError = true;
+      return;
     }
 
     const pendingDeleteIds = new Set((await localDb.pendingRecordDeletes.toArray()).map((d) => d.id));
@@ -242,22 +218,5 @@ export async function pullFromCloud() {
   }
 }
 
-// 起動時とオンライン復帰時に同期をトリガーし、前面に戻ったときは(5分以上空いていれば)取り込む。オフライン中の変更をキャッシュに残したまま
-// バックグラウンドで送信するため、UI側の待ち時間は発生しない。
-export function registerSyncListeners() {
-  if (typeof window === "undefined") return;
-
-  const onOnline = () => {
-    void syncPendingChanges();
-  };
-  window.addEventListener("online", onOnline);
-  const stopResumePull = resumePuller.register();
-
-  void syncPendingChanges();
-
-  // StrictMode や再マウントで二重に張らないよう、呼び出し側(ServiceWorkerRegister)がクリーンアップで解除する。
-  return () => {
-    window.removeEventListener("online", onOnline);
-    stopResumePull();
-  };
-}
+// 起動時とオンライン復帰時に同期をトリガーし、前面に戻ったときは(5分以上空いていれば)取り込む(実装は @note/core/cloudSync)。
+export const registerSyncListeners = createSyncListenersRegistrar(syncPendingChanges, resumePuller);
