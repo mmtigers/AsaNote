@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
+import { normalizeTag, TAG_MAX_LENGTH } from "@/lib/normalizeTag";
 
 interface TagChipsProps {
   options: string[];
@@ -17,6 +18,7 @@ interface TagChipsProps {
 export function TagChips({ options, value, onChange, onAddCustom }: TagChipsProps) {
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState("");
+  const hintId = useId();
 
   function toggle(option: string) {
     const selected = value.includes(option);
@@ -24,12 +26,13 @@ export function TagChips({ options, value, onChange, onAddCustom }: TagChipsProp
   }
 
   function commitDraft() {
-    const trimmed = draft.trim();
+    // 末尾の「、」「。」などは除く。付いたまま保存すると別のタグとして数えられ、CSVの区切りとも紛らわしい。
+    const normalized = normalizeTag(draft);
     setAdding(false);
     setDraft("");
-    if (!trimmed) return;
-    if (!options.includes(trimmed)) onAddCustom?.(trimmed);
-    if (!value.includes(trimmed)) onChange([...value, trimmed]);
+    if (!normalized) return;
+    if (!options.includes(normalized)) onAddCustom?.(normalized);
+    if (!value.includes(normalized)) onChange([...value, normalized]);
   }
 
   return (
@@ -54,15 +57,22 @@ export function TagChips({ options, value, onChange, onAddCustom }: TagChipsProp
       })}
       {onAddCustom &&
         (adding ? (
-          <input
-            autoFocus
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onBlur={commitDraft}
-            onKeyDown={(e) => e.key === "Enter" && commitDraft()}
-            placeholder="自由に入力"
-            className="w-28 rounded-full border border-[var(--accent)] bg-[var(--surface)] px-3 py-1.5 text-[13px] text-[var(--ink)] outline-none"
-          />
+          <>
+            <input
+              autoFocus
+              value={draft}
+              maxLength={TAG_MAX_LENGTH}
+              onChange={(e) => setDraft(e.target.value)}
+              onBlur={commitDraft}
+              onKeyDown={(e) => e.key === "Enter" && commitDraft()}
+              placeholder="自由に入力"
+              aria-describedby={hintId}
+              className="w-28 rounded-full border border-[var(--accent)] bg-[var(--surface)] px-3 py-1.5 text-[13px] text-[var(--ink)] outline-none"
+            />
+            <p id={hintId} className="basis-full text-[11px] text-[var(--sub)]">
+              {TAG_MAX_LENGTH}文字まで。長い内容はメモ欄に書いてね
+            </p>
+          </>
         ) : (
           <button
             type="button"

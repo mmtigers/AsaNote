@@ -93,4 +93,55 @@ describe("TagChips", () => {
     expect(onAddCustom).not.toHaveBeenCalled();
     expect(onChange).not.toHaveBeenCalled();
   });
+
+  it("末尾の句読点を除いて追加する", () => {
+    const onChange = vi.fn();
+    const onAddCustom = vi.fn();
+    render(<TagChips options={["ねむい"]} value={[]} onChange={onChange} onAddCustom={onAddCustom} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "+ 追加" }));
+    const input = screen.getByPlaceholderText("自由に入力");
+    fireEvent.change(input, { target: { value: "あたまいたい、" } });
+    fireEvent.blur(input);
+
+    expect(onAddCustom).toHaveBeenCalledWith("あたまいたい");
+    expect(onChange).toHaveBeenCalledWith(["あたまいたい"]);
+  });
+
+  it("句読点を除くと既存の選択肢と同じになるときは、新しいタグを作らず既存を選ぶ", () => {
+    const onChange = vi.fn();
+    const onAddCustom = vi.fn();
+    render(<TagChips options={["ねむい"]} value={[]} onChange={onChange} onAddCustom={onAddCustom} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "+ 追加" }));
+    const input = screen.getByPlaceholderText("自由に入力");
+    fireEvent.change(input, { target: { value: "ねむい。" } });
+    fireEvent.blur(input);
+
+    expect(onAddCustom).not.toHaveBeenCalled();
+    expect(onChange).toHaveBeenCalledWith(["ねむい"]);
+  });
+
+  it("句読点だけの入力は追加しない", () => {
+    const onChange = vi.fn();
+    const onAddCustom = vi.fn();
+    render(<TagChips options={["ねむい"]} value={[]} onChange={onChange} onAddCustom={onAddCustom} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "+ 追加" }));
+    const input = screen.getByPlaceholderText("自由に入力");
+    fireEvent.change(input, { target: { value: "、。" } });
+    fireEvent.blur(input);
+
+    expect(onAddCustom).not.toHaveBeenCalled();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("入力欄は20文字までで、メモ欄への案内を出す", () => {
+    render(<TagChips options={[]} value={[]} onChange={() => {}} onAddCustom={() => {}} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "+ 追加" }));
+
+    expect(screen.getByPlaceholderText("自由に入力").getAttribute("maxlength")).toBe("20");
+    expect(screen.getByText("20文字まで。長い内容はメモ欄に書いてね")).toBeTruthy();
+  });
 });

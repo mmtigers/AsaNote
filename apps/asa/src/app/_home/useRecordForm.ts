@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import { findLatestOwnRecordForDate, saveRecord } from "@/lib/db/records";
 import { MEMO_MAX_LENGTH, NEGATIVE_REASON_TAGS, OUTCOME_OPTIONS, POSITIVE_REASON_TAGS, type Outcome } from "@/constants/choices";
 import { useOwnRecordsForReasons } from "@/lib/db/queries";
+import { normalizeTags } from "@/lib/normalizeTag";
 import { countReasonUsage, rankReasonOptions } from "@/lib/reasonOptions";
 import { buildDiaryText } from "@/lib/recordPreview";
 import { track } from "@/lib/analytics";
@@ -65,7 +66,7 @@ export function useRecordForm({ date, today, userId, childId, cameFromEditLink, 
     // (他の画面を見て戻ってきても、入力途中のデータを失わないため)。
     const draft = loadDraft();
     if (draft && draft.date === date) {
-      setForm(draft.form);
+      setForm({ ...draft.form, reasonTags: normalizeTags(draft.form.reasonTags) });
       if (draftRestoredKeyRef.current !== restoreKey) {
         draftRestoredKeyRef.current = restoreKey;
         restoreStep(draft.step);
@@ -84,7 +85,8 @@ export function useRecordForm({ date, today, userId, childId, cameFromEditLink, 
         setForm({
           id: existing.id,
           outcome: existing.outcome ?? null,
-          reasonTags: existing.reasonTags,
+          // 候補は表記をそろえて出すので、選択済みの表示がずれないよう読み込み時にそろえる(保存すると直る)。
+          reasonTags: normalizeTags(existing.reasonTags),
           departTime: existing.departTime ?? "",
           memo: existing.memo ?? "",
           wakeTime: existing.wakeTime ?? "",
