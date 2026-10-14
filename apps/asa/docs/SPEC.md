@@ -709,8 +709,8 @@ src/
     stats/                傾向（page・集計の純関数 aggregate.ts / detail.ts・詳細シート）
     export/               エクスポート（page・対象抽出/CSV/ファイル名 selectEntries.ts）
     group/                共有: page は出し分けのみ。状態は use*Admin / useNotificationSettings、表示は *Section
-    login/page.tsx        マジックリンクログイン
-    updates/page.tsx      更新履歴
+    login/page.tsx        マジックリンクログイン(画面は @note/core の LoginView)
+    updates/page.tsx      更新履歴(画面は @note/core の UpdatesView)
   components/             カレンダー・下部ナビ・子ども切替・タグ選択・各種通知/ダイアログ
   lib/
     supabase/client.ts    Supabaseクライアント（遅延生成）

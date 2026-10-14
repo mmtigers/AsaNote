@@ -1,12 +1,22 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { COOLDOWN_SECONDS, getRemainingCooldown, rememberSentAt } from "./otpCooldown";
+import { COOLDOWN_SECONDS, createOtpCooldown } from "./otpCooldown";
 
-const LAST_SENT_KEY = "yoru-note:lastOtpSentAt";
+// キーを変えると、端末に保存済みの送信時刻が読めなくなる(クールダウンが効かなくなる)。アプリごとの値を固定する。
+describe.each([
+  ["asa-note", "asa-note:lastOtpSentAt"],
+  ["yoru-note", "yoru-note:lastOtpSentAt"],
+])("createOtpCooldown(%s)", (appId, LAST_SENT_KEY) => {
+  const { getRemainingCooldown, rememberSentAt } = createOtpCooldown(appId);
 
-afterEach(() => {
-  window.localStorage.clear();
-  vi.restoreAllMocks();
-});
+  afterEach(() => {
+    window.localStorage.clear();
+    vi.restoreAllMocks();
+  });
+
+  it("保存先のキーはアプリごと", () => {
+    rememberSentAt(1_000_000);
+    expect(window.localStorage.getItem(LAST_SENT_KEY)).toBe("1000000");
+  });
 
 describe("getRemainingCooldown", () => {
   it("未送信ならクールダウン無し", () => {
@@ -48,20 +58,21 @@ describe("getRemainingCooldown", () => {
   });
 });
 
-describe("rememberSentAt", () => {
-  it("送信時刻を保存し、次回の判定に効く", () => {
-    const now = 2_000_000;
-    rememberSentAt(now);
-    expect(getRemainingCooldown(now)).toBe(COOLDOWN_SECONDS);
-  });
-
-  // #62 の回帰テスト。以前は signInWithOtp() と同じ try の中で setItem を直接
-  // 呼んでいたため、書き込みが throw するとメールは送信できているのに
-  // 「ログインリンクの送信に失敗しました」と誤表示され、送信完了の案内も出なかった。
-  it("localStorage へ書き込めない環境でも throw しない", () => {
-    vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
-      throw new DOMException("quota", "QuotaExceededError");
+  describe("rememberSentAt", () => {
+    it("送信時刻を保存し、次回の判定に効く", () => {
+      const now = 2_000_000;
+      rememberSentAt(now);
+      expect(getRemainingCooldown(now)).toBe(COOLDOWN_SECONDS);
     });
-    expect(() => rememberSentAt()).not.toThrow();
+
+    // #62 の回帰テスト。以前は signInWithOtp() と同じ try の中で setItem を直接
+    // 呼んでいたため、書き込みが throw するとメールは送信できているのに
+    // 「ログインリンクの送信に失敗しました」と誤表示され、送信完了の案内も出なかった。
+    it("localStorage へ書き込めない環境でも throw しない", () => {
+      vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+        throw new DOMException("quota", "QuotaExceededError");
+      });
+      expect(() => rememberSentAt()).not.toThrow();
+    });
   });
 });
