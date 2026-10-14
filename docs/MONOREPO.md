@@ -114,6 +114,7 @@
     同期の関数(`pullFromCloud`)を引数で受け取る。画面(`app/group/page.tsx`)はアプリに残し、部品とフックは core から使う。
   - アプリごとの値に依存する部分(例: `useEffectiveChildId` は選択中の子ども)は、アプリ側のラッパー(`src/lib/db/children.ts`)に残す。
     各アプリの `src/lib/appStorageKeys.test.ts` が、キー名とイベント名が変わっていないことを固定している(変えると端末の保存済みの値が消える)。
+  - 例: ログイン画面(`LoginView`)と更新履歴の画面(`UpdatesView`)は core にあり、各アプリの `app/login/page.tsx`・`app/updates/page.tsx` は、アプリの値(`createOtpCooldown(APP_ID)` のインスタンス、`releases`、`markVersionSeen`)を渡すだけの薄いラッパー。
 - 端末内データのキー名は変えない(変えるとユーザーの保存済みの状態が消える)。
 - **UI 部品は「表示は core、値はアプリ」に分ける**(例: `SyncFailureNotice` は `failing` と `onDismiss` を props で受け取り、
   アプリ側のラッパーが自分の `syncStatus` を渡す)。リリース一覧や同期のように、アプリの値・関数に依存するものは core に直接 import しない。
