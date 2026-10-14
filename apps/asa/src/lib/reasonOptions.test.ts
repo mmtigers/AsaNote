@@ -15,6 +15,11 @@ describe("countReasonUsage", () => {
     );
   });
 
+  it("末尾の句読点だけが違うタグは同じタグとして数える", () => {
+    const records = [rec("smooth", ["決めた、"]), rec("smooth", ["決めた"]), rec("smooth", ["決めた。", "決めた"])];
+    expect(countReasonUsage(records, true)).toEqual(new Map([["決めた", 3]]));
+  });
+
   it("同じ記録内の重複は1回と数える", () => {
     expect(countReasonUsage([rec("reluctant", ["B", "B"])], false).get("B")).toBe(1);
   });
@@ -45,5 +50,11 @@ describe("rankReasonOptions", () => {
   it("記録に無い追加タグは、今のフォームで使っている間だけ末尾に出る", () => {
     expect(rankReasonOptions(base, new Map(), ["draft"])).toEqual(["x", "y", "z", "draft"]);
     expect(rankReasonOptions(base, new Map(), [])).toEqual(["x", "y", "z"]);
+  });
+});
+
+describe("rankReasonOptions と表記ゆれ", () => {
+  it("未保存のタグも正規化して候補に出し、句読点付きと句読点なしを重複させない", () => {
+    expect(rankReasonOptions(["x"], new Map([["決めた", 1]]), ["決めた、", "新しい。"])).toEqual(["決めた", "x", "新しい"]);
   });
 });

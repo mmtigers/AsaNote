@@ -4,6 +4,7 @@
 // 「＋追加」で足したタグも記録に残る限り翌日以降の選択肢に出て、そのタグを使った記録が
 // 無くなれば(0回になれば)選択肢から消える。初期セットは0回でも常に出す。
 import type { Outcome } from "@/constants/choices";
+import { normalizeTags } from "@/lib/normalizeTag";
 
 interface ReasonSource {
   outcome?: Outcome | null;
@@ -21,8 +22,9 @@ export function countReasonUsage(records: ReasonSource[], positive: boolean): Ma
   const counts = new Map<string, number>();
   for (const r of records) {
     if (isPositiveOutcome(r.outcome) !== positive) continue;
-    // 1件の記録内で同じタグが重複していても1回と数える。
-    for (const tag of new Set(r.reasonTags)) {
+    // 表記ゆれ(末尾の「、」「。」など)は同じタグとして数える。1件の記録内で同じタグが
+    // 重複していても1回と数える。保存済みのデータは書き換えない。
+    for (const tag of normalizeTags(r.reasonTags)) {
       counts.set(tag, (counts.get(tag) ?? 0) + 1);
     }
   }
@@ -38,7 +40,7 @@ export function rankReasonOptions(
 ): string[] {
   const baseSet = new Set(base);
   const fromHistory = Array.from(counts.keys()).filter((t) => !baseSet.has(t));
-  const unsaved = extra.filter((t) => !baseSet.has(t) && !counts.has(t));
+  const unsaved = normalizeTags(extra).filter((t) => !baseSet.has(t) && !counts.has(t));
   const ordered = Array.from(new Set([...base, ...fromHistory, ...unsaved]));
   return ordered
     .map((tag, index) => ({ tag, index, count: counts.get(tag) ?? 0 }))
