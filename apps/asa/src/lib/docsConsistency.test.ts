@@ -42,6 +42,27 @@ describe("apps/asa/docs/SPEC.md の見出し", () => {
   });
 });
 
+describe("apps/asa/docs/SPEC.md の運用ファイル・招待コードの記述(#228・#208)", () => {
+  const ROOT = resolve(APP_ROOT, "../../");
+  const spec = readFileSync(`${APP_ROOT}docs/SPEC.md`, "utf8");
+
+  it("構成図が、手動適用の cron SQL と .github/workflows の再利用ワークフローを載せている", () => {
+    for (const file of ["cron-cleanup-logs.sql", "cron-cleanup-groups.sql"]) {
+      expect(existsSync(`${ROOT}/supabase/${file}`), file).toBe(true);
+      expect(spec, file).toContain(file);
+    }
+    for (const file of ["_app-ci.yml", "_db-types-check.yml", "ci-core.yml", "ci-yoru.yml", "db-deploy-yoru.yml"]) {
+      expect(existsSync(`${ROOT}/.github/workflows/${file}`), file).toBe(true);
+      expect(spec, file).toContain(file);
+    }
+  });
+
+  it("招待コードの総当たり耐性(Q11)は、許容の判断として記録されている(未決のままにしない)", () => {
+    expect(spec).toContain("**許容する（Q11、オーナー判断、#208）**");
+    expect(spec).not.toContain("**要確認 Q11**");
+  });
+});
+
 describe("ログの保管期間・上限(#199・#216)", () => {
   // 保管期間や上限を schema.sql だけ変えて、運用手順書(docs/log-retention.md)が古いまま残るのを防ぐ。
   const ROOT = resolve(APP_ROOT, "../../");

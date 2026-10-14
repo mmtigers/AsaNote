@@ -511,7 +511,7 @@ stateDiagram-v2
 | 入力 | 前後空白除去・大文字化して照合。DBでは `code` が unique |
 | 照合 | クライアントは `group_invites` を直接読めない（非メンバーはSELECT不可）。`redeem_group_invite` が照合と消費を行う |
 
-アプリ側に試行回数の制限は無く、総当たりへの耐性はコードから確認できない（コードの空間は 32^8、有効なコードは24時間のみ存在）。**要確認 Q11**
+アプリ側（`redeem_group_invite`）に試行回数の制限は無い。**許容する（Q11、オーナー判断、#208）**: コードの空間は 32^8（約 2^40）、有効なコードは24時間・1回限りしか存在せず、呼び出しにはログインが必要で、家族内の限定運用（§1.2、Q13）だから。利用者の増加や公開範囲の拡大（Q13）があれば、失敗回数の記録による一定回数でのロック、またはレート制限を入れる。
 
 ### 6.5 個人情報の扱い
 
@@ -729,14 +729,15 @@ supabase/
   schema.sql              テーブル・RLS・SQL関数・計測ビュー（mainマージで自動適用）
   functions/send-reminders, notify-partner                        Edge Function（Deno。index.ts は環境変数・合言葉・クライアントの組み立てだけ）
   functions/_shared/      pushCommon.ts（よるノートと共通の純粋関数。正はこちら）, pushLogic.ts（あさノート固有）, reminderHandler.ts, partnerHandler.ts（処理の本体）と、そのテスト
-  cron-reminders.sql, partner-notify-trigger.sql                  手動適用
+  cron-reminders.sql, partner-notify-trigger.sql,
+  cron-cleanup-logs.sql, cron-cleanup-groups.sql                  手動適用（§8.3）
   ci/auth-stub.sql        CIの型ドリフト検査用スタブ
 public/                   sw.js, manifest.webmanifest, icons/, apple-touch-icon.png
 scripts/                  gen-db-types.sh, import-records.mjs(更新履歴の検査 check-release-notes.mjs と、Edge Function の共通ロジックの複製 sync-push-common.mjs はルートの scripts/)
 e2e/record-flow.spec.ts   Playwright E2E
 e2e-supabase/           実Supabaseテストプロジェクト向けE2E（spec・接続先ガード config.ts）。設定は playwright.supabase.config.ts
 docs/                     SPEC.md（本書）, push-notifications-setup.md, e2e-supabase.md
-.github/                  workflows/ci.yml, workflows/e2e-supabase.yml, workflows/db-deploy.yml, dependabot.yml
+.github/                  workflows/ci.yml, _app-ci.yml（アプリ共通のCIジョブ）, _db-types-check.yml, ci-core.yml, ci-yoru.yml, e2e-supabase.yml, db-deploy.yml, db-deploy-yoru.yml, dependabot.yml
 ```
 
 - `supabase/functions/` はDeno向けで、このNode/Next.jsプロジェクトの `tsc` と ESLint の対象外（`tsconfig.json` の `exclude` と `eslint.config.mjs` の `globalIgnores`）。処理の本体は `_shared/` に切り出してあり（`pushCommon.ts`・`pushLogic.ts` の純粋関数と、`reminderHandler.ts`・`partnerHandler.ts` のハンドラ。`pushCommon.ts` はよるノートと共通で、**正はこちら。よるノート側は `scripts/sync-push-common.mjs` の同一コピーで、ずれたら CI が失敗する**（#202、`docs/MONOREPO.md`）。DB と送信関数は引数で受け取る。よるノートの同名ファイルと同じ形）、Vitestで検証する（二重送信防止の印・失敗時の印の解除・失効購読の削除・送らない条件など。#204）。`npm:` で取り込む依存は版を固定し、`_shared/npmPins.test.ts` が検査する（上げるときは4つの `index.ts` をそろえ、再デプロイする）。
@@ -769,7 +770,7 @@ npm run test:e2e:supabase  # 実Supabaseテストプロジェクト向けE2E（S
 
 | ジョブ | 内容 |
 |---|---|
-| `lint-build-test` | `npm ci` → `npm audit --audit-level=high --omit=dev`（本番依存のみ） → `lint` → `next typegen` → `tsc --noEmit` → `test:coverage` → 数値を job summary に出す（「Coverage summary」step。`scripts/coverage-summary.mjs`、#207。`coverage-report` 成果物は14日保存） → `build`（ダミーのSupabase環境変数） |
+| `lint-build-test`（共通の再利用ワークフロー `_app-ci.yml` を呼ぶ。よるノートの CI と共用） | 更新履歴の検査（先頭の step。下記） → `npm ci` → `npm audit --audit-level=high --omit=dev`（本番依存のみ） → `lint` → `next typegen` → `tsc --noEmit` → `test:coverage` → 数値を job summary に出す（「Coverage summary」step。`scripts/coverage-summary.mjs`、#207。`coverage-report` 成果物は14日保存） → `build`（ダミーのSupabase環境変数） |
 | `e2e-test` | chromiumを入れて `npm run test:e2e`。失敗時のみ `playwright-report` を7日保存 |
 | `db-types-check`（再利用ワークフロー `_db-types-check.yml`。よるノートの CI と共用。Supabase CLI の版はここ1か所） | `postgres:16` に `auth-stub.sql` と `schema.sql`（べき等性の確認のため2回）を `ON_ERROR_STOP=1` で適用し（SQLエラーがあればここで落ちる）、固定版のSupabase CLI（2.117.0）で `supabase gen types` した結果が `src/lib/db/database.types.ts` と一致するか検査。ずれたら `npm run db:types`（要Docker）で再生成を促す |
 
@@ -875,7 +876,7 @@ npm run test:e2e:supabase  # 実Supabaseテストプロジェクト向けE2E（S
 - **パートナーの記録の反映タイミング**: pull は起動時・ログイン・グループ参加/脱退時に加え、前面に戻ったとき（前回から5分以上空いていれば）に行う。定期取得と Realtime は無く、起動したまま前面に居続ける間は反映されない（§7.3）。Q9（解決済み）→ [#125](https://github.com/mmtigers/AsaNote/issues/125)
 - **子ども一覧はオンライン必須**: オフラインで起動して子ども一覧を取得できないと、複数の子どもがいる家庭でも記録が `childId: null` で保存される。Q8 → [#126](https://github.com/mmtigers/AsaNote/issues/126)
 - **グループは1ユーザー1つ**。3人以上の運用は未検証。最後のメンバーが脱退したグループ（空グループ）と、期限切れで未使用の招待コードは、DB関数 `cleanup_empty_groups_and_invites()`（`supabase/schema.sql`）が定期的に消す（定期実行の `pg_cron` は**手動登録**: §8.3、`docs/group-cleanup.md`）。子どもの作成者が脱退したときは、その人が作成した子どもの所有が、同じグループに残る最古参加のメンバーへ移る（§3.5。最後の1人の脱退では移らず、作成者のまま）。[#128](https://github.com/mmtigers/AsaNote/issues/128)
-- **招待コードの総当たり耐性**: アプリ側の試行制限なし。Q11 → [#129](https://github.com/mmtigers/AsaNote/issues/129)
+- **招待コードの総当たり耐性**: アプリ側の試行制限なし（許容。見直しは利用者・公開範囲が広がるとき）。Q11（解決済み） → [#208](https://github.com/mmtigers/AsaNote/issues/208)、[#129](https://github.com/mmtigers/AsaNote/issues/129)
 - **Pushのリマインドの取り戻しは設定時刻から15分まで**: 窓内の欠落は次の分以降で取り戻す。窓を超える停止や、日付をまたぐ場合は届かない（§4.3）。失敗の検知は手動（`push-notifications-setup.md` の「cronの失敗検知」）。 → [#130](https://github.com/mmtigers/AsaNote/issues/130)
 - **IndexedDB書き込み失敗の専用UIなし**（§3.1.7）。 → [#132](https://github.com/mmtigers/AsaNote/issues/132)
 - **初回訪問直後のオフライン起動**: 未検証（§7.7）。Q15 → [#133](https://github.com/mmtigers/AsaNote/issues/133)
@@ -920,7 +921,7 @@ npm run test:e2e:supabase  # 実Supabaseテストプロジェクト向けE2E（S
 | Q7 | `manifest` の `theme_color` / `background_color`（`#f6f3ec`）と、`layout.tsx` の `themeColor`・CSSの背景（`#fff5f6`）が不一致 | §13.2 | `public/manifest.webmanifest`, `src/app/layout.tsx`, `globals.css` |
 | Q8 | 子ども一覧の取得に失敗（オフライン起動など）すると「子どもなし」扱いになり、複数の子どもがいても `childId: null` で保存される。許容か | §3.1.7 | `src/lib/db/children.ts`, `src/lib/db/useAuthedList.ts` |
 | Q9（解決済み #125） | 前面に戻ったとき、前回の取り込みから5分以上空いていれば `pullFromCloud` を呼ぶようにした。定期取得と Realtime は使わない | §7.3 | `src/lib/db/sync.ts`, `packages/core/src/pullOnResume.ts`, `packages/core/src/cloudSync.ts` |
-| Q11 | 招待コード（8文字×32種）にアプリ側の試行回数制限が無い。Supabase側のレート制限に任せる想定か | §6.4 | `src/lib/db/groups.ts`, `schema.sql` |
+| Q11（解決済み #208） | 招待コード（8文字×32種）にアプリ側の試行回数制限が無い。→ 家族内の限定運用のため許容する。利用者の増加・公開範囲の拡大（Q13）の際にロックまたはレート制限を入れる | §6.4 | `src/lib/db/groups.ts`, `schema.sql` |
 | Q12 | 本番URL、対応ブラウザ・OSの公式な範囲（ホスティング先は Vercel と確認済み） | §8.1, §12 | `docs/push-notifications-setup.md`、PRのVercelプレビュー |
 | Q13 | 想定利用者の範囲（家族内の限定運用か一般公開か）、記録データ本体の保持期間（ログは決定済み: `client_errors` 90日・`reminder_deliveries` 7日・`analytics_events` 365日）、退会（アカウント・データ削除）の方針。退会機能はコードに無い | §1.2, §6.5 | README、コード全般 |
 | Q14（解決済み #127） | タイムラインのカードに子ども名が出ない／エクスポートが子どもで分かれない。→ タイムライン・傾向は #180 でカードに子ども名と「未分類」の絞り込みを追加。エクスポートは子どもの絞り込みと、CSVの末尾の「子ども」列、印刷/PDFの子ども名を追加した | §3.2, §3.4 | `src/app/timeline/page.tsx`, `src/app/export/page.tsx`, `src/app/export/selectEntries.ts` |
