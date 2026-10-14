@@ -1,13 +1,16 @@
 "use client";
 
-import type { ChangeEvent } from "react";
+import { useState, type ChangeEvent } from "react";
 import { TagChips } from "@/components/TagChips";
 import { MEMO_MAX_LENGTH, type Outcome } from "@/constants/choices";
+import { collectSaveWarnings } from "@/lib/saveChecks";
 import { DepartTimePicker } from "./DepartTimePicker";
 import { ResultStepView } from "./ResultStepView";
 import { WakeTimePicker } from "./WakeTimePicker";
 
 interface RecordFormViewProps {
+  /** 記録する日付("YYYY-MM-DD")。登校のない日の確認に使う。 */
+  date: string;
   isTodaySelected: boolean;
   outcome: Outcome | null;
   onSelectOutcome: (outcome: Outcome) => void;
@@ -28,6 +31,7 @@ interface RecordFormViewProps {
 }
 
 export function RecordFormView({
+  date,
   isTodaySelected,
   outcome,
   onSelectOutcome,
@@ -46,6 +50,21 @@ export function RecordFormView({
   saveError,
   onSave,
 }: RecordFormViewProps) {
+  // 保存前の確認(止めはしない)。同じ内容の確認は1度だけ出し、「このまま保存する」で保存する。
+  // 指摘の内容が変わった(入力した・日付を変えた)ときは、新しい内容でもう一度確認する。
+  const warnings = collectSaveWarnings({ date, outcome, wakeTime, departTime });
+  const warningKey = warnings.join("\n");
+  const [askedKey, setAskedKey] = useState<string | null>(null);
+  const confirming = warnings.length > 0 && askedKey === warningKey;
+
+  function handleSaveClick() {
+    if (warnings.length > 0 && askedKey !== warningKey) {
+      setAskedKey(warningKey);
+      return;
+    }
+    onSave();
+  }
+
   return (
     <>
       {/* 「この日はどうだった？」は専用画面をやめ、朝起きた時間のすぐ上に置いて1ページで入力を完結させる。 */}
@@ -105,14 +124,44 @@ export function RecordFormView({
           {saveError}
         </p>
       )}
-      <button
-        type="button"
-        onClick={onSave}
-        disabled={!loaded || !outcome}
-        className="sticky bottom-4 z-20 mt-1 flex w-full items-center justify-center gap-2 rounded-full bg-[var(--accent)] py-3.5 text-base font-bold text-[var(--accent-ink)] shadow-lg disabled:opacity-60"
-      >
-        ✓ この日の記録を保存する
-      </button>
+      {confirming ? (
+        <section
+          aria-label="保存前の確認"
+          className="sticky bottom-4 z-20 mt-1 flex flex-col gap-3 rounded-3xl border-2 border-[var(--accent)] bg-[var(--surface)] p-4 shadow-lg"
+        >
+          <ul className="flex flex-col gap-1 text-[13px] leading-relaxed">
+            {warnings.map((w) => (
+              <li key={w}>・{w}</li>
+            ))}
+          </ul>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setAskedKey(null)}
+              className="flex-1 rounded-full border border-[var(--line)] bg-[var(--surface-2)] py-3 text-[14px] font-bold"
+            >
+              入力にもどる
+            </button>
+            <button
+              type="button"
+              onClick={onSave}
+              disabled={!loaded || !outcome}
+              className="flex-1 rounded-full bg-[var(--accent)] py-3 text-[14px] font-bold text-[var(--accent-ink)] disabled:opacity-60"
+            >
+              このまま保存する
+            </button>
+          </div>
+        </section>
+      ) : (
+        <button
+          type="button"
+          onClick={handleSaveClick}
+          disabled={!loaded || !outcome}
+          className="sticky bottom-4 z-20 mt-1 flex w-full items-center justify-center gap-2 rounded-full bg-[var(--accent)] py-3.5 text-base font-bold text-[var(--accent-ink)] shadow-lg disabled:opacity-60"
+        >
+          ✓ この日の記録を保存する
+        </button>
+      )}
     </>
   );
 }

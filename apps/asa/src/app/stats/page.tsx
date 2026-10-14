@@ -13,6 +13,7 @@ import type { LocalRecord } from "@/lib/db/localDb";
 import { OUTCOME_OPTIONS, type Outcome } from "@/constants/choices";
 import { OUTCOME_COLOR_STYLES } from "@/constants/outcomeStyles";
 import { toDateInputValue, toMonthOf } from "@note/core/date";
+import { normalizeTags } from "@/lib/normalizeTag";
 import {
   outcomeByDate,
   recordsForWakeTimeBucket,
@@ -33,7 +34,8 @@ interface TagCount {
 function countTags(records: LocalRecord[], pick: (r: LocalRecord) => string[]): TagCount[] {
   const byTag = new Map<string, LocalRecord[]>();
   for (const r of records) {
-    for (const tag of pick(r)) {
+    // 末尾の「、」「。」だけが違うタグは同じ理由として数える(保存済みのデータは書き換えない)。
+    for (const tag of normalizeTags(pick(r))) {
       const list = byTag.get(tag);
       if (list) list.push(r);
       else byTag.set(tag, [r]);

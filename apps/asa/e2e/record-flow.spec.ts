@@ -20,6 +20,8 @@ test("記録フォームに入力して保存すると、ホームとタイム�
   await page.getByLabel("メモ欄").fill(memo);
 
   await page.getByRole("button", { name: "この日の記録を保存する" }).click();
+  // 起床時刻が未入力のため保存前の確認が出る(日曜・祝日でも同じ確認にまとまる)。
+  await page.getByRole("button", { name: "このまま保存する" }).click();
 
   // ホームへ戻り、記録済みの要約カードが表示される
   await expect(page.getByRole("button", { name: "記録を編集する" })).toBeVisible();

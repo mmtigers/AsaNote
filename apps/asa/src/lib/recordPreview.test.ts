@@ -25,6 +25,14 @@ describe("buildDiaryText", () => {
   });
 });
 
+describe("buildDiaryText の理由タグの表記ゆれ", () => {
+  it("末尾の句読点を除いて連結する", () => {
+    expect(
+      buildDiaryText({ outcome: "smooth", reasonTags: ["決めた、", "余裕があった。"], departTime: null, memo: null })
+    ).toBe("スムーズに行けた。理由は「決めた・余裕があった」。");
+  });
+});
+
 // 出発時刻は3区分で記録するため、保存値(代表値の時刻)ではなく区分名で出す。
 // 旧データの任意の時刻も同じ境界で区分名に寄せる。
 describe("buildDiaryText の出発時刻", () => {
