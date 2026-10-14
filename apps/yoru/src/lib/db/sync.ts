@@ -1,5 +1,4 @@
-import { reportClientError } from "@note/core/clientErrors";
-import { createResumePuller } from "@note/core/pullOnResume";
+import { createCloudResumePuller, createSyncFailureReporter, createSyncListenersRegistrar, fetchAllPages, PULL_PAGE_SIZE } from "@note/core/cloudSync";
 import { getSupabaseClient } from "@note/core/supabase/client";
 import type { DinnerState, MilestoneKey, Outcome, ResponseEffect } from "@/constants/choices";
 import type { EveningRecord } from "@/types/models";
@@ -8,21 +7,15 @@ import { localDb, type LocalPhoto, type LocalRecord } from "./localDb";
 import { normalizeMilestoneValue } from "@/lib/timeBands";
 import { reportSyncOutcome } from "./syncStatus";
 
-// 画面には「同期に失敗しています」としか出ないので、原因(Supabaseのエラー内容)は client_errors へ送る。
-// 記録・写真の中身は送らず、どの段階で何件失敗したかだけを付ける。
-function reportSyncFailure(phase: string, error: unknown, count?: number) {
-  reportClientError("yoru", "sync-failure", error, releases[0]?.version, { phase, count: count ?? null });
-}
+const reportSyncFailure = createSyncFailureReporter("yoru", releases[0]?.version);
 
 let syncing = false;
 let pulling = false;
 
 const PHOTO_BUCKET = "evening-photos";
 
-// pullの1ページあたりの取得件数。PostgRESTは1リクエストの最大行数(既定 max-rows=1000)を
-// 黙って切り捨てるため、安定した順序でこの件数ずつ全ページ取得する。取得できなかった行を
-// 「クラウドから見えなくなった」と誤判定してローカルから削除してしまうのを避けるため。
-export const PULL_PAGE_SIZE = 500;
+// pullの1ページあたりの取得件数とページ送りの取得は @note/core/cloudSync。テストが参照するので再エクスポートする。
+export { PULL_PAGE_SIZE };
 
 // 節目の key と DB の列名の対応。
 const TIME_COLUMNS = {
@@ -274,26 +267,12 @@ async function uploadPhoto(photo: LocalPhoto, userId: string): Promise<boolean> 
   return true;
 }
 
-async function fetchAllPages<T>(table: string, orderBy: string): Promise<T[] | null> {
-  const supabase = getSupabaseClient();
-  const all: T[] = [];
-  for (let from = 0; ; from += PULL_PAGE_SIZE) {
-    const { data, error } = await supabase
-      .from(table)
-      .select("*")
-      .order(orderBy, { ascending: true })
-      .order("id", { ascending: true })
-      .range(from, from + PULL_PAGE_SIZE - 1);
-    if (error) {
-      console.warn(`${table}のpullに失敗しました(offset=${from}):`, error);
-      reportSyncFailure(`pull-${table}`, error);
-      return null;
-    }
-    const page = (data ?? []) as T[];
-    all.push(...page);
-    if (page.length < PULL_PAGE_SIZE) break;
-  }
-  return all;
+// 失敗したページがあれば、原因をログと client_errors に残して null を返す(全ページ取れたときだけ反映するため)。
+function fetchAllRows<T>(table: string, orderBy: string): Promise<T[] | null> {
+  return fetchAllPages<T>(table, orderBy, (error, offset) => {
+    console.warn(`${table}のpullに失敗しました(offset=${offset}):`, error);
+    reportSyncFailure(`pull-${table}`, error);
+  });
 }
 
 // クラウド→ローカルの取り込み(ログイン直後・起動時・グループ参加/脱退後・前面に戻ったとき(5分以上空いていれば)に実行)。他端末
@@ -304,15 +283,8 @@ async function fetchAllPages<T>(table: string, orderBy: string): Promise<T[] | n
 //
 // 取得は全ページ取得で、途中のページが失敗した場合はローカルへの反映も「見えなくなった行の削除」も
 // 行わない(部分的な結果で削除判定すると、取得漏れの行が消えるため)。
-// 前面に戻ったときの取り込み(#125)。前回の取り込み時刻は、起動時・ログイン時などの pullFromCloud も更新する。
-// ログイン済みかはローカルのセッションで見る(getUser はサーバーへ問い合わせるため、復帰のたびには使わない)。
-const resumePuller = createResumePuller({
-  pull: () => pullFromCloud(),
-  isSignedIn: async () => {
-    const { data } = await getSupabaseClient().auth.getSession();
-    return data.session !== null;
-  },
-});
+// 前面に戻ったときの取り込み(#125)は @note/core/cloudSync。前回の取り込み時刻は、起動時・ログイン時などの pullFromCloud も更新する。
+const resumePuller = createCloudResumePuller(() => pullFromCloud());
 
 export async function pullFromCloud() {
   if (pulling) return;
@@ -329,8 +301,8 @@ export async function pullFromCloud() {
     if (!userId) return;
 
     hadWork = true;
-    const remoteRecords = await fetchAllPages<CloudRecordRow>("evening_records", "record_date");
-    const remotePhotos = remoteRecords ? await fetchAllPages<CloudPhotoRow>("evening_photos", "created_at") : null;
+    const remoteRecords = await fetchAllRows<CloudRecordRow>("evening_records", "record_date");
+    const remotePhotos = remoteRecords ? await fetchAllRows<CloudPhotoRow>("evening_photos", "created_at") : null;
     if (!remoteRecords || !remotePhotos) {
       hadError = true;
       return;
@@ -389,22 +361,5 @@ export async function pullFromCloud() {
   }
 }
 
-// 起動時とオンライン復帰時に同期をトリガーし、前面に戻ったときは(5分以上空いていれば)取り込む。オフライン中の変更をキャッシュに残したまま
-// バックグラウンドで送信するため、UI側の待ち時間は発生しない。
-export function registerSyncListeners() {
-  if (typeof window === "undefined") return;
-
-  const onOnline = () => {
-    void syncPendingChanges();
-  };
-  window.addEventListener("online", onOnline);
-  const stopResumePull = resumePuller.register();
-
-  void syncPendingChanges();
-
-  // StrictMode や再マウントで二重に張らないよう、呼び出し側(ServiceWorkerRegister)がクリーンアップで解除する。
-  return () => {
-    window.removeEventListener("online", onOnline);
-    stopResumePull();
-  };
-}
+// 起動時とオンライン復帰時に同期をトリガーし、前面に戻ったときは(5分以上空いていれば)取り込む(実装は @note/core/cloudSync)。
+export const registerSyncListeners = createSyncListenersRegistrar(syncPendingChanges, resumePuller);
