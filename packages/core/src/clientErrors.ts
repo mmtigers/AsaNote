@@ -87,6 +87,48 @@ function fitContext(context: ClientErrorContext): ClientErrorContext | null {
   return kept.length > 0 ? Object.fromEntries(kept) : null;
 }
 
+// 付帯情報の集め方。アプリ固有のもの(未同期の件数など)は、アプリが provider を登録して足す。
+// 記録の内容(メモ・タグ)・写真・ファイル名は入れない。件数・時刻・状態の区分だけ。
+const EXTRA_CONTEXT_TIMEOUT_MS = 1500;
+let contextProvider: (() => Promise<ClientErrorContext>) | null = null;
+export function registerClientErrorContextProvider(provider: (() => Promise<ClientErrorContext>) | null): void {
+  contextProvider = provider;
+}
+
+async function browserContext(): Promise<ClientErrorContext> {
+  const extra: ClientErrorContext = {};
+  if (typeof navigator !== "undefined") {
+    extra.swState = !("serviceWorker" in navigator) ? "unsupported" : navigator.serviceWorker.controller ? "controlled" : "uncontrolled";
+    if (typeof navigator.storage?.estimate === "function") {
+      const { usage, quota } = await navigator.storage.estimate();
+      if (typeof usage === "number") extra.storageUsedMb = Math.round(usage / 1024 / 1024);
+      if (typeof quota === "number") extra.storageQuotaMb = Math.round(quota / 1024 / 1024);
+    }
+  }
+  return extra;
+}
+
+async function settled(task: () => Promise<ClientErrorContext>): Promise<ClientErrorContext> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      task(),
+      new Promise<ClientErrorContext>((resolve) => {
+        timer = setTimeout(() => resolve({}), EXTRA_CONTEXT_TIMEOUT_MS);
+      }),
+    ]);
+  } catch {
+    return {};
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function collectExtraContext(): Promise<ClientErrorContext> {
+  const [browser, app] = await Promise.all([settled(browserContext), contextProvider ? settled(contextProvider) : {}]);
+  return { ...browser, ...app };
+}
+
 // ClientErrorReporter が、どのアプリか・版を覚えておく。core の共通処理(runAction など)が、アプリを知らずに
 // reportHandledError を呼べるようにするため。
 let registered: { app: ClientErrorApp; appVersion?: string } | null = null;
@@ -114,6 +156,7 @@ export function reportHandledError(where: string, error: unknown, context?: Clie
 export function resetClientErrorReports(): void {
   for (const keys of Object.values(reportedKeys)) keys.clear();
   registered = null;
+  contextProvider = null;
 }
 
 /**
@@ -149,9 +192,7 @@ export function reportClientError(
       standalone: typeof window !== "undefined" && typeof window.matchMedia === "function" ? window.matchMedia("(display-mode: standalone)").matches : null,
       ...context,
     };
-    const fittedContext = fitContext(baseContext);
     const row = {
-      context: fittedContext,
       app,
       source,
       message: truncate(message, MAX_MESSAGE),
@@ -162,9 +203,16 @@ export function reportClientError(
       client_ts: new Date().toISOString(),
     };
 
-    void supabase.auth
-      .getSession()
-      .then(({ data }) => supabase.from("client_errors").insert({ ...row, user_id: data.session?.user.id ?? null }))
+    // 付帯情報(未同期の件数・Service Worker の状態・ストレージなど)は、送ると決めた時にだけ集める。
+    // 非同期で、取れなくても(タイムアウト含め)送信は止めない。優先度が低いので、大きすぎれば先に落とされる。
+    void Promise.all([collectExtraContext(), supabase.auth.getSession()])
+      .then(([extra, { data }]) =>
+        supabase.from("client_errors").insert({
+          ...row,
+          context: fitContext({ ...baseContext, ...extra }),
+          user_id: data.session?.user.id ?? null,
+        })
+      )
       .then(
         ({ error: insertError }) => {
           // ここで console.error すると、送信失敗が再び error として拾われかねないので warn に留める。
