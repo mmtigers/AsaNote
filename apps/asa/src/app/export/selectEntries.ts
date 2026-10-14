@@ -2,6 +2,7 @@ import { matchesChildFilter } from "@note/core/childFilter";
 import { isOwnRecord } from "@note/core/ownership";
 import { OUTCOME_OPTIONS, type Outcome } from "@/constants/choices";
 import { departTimeLabel } from "@/lib/departTime";
+import { normalizeTags } from "@/lib/normalizeTag";
 import { wakeTimeLabel } from "@/lib/wakeTime";
 import { parseDateInputValue, WEEKDAYS } from "@note/core/date";
 
@@ -83,7 +84,7 @@ export function buildCsvContent<T extends CsvableRecord>(
   const rows = entries.map((record) => {
     const weekday = WEEKDAYS[parseDateInputValue(record.recordDate).getDay()] ?? "";
     const outcomeLabel = OUTCOME_OPTIONS.find((o) => o.value === record.outcome)?.label ?? "";
-    const tags = [...record.wakeTags, ...record.triggerTags, ...record.reasonTags, ...record.responseTags];
+    const tags = [...record.wakeTags, ...record.triggerTags, ...normalizeTags(record.reasonTags), ...record.responseTags];
     const owner = isOwnRecord(record, currentUserId, authLoading) ? "自分" : "パートナー";
     return [
       record.recordDate,

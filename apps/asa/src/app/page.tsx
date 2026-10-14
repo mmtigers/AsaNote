@@ -259,6 +259,7 @@ export default function HomePage() {
 
           {step === "form" && (
             <RecordFormView
+              date={date}
               isTodaySelected={isTodaySelected}
               outcome={form.outcome}
               onSelectOutcome={selectOutcome}

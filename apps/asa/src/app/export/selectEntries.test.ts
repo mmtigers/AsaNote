@@ -173,6 +173,15 @@ describe("buildCsvContent", () => {
     expect(csv).not.toContain("partner");
   });
 
+  it("理由タグの末尾の句読点は除いて出し、区切りの「、」と紛れないようにする", () => {
+    const csv = buildCsvContent(
+      [makeCsvRecord({ reasonTags: ["7:55に出ると自分で決めた、", "朝の準備に余裕があった。"] })],
+      "me"
+    );
+    const [, row] = csv.split("\r\n");
+    expect(row).toContain(",7:55に出ると自分で決めた、朝の準備に余裕があった,");
+  });
+
   it("カンマ・改行・ダブルクォートを含む値はダブルクォートで囲みエスケープする", () => {
     const csv = buildCsvContent([makeCsvRecord({ memo: 'A,B"C\nD' })], "me");
     const [, row] = csv.split("\r\n");

@@ -44,6 +44,8 @@ test("通常の操作(記録・一覧・各ページ)で CSP 違反が1件も出
   await page.getByRole("button", { name: /スムーズ/ }).click();
   await page.getByLabel("メモ欄").fill("CSPの確認");
   await page.getByRole("button", { name: "この日の記録を保存する" }).click();
+  // 起床時刻が未入力のため保存前の確認が出る(日曜・祝日でも同じ確認にまとまる)。
+  await page.getByRole("button", { name: "このまま保存する" }).click();
   await expect(page.getByRole("button", { name: "記録を編集する" })).toBeVisible();
 
   // 全ページを開く(ログイン前でも開ける画面)。

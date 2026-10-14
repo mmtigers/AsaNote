@@ -1,5 +1,6 @@
 import { OUTCOME_OPTIONS, type Outcome } from "@/constants/choices";
 import { departTimeLabel } from "./departTime";
+import { normalizeTags } from "./normalizeTag";
 
 export interface DiaryTextSource {
   outcome?: Outcome | null;
@@ -14,7 +15,9 @@ export function buildDiaryText(record: DiaryTextSource): string {
   if (!record.outcome) return "";
   const outcomeLabel = OUTCOME_OPTIONS.find((o) => o.value === record.outcome)?.label ?? "";
   const segs: string[] = [outcomeLabel];
-  if (record.reasonTags.length) segs.push(`理由は「${record.reasonTags.join("・")}」`);
+  // 保存済みの「…決めた、」のような表記ゆれは、日記文では句読点を除いて出す。
+  const reasonTags = normalizeTags(record.reasonTags);
+  if (reasonTags.length) segs.push(`理由は「${reasonTags.join("・")}」`);
   // 出発時刻は3区分で記録しているため、保存値(代表値の時刻)ではなく区分名で出す。
   const departLabel = departTimeLabel(record.departTime);
   if (departLabel) segs.push(`${departLabel}に出発`);
