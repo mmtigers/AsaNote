@@ -1,7 +1,6 @@
 "use client";
 
-import { useAuth } from "@/lib/auth/AuthProvider";
-import { useHasTodayOwnRecord } from "@/lib/db/queries";
+import { useHasTodayRecord } from "@/lib/db/queries";
 import { dismissReminderForToday, useDismissedDate } from "@/lib/db/reminderDismissal";
 import { toDateInputValue } from "@note/core/date";
 
@@ -22,16 +21,16 @@ export function shouldShowReminder(options: {
 }
 
 interface RecordReminderNoticeProps {
+  childId: string | null;
   onStartRecording: () => void;
 }
 
 // ホーム画面のカレンダー下に埋め込むインラインの通知。固定表示のトースト類とは違い、
 // 記録ボタンやヘッダーと重ならないよう、通常のブロックとして流し込む。
-export function RecordReminderNotice({ onStartRecording }: RecordReminderNoticeProps) {
-  const { session } = useAuth();
+export function RecordReminderNotice({ childId, onStartRecording }: RecordReminderNoticeProps) {
   const now = new Date();
   const today = toDateInputValue(now);
-  const hasTodayRecord = useHasTodayOwnRecord(today, session?.user.id ?? null);
+  const hasTodayRecord = useHasTodayRecord(today, childId);
   const dismissedDate = useDismissedDate();
 
   if (!shouldShowReminder({ now, hasTodayRecord, dismissedDate, today })) return null;

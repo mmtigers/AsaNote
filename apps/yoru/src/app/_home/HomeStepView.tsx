@@ -75,7 +75,7 @@ export function HomeStepView({
       <ReleaseNotice />
 
       {isToday && <PartnerRecordStatus childId={childId} />}
-      {isToday && <RecordReminderNotice onStartRecording={onStart} />}
+      {isToday && <RecordReminderNotice childId={childId} onStartRecording={onStart} />}
 
       {childList.length >= 2 && <ChildSwitcher childList={childList} selectedId={childId} onSelect={onSelectChild} />}
 

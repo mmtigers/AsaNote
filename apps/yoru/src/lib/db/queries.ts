@@ -48,12 +48,14 @@ export function useOwnRecordForDate(recordDate: string, userId: string | null, c
   }, [recordDate, userId, childId]);
 }
 
-// 今日の自分の記録が(outcomeまで)入力済みか。アプリ内リマインドの表示判定に使う。
-export function useHasTodayOwnRecord(recordDate: string, userId: string | null) {
+// 指定した日付・子どもの記録が、自分かパートナーのいずれかで(outcomeまで)入力済みか。
+// アプリ内リマインドの表示判定に使う。Push(reminderHandler)も「グループの誰かが記録済みなら送らない」
+// ので、ここも自分の記録だけに限らない(パートナーが記録済みなのに「まだ」と出る不具合の修正)。
+export function useHasTodayRecord(recordDate: string, childId: string | null = null) {
   return useLiveQuery(async () => {
     const rows = await localDb.records.where("recordDate").equals(recordDate).toArray();
-    return rows.some((r) => isOwnRecord(r, userId) && !!r.outcome);
-  }, [recordDate, userId]);
+    return rows.some((r) => (r.childId ?? null) === childId && !!r.outcome);
+  }, [recordDate, childId]);
 }
 
 // 指定した日付・子どものパートナー(自分以外)の記録が(outcomeまで)入力済みか。
