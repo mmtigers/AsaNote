@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
-// 土台の段階(Supabase に未接続)の本番ビルドで、画面・セキュリティヘッダ・PWA の配信を確かめる。
+// Supabase に接続しない本番ビルド(placeholder の URL)で、画面・セキュリティヘッダ・PWA の配信と、
+// 未ログインのときの画面を確かめる(ログイン・家族の操作は、実際の Supabase が要るので単体テストで確かめる)。
 // ビルド時の NEXT_PUBLIC_SUPABASE_URL(CI では placeholder)が接続先として許可される。
 const SUPABASE_ORIGIN = "https://placeholder.supabase.co";
 
@@ -40,6 +41,25 @@ test("ホーム・更新履歴・404 が表示でき、CSP に弾かれるもの
 
   await page.goto("/no-such-page");
   await expect(page.getByRole("heading", { name: "ページが見つかりません" })).toBeVisible();
+
+  expect(await violations()).toEqual([]);
+  expect(pageErrors).toEqual([]);
+});
+
+test("未ログインでは、ホームからログイン画面(メールにコードを送る)へ進める", async ({ page }) => {
+  const violations = await collectViolations(page);
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+
+  await page.goto("/");
+  await page.getByRole("link", { name: "ログインする" }).click();
+  await expect(page.getByRole("heading", { name: "ログイン" })).toBeVisible();
+  await expect(page.getByLabel("メールアドレス")).toBeVisible();
+  await expect(page.getByRole("button", { name: "コードを送る" })).toBeEnabled();
+
+  // 家族の画面は、未ログインではログインへ案内するだけ(データは読まない)。
+  await page.goto("/family");
+  await expect(page.getByText("ログインすると、家族のメンバーを確認できます。")).toBeVisible();
 
   expect(await violations()).toEqual([]);
   expect(pageErrors).toEqual([]);

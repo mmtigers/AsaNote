@@ -84,7 +84,8 @@ RLS の方針:
 ### 3. 認証
 
 - ログインは**メールの6桁コード**(Supabase Auth の Email OTP。`signInWithOtp` で送り、`verifyOtp({ type: 'email' })` で確かめる)。
-  Supabase の「Magic Link」メールのテンプレートに `{{ .Token }}` を入れて、コードを送るようにする(ダッシュボードの手動設定)。
+  Supabase の「Magic Link」メールのテンプレートに `{{ .Token }}` を入れて、コードを送るようにする(ダッシュボードの手動設定。
+  テンプレートは `apps/oya/supabase/templates/magic-link.html`。既定のテンプレートはリンクだけで、コードが入らないことをローカルの Supabase で確認した)。
 - ログイン状態はブラウザに保存し、毎回のログインを求めない(supabase-js の既定の `persistSession`。リフレッシュトークンで更新)。
   Supabase 側でセッションの有効期限(Time-box)は設定しない。
 - アカウントの作成は誰でもできる(Email OTP の既定)。ただし**家族に参加するまでは何も読めない**(RLS)。

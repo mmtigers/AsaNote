@@ -3,10 +3,30 @@
 離れて暮らす両親(父・母)が毎日のようすを記録し、家族がその記録を確認できるスマホ向けアプリ(PWA)。
 記録を完了すると、孫の写真が1枚表示される。
 
-> 状態: 土台(タスク2)と DB のスキーマ・権限(タスク3)まで。画面からはまだ DB に接続しない(ログインはタスク4)。
+> 状態: タスク4まで(ログイン・家族への参加・家族の管理)。記録の画面はタスク5以降。
 
 - 要件: [docs/SPEC.md](docs/SPEC.md)
 - 構成の決定: [docs/adr/0001-architecture.md](docs/adr/0001-architecture.md)(専用の Supabase プロジェクト、Vercel の別プロジェクト)
+
+## 画面(タスク4時点)
+
+| ルート | 内容 |
+|---|---|
+| `/` | 未ログイン: ログインへの案内 / 家族に未参加: 招待コードで参加(最初の1人は家族を作る) / 参加済み: 呼び名と役割 |
+| `/login` | メールに届いた数字(コード)でログイン(`OtpLoginView`) |
+| `/family` | メンバーの一覧と「家族から抜ける」。家族管理者は、招待コードの発行・取り消し、役割の変更、メンバーを外す操作 |
+| `/updates` | 更新履歴 |
+
+ログイン中の人の所属(家族・役割)は `src/lib/membership.tsx` が読み、画面の出し分けに使う。**出し分けは表示のためだけ**で、
+権限はサーバー(RLS と DB の関数)が検証する。DB のエラー(`invite_invalid` など)は `src/lib/errors.ts` で日本語の案内にする。
+
+## Supabase の設定(オーナーが、おやノート専用のプロジェクトで1回だけ行う)
+
+1. **Authentication → Email Templates → Magic Link** を、[supabase/templates/magic-link.html](supabase/templates/magic-link.html) の内容に
+   置き換える(件名の例: 「おやノートのログイン用の数字」)。**既定のテンプレートはリンクだけで数字が入らないため、そのままではログインできない**
+   (ローカルの Supabase で確認済み)。
+2. **Authentication → URL Configuration** の Site URL を、おやノートの本番 URL にする。
+3. Email OTP の桁数は既定(6桁)のままでよい(画面は6〜10桁を受け付ける)。
 
 ## DB(`supabase/`)
 

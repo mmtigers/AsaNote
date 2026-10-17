@@ -57,6 +57,25 @@ begin
   raise exception 'FAIL: % (no error)', label;
 end $$;
 
+-- 書き込みが拒否されること(RLS で0件になる、またはエラーになる)。実際の Supabase は storage.objects の直接の
+-- delete をトリガーで拒否し(Storage API を使う決まり)、RLS より先にエラーになるため、どちらでも拒否として扱う。
+create function oya_test.denied(label text, sql text) returns void
+language plpgsql as $$
+declare
+  n bigint;
+begin
+  begin
+    n := oya_test.count(sql);
+  exception when others then
+    raise notice 'ok: % (%)', label, sqlerrm;
+    return;
+  end;
+  if n <> 0 then
+    raise exception 'FAIL: % (expected denied, but % rows affected)', label, n;
+  end if;
+  raise notice 'ok: % (0 rows)', label;
+end $$;
+
 -- 結果を受け渡すための一時表(テストの補助なので RLS の対象外)。
 create table oya_test.vars (key text primary key, value text);
 grant all on oya_test.vars to anon, authenticated;
@@ -261,12 +280,12 @@ select oya_test.raises('閲覧者は写真を登録できない',
   format($$insert into oya_photos (id, family_id, storage_path) values ('cccccccc-0000-0000-0000-000000000001', %1$L, %1$L || '/cccccccc-0000-0000-0000-000000000001.jpg')$$, oya_test.var('family1')), 'row-level security');
 select oya_test.eq('閲覧者は写真を無効化できない(0件)', oya_test.count('update oya_photos set active = false returning 1'), 0::bigint);
 select oya_test.eq('閲覧者は写真を削除できない(0件)', oya_test.count('delete from oya_photos returning 1'), 0::bigint);
-select oya_test.eq('閲覧者は写真のファイルを削除できない(0件)', oya_test.count('delete from storage.objects returning 1'), 0::bigint);
+select oya_test.denied('閲覧者は写真のファイルを削除できない', 'delete from storage.objects returning 1');
 
 :as_father
 select oya_test.eq('親は、表示される前の写真を読めない', oya_test.count('select * from oya_photos'), 0::bigint);
 select oya_test.eq('親は、表示される前の写真のファイルを読めない', oya_test.count('select * from storage.objects'), 0::bigint);
-select oya_test.eq('親は写真を削除できない(0件)', oya_test.count('delete from storage.objects returning 1'), 0::bigint);
+select oya_test.denied('親は写真のファイルを削除できない', 'delete from storage.objects returning 1');
 select oya_test.raises('親は表示の履歴を直接作れない',
   format($$insert into oya_photo_reveals (user_id, record_date, photo_id) values (auth.uid(), oya_today_jst() - 20, %L)$$, oya_test.var('photo_a')), 'row-level security');
 

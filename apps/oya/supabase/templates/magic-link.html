@@ -1,0 +1,10 @@
+<!--
+  おやノートのログイン用メール(Supabase の Authentication → Email Templates → Magic Link に貼り付ける)。
+  おやノートはメールのリンクではなく、届いた数字(コード)を入力してログインする(apps/oya/docs/adr/0001-architecture.md §3)。
+  Supabase の既定のテンプレートはリンクだけでコードが入らないため、この内容に置き換えること({{ .Token }} がコード)。
+  件名の例: おやノートのログイン用の数字
+-->
+<h2>おやノートのログイン</h2>
+<p>おやノートの画面に、次の数字を入力してください。</p>
+<p style="font-size: 32px; font-weight: bold; letter-spacing: 6px;">{{ .Token }}</p>
+<p>この数字は、しばらくすると使えなくなります。心当たりが無い場合は、このメールを無視してください。</p>
