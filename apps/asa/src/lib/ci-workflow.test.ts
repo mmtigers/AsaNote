@@ -43,7 +43,7 @@ describe(".github/workflows のアクション参照", () => {
   it("ワークフローを検出できている(あさノート・よるノート・共通・core・DB反映)", () => {
     const names = workflows().map(([name]) => name);
     expect(names).toEqual(
-      expect.arrayContaining(["ci.yml", "ci-yoru.yml", "ci-core.yml", "_app-ci.yml", "db-deploy.yml", "db-deploy-yoru.yml"]),
+      expect.arrayContaining(["ci.yml", "ci-yoru.yml", "ci-oya.yml", "ci-core.yml", "_app-ci.yml", "db-deploy.yml", "db-deploy-yoru.yml"]),
     );
   });
 
@@ -86,7 +86,7 @@ describe("DBスキーマを適用するワークフローの psql(#196)", () => 
   // ローカルで型を再生成するスクリプトも同じ(#227)。途中までしか適用されていない DB から型を作ってしまう。
   it("ローカルの型の再生成スクリプト(apps/*/scripts/gen-db-types.sh)の psql -f も、ON_ERROR_STOP=1 を付けている", () => {
     const ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
-    for (const app of ["asa", "yoru"]) {
+    for (const app of ["asa", "yoru", "oya"]) {
       const sh = readFileSync(`${ROOT}apps/${app}/scripts/gen-db-types.sh`, "utf8");
       const commands = sh.split("\n").filter((line) => !line.trim().startsWith("#") && /\bpsql\b[^\n]*\s-f\s/.test(line));
       expect(commands.length, app).toBeGreaterThan(0);
@@ -239,19 +239,20 @@ describe("バージョンの散在を防ぐ(#206)", () => {
     expect(users[0]?.[1]).toMatch(/version:\s*\d+\.\d+\.\d+/);
   });
 
-  it("あさノート・よるノートの CI は、型ずれの検査を再利用ワークフローから呼ぶ", () => {
-    for (const name of ["ci.yml", "ci-yoru.yml"]) {
+  it("あさノート・よるノート・おやノートの CI は、型ずれの検査を再利用ワークフローから呼ぶ", () => {
+    for (const name of ["ci.yml", "ci-yoru.yml", "ci-oya.yml"]) {
       const yaml = readFileSync(`${WORKFLOWS_DIR}${name}`, "utf8");
       expect(yaml, name).toContain("uses: ./.github/workflows/_db-types-check.yml");
       expect(yaml, name).not.toContain("supabase gen types");
     }
   });
 
-  it("Playwright の範囲が、あさノート・よるノートでそろっている", () => {
+  it("Playwright の範囲が、あさノート・よるノート・おやノートでそろっている", () => {
     const range = (app: string) =>
       (JSON.parse(readFileSync(`${ROOT}apps/${app}/package.json`, "utf8")) as { devDependencies: Record<string, string> })
         .devDependencies["@playwright/test"];
     expect(range("yoru")).toBe(range("asa"));
+    expect(range("oya")).toBe(range("asa"));
   });
 });
 
@@ -264,9 +265,9 @@ describe("カバレッジの job summary(#207)", () => {
     }
   });
 
-  it("vitest の coverage reporter に json-summary がある(あさノート・よるノート・core)", () => {
+  it("vitest の coverage reporter に json-summary がある(あさノート・よるノート・おやノート・core)", () => {
     const ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
-    for (const dir of ["apps/asa", "apps/yoru", "packages/core"]) {
+    for (const dir of ["apps/asa", "apps/yoru", "apps/oya", "packages/core"]) {
       expect(readFileSync(`${ROOT}${dir}/vitest.config.mts`, "utf8"), dir).toContain('"json-summary"');
     }
   });
@@ -275,10 +276,10 @@ describe("カバレッジの job summary(#207)", () => {
 describe("Actions の分数を守るトリガー(#225)", () => {
   // 無料枠(月2,000分)の範囲内で運用する。main への push では走らせず(PR の CI で済ませる)、
   // 関係のない変更では PR でも走らせない。実Supabase E2E と DB 反映は別の仕組みなので対象外。
-  const CI_WORKFLOWS = ["ci.yml", "ci-yoru.yml", "ci-core.yml"];
+  const CI_WORKFLOWS = ["ci.yml", "ci-yoru.yml", "ci-oya.yml", "ci-core.yml"];
   const onBlock = (yaml: string) => yaml.slice(yaml.indexOf("\non:"), yaml.indexOf("\nconcurrency:"));
 
-  it("あさノート・よるノート・core の CI は、main への push では走らせない", () => {
+  it("あさノート・よるノート・おやノート・core の CI は、main への push では走らせない", () => {
     for (const name of CI_WORKFLOWS) {
       expect(onBlock(readFileSync(`${WORKFLOWS_DIR}${name}`, "utf8")), name).not.toMatch(/^ {2}push:/m);
     }
@@ -297,15 +298,16 @@ describe("Actions の分数を守るトリガー(#225)", () => {
   it("アプリの CI は自分のアプリ、core の CI は core を対象にしている", () => {
     expect(onBlock(readFileSync(`${WORKFLOWS_DIR}ci.yml`, "utf8"))).toContain('"apps/asa/**"');
     expect(onBlock(readFileSync(`${WORKFLOWS_DIR}ci-yoru.yml`, "utf8"))).toContain('"apps/yoru/**"');
+    expect(onBlock(readFileSync(`${WORKFLOWS_DIR}ci-oya.yml`, "utf8"))).toContain('"apps/oya/**"');
   });
 });
 
 describe("ドラフトの PR では CI を走らせない(#225)", () => {
   // ドラフトは作業中で、push のたびに全ジョブ(約5〜11分)を消費していた。ready にした時から走らせる。
-  const CI_WORKFLOWS = ["ci.yml", "ci-yoru.yml", "ci-core.yml"];
+  const CI_WORKFLOWS = ["ci.yml", "ci-yoru.yml", "ci-oya.yml", "ci-core.yml"];
   const DRAFT_GUARD = "if: ${{ !github.event.pull_request.draft }}";
 
-  it("あさノート・よるノート・core の CI は、すべてのジョブにドラフト除外の if がある", () => {
+  it("あさノート・よるノート・おやノート・core の CI は、すべてのジョブにドラフト除外の if がある", () => {
     for (const name of CI_WORKFLOWS) {
       const yaml = readFileSync(`${WORKFLOWS_DIR}${name}`, "utf8");
       const jobsBlock = yaml.slice(yaml.indexOf("\njobs:"));

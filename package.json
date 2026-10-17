@@ -1,7 +1,7 @@
 {
   "name": "notes",
   "private": true,
-  "description": "あさノート・よるノートのモノレポ。アプリは apps/ 配下、共通コードは packages/ 配下(Phase 1 で追加)。",
+  "description": "あさノート・よるノート・おやノートのモノレポ。アプリは apps/ 配下、共通コードは packages/ 配下(Phase 1 で追加)。",
   "workspaces": [
     "apps/*",
     "packages/*"
@@ -9,10 +9,12 @@
   "scripts": {
     "dev:asa": "npm run dev --workspace apps/asa",
     "dev:yoru": "npm run dev --workspace apps/yoru",
+    "dev:oya": "npm run dev --workspace apps/oya",
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "build:asa": "npm run build --workspace apps/asa",
     "build:yoru": "npm run build --workspace apps/yoru",
+    "build:oya": "npm run build --workspace apps/oya",
     "typecheck:core": "npm run typecheck --workspace packages/core"
   }
 }
