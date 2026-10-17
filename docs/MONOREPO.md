@@ -19,13 +19,14 @@
 |---|---|---|
 | `ci.yml` | あさノート | 共通ジョブ(`_app-ci.yml`)を呼ぶ + あさノート固有の E2E・型ずれの検査 |
 | `ci-yoru.yml` | よるノート | 共通ジョブ(`_app-ci.yml`、`check-schema: true`)を呼ぶ + よるノート固有の E2E・型ずれの検査 |
+| `ci-oya.yml` | おやノート | 共通ジョブ(`_app-ci.yml`)を呼ぶ + おやノート固有の E2E。DB(タスク3)を足すときに型ずれの検査と RLS のテストを追加する |
 | `_app-ci.yml` | 共通(再利用ワークフロー) | 依存の検査・lint・型・単体テスト・ビルド、更新履歴の検査。`app` で対象アプリを渡す。`working-directory` はアプリ、`npm ci` はルートで実行 |
 | `ci-core.yml` | 共通コード | `packages/core` の lint・型検査・テスト |
 | `_db-types-check.yml` | 共通(再利用ワークフロー) | 型ずれの検査(素の Postgres 16 へ `schema.sql` を2回適用し、生成した型とコミット済みの型を比べる)。`ci.yml`・`ci-yoru.yml` が、SQL・型定義のパスを入力として渡して呼ぶ。Supabase CLI の版はここの1か所だけ |
 | `db-deploy.yml` | あさノート → 本番DB | **変更していない**。`supabase/schema.sql` の変更で自動適用 |
 | `db-deploy-yoru.yml` | よるノート → 本番DB | `apps/yoru/supabase/schema.sql` の変更で自動適用。**自分自身のパスはトリガーに含めない**(ワークフローを足しただけで本番へ適用されないように)。適用前に `check-schema-safety` を通す |
 
-**CI の起動条件(#225。Actions の無料枠・月2,000分を守るため)**: `ci.yml`・`ci-yoru.yml`・`ci-core.yml` は、`main` への push では走らせず、`main` への PR だけで走る。さらに `paths` で、そのアプリ(core は `packages/core`)・共通コード・`supabase/`・`scripts/`・`docs/`・ルートの `*.md` と package・`.nvmrc`・`.github/` に関わる変更だけが対象(他方のアプリだけの変更では走らない)。**ドラフトの PR では走らせない**(全ジョブに `if: !github.event.pull_request.draft`。ready にした時と、その後の push で走る)。マージ後の統合ミスは CI では検出しない。`db-deploy*.yml` は本番DBへの反映なので、push のまま。Node の版は `.nvmrc`(ルート)の1か所で、全ワークフローの `setup-node` が読む。
+**CI の起動条件(#225。Actions の無料枠・月2,000分を守るため)**: `ci.yml`・`ci-yoru.yml`・`ci-oya.yml`・`ci-core.yml` は、`main` への push では走らせず、`main` への PR だけで走る。さらに `paths` で、そのアプリ(core は `packages/core`)・共通コード・`supabase/`・`scripts/`・`docs/`・ルートの `*.md` と package・`.nvmrc`・`.github/` に関わる変更だけが対象(他方のアプリだけの変更では走らない)。**ドラフトの PR では走らせない**(全ジョブに `if: !github.event.pull_request.draft`。ready にした時と、その後の push で走る)。マージ後の統合ミスは CI では検出しない。`db-deploy*.yml` は本番DBへの反映なので、push のまま。Node の版は `.nvmrc`(ルート)の1か所で、全ワークフローの `setup-node` が読む。
 
 `check-release-notes.mjs` はルートの `scripts/` に1つだけ置き、各アプリの CI が `working-directory` をアプリにして実行する(あさノート・よるノートで共通。テストは `apps/asa/src/lib/releaseNotesCheck.test.ts`)。アプリ単位で動く(変更ファイルはアプリ相対、lock の version はルートの
 `package-lock.json` の `packages["apps/<app>"]` を見る)。
@@ -49,6 +50,7 @@
 |---|---|---|---|
 | あさノート | `asa-note` | `asa-note.vercel.app` | `mmtigers/AsaNote`(Root Directory `apps/asa`) |
 | よるノート | `yoru-note` | `yorunote-mm.vercel.app` | `mmtigers/AsaNote`(Root Directory `apps/yoru`) |
+| おやノート | 未作成 | 未定 | `mmtigers/AsaNote`(Root Directory `apps/oya`) |
 
 - 本番 URL は、オーナーが共有した URL で確認した(2026-10-13)。**よるノートの URL(`yorunote-mm`)は、プロジェクト名(`yoru-note`)と一致しない**ので、プロジェクト名から推測しないこと(以前は表が取り違えていた。#228)。
 

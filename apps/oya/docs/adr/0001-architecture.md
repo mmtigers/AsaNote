@@ -1,8 +1,8 @@
 # ADR 0001: おやノートの構成(Supabase・Vercel・Secrets の分け方)
 
-- 状態: 提案(オーナーの合意待ち)
+- 状態: 合意済み(2026-10-17)
 - 日付: 2026-10-17
-- 関連: [おやノート 要件定義書 v0.3](oya-note-requirements.md)(§2・§3・§9)、[MONOREPO.md](MONOREPO.md)
+- 関連: [おやノート 要件定義書 v0.3](../SPEC.md)(§2・§3・§9)、[MONOREPO.md](../../../../docs/MONOREPO.md)
 
 ## 背景
 
@@ -158,6 +158,6 @@ RLS の方針:
 
 ## 実施の手順(この ADR の合意後)
 
-1. タスク2: `apps/oya` の土台と `ci-oya.yml`(DB には接続しない)。要件定義書とこの ADR を `apps/oya/docs/` へ移す。
+1. タスク2: `apps/oya` の土台と `ci-oya.yml`(DB には接続しない)。
 2. オーナーの作業: Supabase の新しいプロジェクトの作成、Vercel のプロジェクトの作成と環境変数、GitHub Secret `OYA_SUPABASE_DB_URL` の登録。
 3. タスク3: `apps/oya/supabase/schema.sql` と RLS のテスト。`db-deploy-oya.yml` は、この時点で追加する。

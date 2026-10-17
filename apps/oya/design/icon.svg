@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- おやノートのアプリアイコン。全面塗りの正方形(maskable/apple-touch もこのまま使える)。
+       中身は中心から半径約205(maskable の安全領域=直径の80%)に収めてある。
+       PNG は scripts/generate-icons.mjs で書き出す。 -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#f2a273"/>
+      <stop offset="1" stop-color="#c85f31"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <!-- ノート -->
+  <rect x="150" y="128" width="212" height="264" rx="22" fill="#fffaf2"/>
+  <rect x="150" y="128" width="34" height="264" rx="14" fill="#f3dcc4"/>
+  <g stroke="#e3cdb4" stroke-width="10" stroke-linecap="round">
+    <line x1="214" y1="300" x2="330" y2="300"/>
+    <line x1="214" y1="340" x2="300" y2="340"/>
+  </g>
+  <!-- ハート(見守り) -->
+  <path d="M272 268 C 232 238, 210 214, 210 190 C 210 170, 226 156, 244 156 C 257 156, 267 163, 272 173 C 277 163, 287 156, 300 156 C 318 156, 334 170, 334 190 C 334 214, 312 238, 272 268 Z" fill="#d9573a"/>
+</svg>

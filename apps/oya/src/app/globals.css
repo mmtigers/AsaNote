@@ -1,0 +1,87 @@
+@import url("https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&family=Noto+Sans+JP:wght@400;500;700&display=swap");
+@import "tailwindcss";
+
+/* Tailwind は、このアプリのディレクトリの外にある共通コード(packages/core)を自動では走査しない。
+   core の部品が使うクラスが CSS に入るよう、明示的に走査の対象にする。
+   無いと、core の部品のスタイルが、本番だけ静かに欠ける(ビルドも型検査も通ってしまう)。 */
+@source "../../../../packages/core/src";
+/* テストファイルの文字(例: container.firstChild)を、Tailwind がクラス名と誤解して余計なスタイルを作るのを防ぐ。 */
+@source not "../../../../packages/core/src/**/*.test.{ts,tsx}";
+
+/* 温かみのある生成り・柿色の基調。高齢の利用者が読みやすいよう、文字と背景のコントラストを高めにとる。 */
+:root {
+  --bg: #fbf6ee;
+  --surface: #ffffff;
+  --surface-2: #f3eadb;
+  --ink: #3a2e26;
+  --sub: #6f6157;
+  --line: #e6d9c6;
+  --accent: #b4532a;
+  --accent-ink: #ffffff;
+  --accent-soft: #f6dfd2;
+  --calm: #4e8a5f;
+  --calm-soft: #dcefe1;
+  --holiday: #c53c4f;
+  --saturday: #2f6fbf;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1f1915;
+    --surface: #2a221d;
+    --surface-2: #362c25;
+    --ink: #f6ece2;
+    --sub: #c9b8a8;
+    --line: #4a3d33;
+    --accent: #f0a27c;
+    --accent-ink: #1f1915;
+    --accent-soft: #4a2f22;
+    --calm: #8fcaa0;
+    --calm-soft: #24382a;
+    --holiday: #f08c9b;
+    --saturday: #86b4f0;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #1f1915;
+  --surface: #2a221d;
+  --surface-2: #362c25;
+  --ink: #f6ece2;
+  --sub: #c9b8a8;
+  --line: #4a3d33;
+  --accent: #f0a27c;
+  --accent-ink: #1f1915;
+  --accent-soft: #4a2f22;
+  --calm: #8fcaa0;
+  --calm-soft: #24382a;
+  --holiday: #f08c9b;
+  --saturday: #86b4f0;
+  color-scheme: dark;
+}
+
+/* 高齢の利用者向けに、文字を全体に一回り大きくする(rem 基準のため core の部品も一緒に大きくなる)。 */
+html {
+  font-size: 112.5%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Zen Maru Gothic", "Noto Sans JP", system-ui, sans-serif;
+}
+
+h1,
+h2,
+h3 {
+  font-family: "Zen Maru Gothic", "Noto Sans JP", sans-serif;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.001ms !important;
+    animation-duration: 0.001ms !important;
+  }
+}
