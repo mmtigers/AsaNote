@@ -165,3 +165,21 @@ export async function completeOwnRecord(recordDate: string): Promise<{ completed
     photo: row.photo_id && row.storage_path ? { photoId: row.photo_id, storagePath: row.storage_path } : null,
   };
 }
+
+export interface RecordStatus {
+  recordDate: string;
+  completedAt: string | null;
+}
+
+/** 自分の記録の、期間内の状況(日付と完了の有無)。記録の無い日は含まれない。 */
+export async function fetchOwnRecordStatuses(userId: string, fromDate: string, toDate: string): Promise<RecordStatus[]> {
+  const { data, error } = await db()
+    .from("oya_records")
+    .select("record_date, completed_at")
+    .eq("user_id", userId)
+    .gte("record_date", fromDate)
+    .lte("record_date", toDate)
+    .order("record_date", { ascending: false });
+  if (error) throw error;
+  return data.map((row) => ({ recordDate: row.record_date, completedAt: row.completed_at }));
+}

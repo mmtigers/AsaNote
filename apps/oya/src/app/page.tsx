@@ -3,13 +3,14 @@
 import Link from "next/link";
 import { LoadingView } from "@note/core/components/LoadingView";
 import { JoinFamilyView } from "@/components/JoinFamilyView";
+import { ParentHome } from "@/components/ParentHome";
 import { SignOutButton } from "@/components/SignOutButton";
 import { releases } from "@/data/releases";
 import { ROLE_LABELS } from "@/lib/db/family";
 import { describeServerError } from "@/lib/errors";
 import { useMembership } from "@/lib/membership";
 
-// ホーム。ログイン・家族への参加の状態で出し分ける。記録・閲覧の画面はタスク5以降で追加する(docs/SPEC.md §12)。
+// ホーム。ログイン・家族への参加の状態で出し分ける。親には記録への入口と直近7日の状況を出す。家族向けの閲覧はタスク9。
 // 出し分けは表示のためだけで、権限の検証はサーバー(RLS と DB の関数)が行う。
 export default function Home() {
   const { state, refresh } = useMembership();
@@ -66,11 +67,11 @@ export default function Home() {
             <span className="font-bold">{state.member.displayName}</span> さん
             <span className="mt-1 block text-base text-[var(--sub)]">{ROLE_LABELS[state.member.role]}</span>
           </p>
-          <p className="rounded-2xl bg-[var(--surface-2)] px-4 py-6 text-base leading-relaxed">
-            {state.member.role === "parent"
-              ? "毎日の記録の機能は、ただいま準備中です。"
-              : "父・母の記録を見る機能は、ただいま準備中です。"}
-          </p>
+          {state.member.role === "parent" ? (
+            <ParentHome userId={state.userId} />
+          ) : (
+            <p className="rounded-2xl bg-[var(--surface-2)] px-4 py-6 text-base leading-relaxed">父・母の記録を見る機能は、ただいま準備中です。</p>
+          )}
           <Link
             href="/family"
             className="min-h-12 rounded-full bg-[var(--surface-2)] py-4 text-center text-lg font-bold text-[var(--ink)] focus:ring-2 focus:ring-[var(--accent)]"

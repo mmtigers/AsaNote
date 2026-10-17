@@ -9,19 +9,21 @@ export type Condition = "good" | "normal" | "bad";
 export interface Choice<T> {
   value: T;
   label: string;
+  /** ボタンの幅に収まらない長い文言の、見た目の改行位置(読み上げ・検索には label を使う)。 */
+  lines?: readonly string[];
 }
 
 export const MEAL_CHOICES: readonly Choice<Meal>[] = [
   { value: "ate", label: "食べた" },
   { value: "little", label: "少し食べた" },
-  { value: "none", label: "食べていない" },
+  { value: "none", label: "食べていない", lines: ["食べて", "いない"] },
 ];
 
 export const MEDICATION_CHOICES: readonly Choice<Medication>[] = [
   { value: "taken", label: "飲んだ" },
-  { value: "not_taken", label: "飲んでいない" },
-  // 「未確認」= 本人が飲んだかどうか分からない(「未入力」とは別)。
-  { value: "unsure", label: "わからない(未確認)" },
+  { value: "not_taken", label: "飲んでいない", lines: ["飲んで", "いない"] },
+  // 「未確認」= 本人が飲んだかどうか分からない(「未入力」とは別。SPEC §4.1)。画面では短く「わからない」と出す。
+  { value: "unsure", label: "わからない" },
 ];
 
 export const CONDITION_CHOICES: readonly Choice<Condition>[] = [
