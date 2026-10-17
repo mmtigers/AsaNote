@@ -97,6 +97,8 @@ RLS の方針:
 - `main` への push で、`apps/oya/supabase/schema.sql` が変わったときだけ動く(ワークフロー自身のパスはトリガーに含めない。
   `db-deploy-yoru.yml` と同じ理由)。
 - 接続先は新しい Secret **`OYA_SUPABASE_DB_URL`**。既存の `SUPABASE_DB_URL` は**使わない**。
+- リポジトリ変数 `OYA_DB_DEPLOY_ENABLED` が `true` になるまでは、警告と job summary を出して何もしない(Supabase プロジェクトを
+  作る前にマージしても失敗にしない。`e2e-supabase.yml` と同じ「実行していないことが見える」方式)。有効にした後に Secret が無ければ失敗させる。
 - `concurrency` のグループは、あさノート・よるノートとは別にする(DB が別のため、待ち合わせる必要がない)。
 - **取り違えの防止**: 適用の前に、接続先にあさノートの表(`public.records` / `public.group_members`)があれば中止する
   (Secret の貼り間違いで、あさノートの本番DBへ流すのを防ぐ)。
@@ -160,4 +162,6 @@ RLS の方針:
 
 1. タスク2: `apps/oya` の土台と `ci-oya.yml`(DB には接続しない)。
 2. オーナーの作業: Supabase の新しいプロジェクトの作成、Vercel のプロジェクトの作成と環境変数、GitHub Secret `OYA_SUPABASE_DB_URL` の登録。
-3. タスク3: `apps/oya/supabase/schema.sql` と RLS のテスト。`db-deploy-oya.yml` は、この時点で追加する。
+3. タスク3: `apps/oya/supabase/schema.sql` と RLS のテスト、`db-deploy-oya.yml`(実施済み)。
+4. オーナーの作業(本番へ反映する前): Supabase プロジェクトの作成 → Secret `OYA_SUPABASE_DB_URL` の登録 → リポジトリ変数
+   `OYA_DB_DEPLOY_ENABLED=true` → `db-deploy-oya.yml` を手動実行(初回の適用)。

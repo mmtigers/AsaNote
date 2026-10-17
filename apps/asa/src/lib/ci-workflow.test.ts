@@ -86,7 +86,7 @@ describe("DBスキーマを適用するワークフローの psql(#196)", () => 
   // ローカルで型を再生成するスクリプトも同じ(#227)。途中までしか適用されていない DB から型を作ってしまう。
   it("ローカルの型の再生成スクリプト(apps/*/scripts/gen-db-types.sh)の psql -f も、ON_ERROR_STOP=1 を付けている", () => {
     const ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
-    for (const app of ["asa", "yoru"]) {
+    for (const app of ["asa", "yoru", "oya"]) {
       const sh = readFileSync(`${ROOT}apps/${app}/scripts/gen-db-types.sh`, "utf8");
       const commands = sh.split("\n").filter((line) => !line.trim().startsWith("#") && /\bpsql\b[^\n]*\s-f\s/.test(line));
       expect(commands.length, app).toBeGreaterThan(0);
@@ -239,8 +239,8 @@ describe("バージョンの散在を防ぐ(#206)", () => {
     expect(users[0]?.[1]).toMatch(/version:\s*\d+\.\d+\.\d+/);
   });
 
-  it("あさノート・よるノートの CI は、型ずれの検査を再利用ワークフローから呼ぶ", () => {
-    for (const name of ["ci.yml", "ci-yoru.yml"]) {
+  it("あさノート・よるノート・おやノートの CI は、型ずれの検査を再利用ワークフローから呼ぶ", () => {
+    for (const name of ["ci.yml", "ci-yoru.yml", "ci-oya.yml"]) {
       const yaml = readFileSync(`${WORKFLOWS_DIR}${name}`, "utf8");
       expect(yaml, name).toContain("uses: ./.github/workflows/_db-types-check.yml");
       expect(yaml, name).not.toContain("supabase gen types");
