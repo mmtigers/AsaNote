@@ -10,6 +10,11 @@ describe("describeServerError", () => {
     expect(describeServerError({ message: "not_admin" }, "失敗")).toMatch(/家族管理者だけ/);
   });
 
+  it("記録のエラー(未来の日付・親以外)を案内にする", () => {
+    expect(describeServerError({ message: "future_date" }, "失敗")).toMatch(/未来の日付/);
+    expect(describeServerError({ message: "not_a_parent" }, "失敗")).toMatch(/親\(記録する人\)だけ/);
+  });
+
   it("呼び名の長さの制約(check 制約名を含むメッセージ)を案内にする", () => {
     expect(
       describeServerError({ message: 'new row for relation "oya_invites" violates check constraint "oya_invites_display_name_check"' }, "失敗")

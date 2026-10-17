@@ -2,10 +2,11 @@
 
 import { useState } from "react";
 import { describeServerError } from "@/lib/errors";
+import { clearAllDrafts } from "@/lib/recordDraft";
 import { db } from "@/lib/supabase";
 
-// ログアウト。共有の端末で、前の人のログインが残らないようにするため。
-// 記録は端末に保存しない(オンラインで保存する)ので、消すべき端末内のデータは無い。
+// ログアウト。共有の端末で、前の人のログインや入力途中の記録(下書き)が、次の人に残らないようにする。
+// 記録の正はサーバーなので、端末に残るのは下書きだけ。
 export function SignOutButton() {
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -16,6 +17,7 @@ export function SignOutButton() {
     try {
       const { error } = await db().auth.signOut();
       if (error) throw error;
+      clearAllDrafts();
     } catch (error) {
       setErrorMessage(describeServerError(error, "ログアウトできませんでした。もう一度お試しください。"));
     } finally {

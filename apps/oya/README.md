@@ -3,7 +3,7 @@
 離れて暮らす両親(父・母)が毎日のようすを記録し、家族がその記録を確認できるスマホ向けアプリ(PWA)。
 記録を完了すると、孫の写真が1枚表示される。
 
-> 状態: タスク4まで(ログイン・家族への参加・家族の管理)。記録の画面はタスク5以降。
+> 状態: タスク5まで(ログイン・家族の管理・記録の保存処理)。記録の入力画面はタスク6。
 
 - 要件: [docs/SPEC.md](docs/SPEC.md)
 - 構成の決定: [docs/adr/0001-architecture.md](docs/adr/0001-architecture.md)(専用の Supabase プロジェクト、Vercel の別プロジェクト)
@@ -19,6 +19,14 @@
 
 ログイン中の人の所属(家族・役割)は `src/lib/membership.tsx` が読み、画面の出し分けに使う。**出し分けは表示のためだけ**で、
 権限はサーバー(RLS と DB の関数)が検証する。DB のエラー(`invite_invalid` など)は `src/lib/errors.ts` で日本語の案内にする。
+
+## 記録の保存(タスク5)
+
+- `src/lib/saveRecord.ts`(`saveDailyRecord`): 下書きを端末に残す → サーバーへ保存(`(user_id, record_date)` の upsert で1日1件)
+  → 成功したら下書きを消す → 「完了」なら、保存の成功を確かめた後にだけ `complete_oya_record()` を呼ぶ。
+  保存に失敗したら例外を投げ、下書きは残る(再試行できる)。完了だけ失敗したら `saved-not-completed`(記録は保存済み)。
+- `src/lib/recordDraft.ts`: 下書き(利用者・日付ごと。ログアウトで消す)。`src/lib/jst.ts`: 日本時間の今日・日付の検証。
+- `src/constants/choices.ts`: 選択肢(値は DB の check 制約と同じ。文言・並びはここで調整する)。
 
 ## Supabase の設定(オーナーが、おやノート専用のプロジェクトで1回だけ行う)
 

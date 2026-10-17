@@ -9,6 +9,10 @@ const KNOWN_MESSAGES: Record<string, string> = {
   last_admin: "家族管理者が誰もいなくなるため、この操作はできません。先に、ほかの人を家族管理者にしてください。",
   member_not_found: "そのメンバーは見つかりませんでした。画面を開き直してください。",
   not_authenticated: "ログインが切れました。もう一度ログインしてください。",
+  // 記録(oya_records のトリガー・complete_oya_record)。
+  future_date: "未来の日付には記録できません。",
+  not_a_parent: "記録できるのは、親(記録する人)だけです。",
+  record_not_found: "先に記録を保存してください。",
   // Supabase Auth: コードの誤り・期限切れ。
   otp_expired: "コードが正しくないか、有効期限が切れています。もう一度コードを送ってください。",
   // 呼び名の長さ(check 制約)。
