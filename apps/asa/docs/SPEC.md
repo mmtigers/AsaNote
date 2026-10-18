@@ -737,7 +737,7 @@ scripts/                  gen-db-types.sh, import-records.mjs(更新履歴の検
 e2e/record-flow.spec.ts   Playwright E2E
 e2e-supabase/           実Supabaseテストプロジェクト向けE2E（spec・接続先ガード config.ts）。設定は playwright.supabase.config.ts
 docs/                     SPEC.md（本書）, push-notifications-setup.md, e2e-supabase.md
-.github/                  workflows/ci.yml, _app-ci.yml（アプリ共通のCIジョブ）, _db-types-check.yml, ci-core.yml, ci-yoru.yml, e2e-supabase.yml, db-deploy.yml, db-deploy-yoru.yml, dependabot.yml
+.github/                  workflows/ci.yml, _app-ci.yml（アプリ共通のCIジョブ）, _db-types-check.yml, ci-core.yml, ci-yoru.yml, ci-oya.yml, e2e-supabase.yml, db-deploy.yml, db-deploy-yoru.yml, db-deploy-oya.yml, dependabot.yml
 ```
 
 - `supabase/functions/` はDeno向けで、このNode/Next.jsプロジェクトの `tsc` と ESLint の対象外（`tsconfig.json` の `exclude` と `eslint.config.mjs` の `globalIgnores`）。処理の本体は `_shared/` に切り出してあり（`pushCommon.ts`・`pushLogic.ts` の純粋関数と、`reminderHandler.ts`・`partnerHandler.ts` のハンドラ。`pushCommon.ts` はよるノートと共通で、**正はこちら。よるノート側は `scripts/sync-push-common.mjs` の同一コピーで、ずれたら CI が失敗する**（#202、`docs/MONOREPO.md`）。DB と送信関数は引数で受け取る。よるノートの同名ファイルと同じ形）、Vitestで検証する（二重送信防止の印・失敗時の印の解除・失効購読の削除・送らない条件など。#204）。`npm:` で取り込む依存は版を固定し、`_shared/npmPins.test.ts` が検査する（上げるときは4つの `index.ts` をそろえ、再デプロイする）。
@@ -774,9 +774,9 @@ npm run test:e2e:supabase  # 実Supabaseテストプロジェクト向けE2E（S
 | `e2e-test` | chromiumを入れて `npm run test:e2e`。失敗時のみ `playwright-report` を7日保存 |
 | `db-types-check`（再利用ワークフロー `_db-types-check.yml`。よるノートの CI と共用。Supabase CLI の版はここ1か所） | `postgres:16` に `auth-stub.sql` と `schema.sql`（べき等性の確認のため2回）を `ON_ERROR_STOP=1` で適用し（SQLエラーがあればここで落ちる）、固定版のSupabase CLI（2.117.0）で `supabase gen types` した結果が `src/lib/db/database.types.ts` と一致するか検査。ずれたら `npm run db:types`（要Docker）で再生成を促す |
 
-- 更新履歴の検査（Release notes check。ルートの `scripts/check-release-notes.mjs`、テスト: `src/lib/releaseNotesCheck.test.ts`。判定条件と例外は本書冒頭の更新ルール）は、`lint-build-test` の**先頭の step**（依存の導入より前）として走る。以前は別ジョブだったが、数秒で終わるのに1ジョブ＝最低1分で課金されるため統合した（#209。Actions の無料枠は月2,000分で、ジョブごとに1分単位で切り上げて数える）。
+- 更新履歴の検査（Release notes check。ルートの `scripts/check-release-notes.mjs`、テスト: `src/lib/releaseNotesCheck.test.ts`。判定条件と例外は本書冒頭の更新ルール）は、`lint-build-test` の**先頭の step**（依存の導入より前）として走る。以前は別ジョブだったが、数秒で終わるのに1ジョブ＝最低1分で課金されるため統合した（#220。Actions の無料枠は月2,000分で、ジョブごとに1分単位で切り上げて数える）。
 - 本番への反映は別のワークフロー（`db-deploy.yml`、§8.2）。
-- 共通パッケージ `packages/core` の lint・型検査・テストは**別ワークフロー** `.github/workflows/ci-core.yml`（`lint-typecheck-test`。上のジョブ表には含まれない）。アプリ側の確認は `ci.yml` / `ci-yoru.yml` が同じ push・PR で別に行う。
+- 共通パッケージ `packages/core` の lint・型検査・テストは**別ワークフロー** `.github/workflows/ci-core.yml`（`lint-typecheck-test`。上のジョブ表には含まれない）。アプリ側の確認は `ci.yml` / `ci-yoru.yml` が、同じ起動条件（PRのみ。上記）で別に行う。
 - 実Supabaseテストプロジェクト向けE2Eは**別ワークフロー** `.github/workflows/e2e-supabase.yml`（上のジョブ表には含まれない）。判定ステップが最初に走り、リポジトリ変数 `E2E_SUPABASE_ENABLED` が `true` でない（未稼働。現在の状態）、または有効なのにSecrets未設定・forkのPRのときは、E2E を実行せず、`::warning::` と job summary に理由と「未実行」を出して**成功で終わる**(緑でも実DBでは検証されていない、#198)（`pull_request_target` は使わない）。判定ジョブは毎回走る（公開リポジトリは分数が無料のため。非公開に戻すときはジョブに変数の `if` を足す）。ドラフトのPRでは起動しない。同じテストユーザーを共有するため同時実行は1つ。本番や通常CIの結果には影響しない。
 - Dependabot（`.github/dependabot.yml`）: npmとGitHub Actionsを週次（月曜9:00 JST）で確認。npmのminor/patchは1本のグループPRにまとめ、メジャーは個別PR。ただし `eslint` と `typescript` のメジャーは無視（`eslint-config-next` 配下のプラグインや `typescript-eslint` が未対応のため。理由は同ファイルのコメント）。`vitest` 5 と `@types/node` は更新済みで無視対象ではない。
 - Actionsはコミットで固定し、Dependabotが追随する（Supabase CLIの `with.version` は対象外のため手動で上げる）。
