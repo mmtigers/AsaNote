@@ -13,6 +13,8 @@ const KNOWN_MESSAGES: Record<string, string> = {
   future_date: "未来の日付には記録できません。",
   not_a_parent: "記録できるのは、親(記録する人)だけです。",
   record_not_found: "先に記録を保存してください。",
+  // 写真(src/lib/db/photos.ts。RLS で0件になったとき)。
+  photo_not_found: "その写真は見つかりませんでした。画面を開き直してください。",
   // Supabase Auth: コードの誤り・期限切れ。
   otp_expired: "コードが正しくないか、有効期限が切れています。もう一度コードを送ってください。",
   // 呼び名の長さ(check 制約)。

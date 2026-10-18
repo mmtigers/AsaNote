@@ -286,12 +286,22 @@ select oya_test.denied('閲覧者は写真のファイルを削除できない',
 select oya_test.eq('親は、表示される前の写真を読めない', oya_test.count('select * from oya_photos'), 0::bigint);
 select oya_test.eq('親は、表示される前の写真のファイルを読めない', oya_test.count('select * from storage.objects'), 0::bigint);
 select oya_test.denied('親は写真のファイルを削除できない', 'delete from storage.objects returning 1');
+select oya_test.raises('親は写真をアップロードできない',
+  format($$insert into storage.objects (bucket_id, name) values ('grandchild-photos', %L || '/p.jpg')$$, oya_test.var('family1')), 'row-level security');
+select oya_test.raises('親は写真を登録できない',
+  format($$insert into oya_photos (id, family_id, storage_path) values ('dddddddd-0000-0000-0000-000000000001', %1$L, %1$L || '/dddddddd-0000-0000-0000-000000000001.jpg')$$, oya_test.var('family1')), 'row-level security');
+select oya_test.eq('親は写真を無効化できない(0件)', oya_test.count('update oya_photos set active = false returning 1'), 0::bigint);
+select oya_test.eq('親は写真を削除できない(0件)', oya_test.count('delete from oya_photos returning 1'), 0::bigint);
 select oya_test.raises('親は表示の履歴を直接作れない',
   format($$insert into oya_photo_reveals (user_id, record_date, photo_id) values (auth.uid(), oya_today_jst() - 20, %L)$$, oya_test.var('photo_a')), 'row-level security');
 
 :as_admin2
 select oya_test.eq('別の家族の管理者からは、家族1の写真が見えない', oya_test.count('select * from oya_photos'), 0::bigint);
 select oya_test.eq('別の家族の管理者からは、家族1の写真のファイルが見えない', oya_test.count('select * from storage.objects'), 0::bigint);
+select oya_test.eq('別の家族の管理者は、家族1の写真を無効化できない(0件)', oya_test.count('update oya_photos set active = false returning 1'), 0::bigint);
+select oya_test.eq('別の家族の管理者は、家族1の写真を削除できない(0件)', oya_test.count('delete from oya_photos returning 1'), 0::bigint);
+select oya_test.denied('別の家族の管理者は、家族1の写真のファイルを削除できない',
+  format($$delete from storage.objects where name like %L returning 1$$, oya_test.var('family1') || '/%'));
 
 :as_outsider
 select oya_test.eq('部外者からは写真が見えない', oya_test.count('select * from oya_photos'), 0::bigint);
@@ -343,7 +353,7 @@ select oya_test.eq('有効な写真が1枚だけなら、直前と同じでも�
 select oya_test.eq('無効化された写真でも、表示済みなら親は見返せる', oya_test.count(format('select * from oya_photos where id = %L', oya_test.var('father_d2_photo'))), 1::bigint);
 
 :as_admin
-update oya_photos set active = false;
+select oya_test.eq('管理者は家族の写真を無効化できる', oya_test.count('update oya_photos set active = false returning 1'), 3::bigint);
 
 :as_father
 insert into oya_records (record_date) values (oya_today_jst() - 4);
@@ -351,13 +361,15 @@ select oya_test.eq('有効な写真が無いときも完了できる(写真は�
 select oya_test.eq('写真が無いときは、表示の履歴を作らない', oya_test.count('select * from oya_photo_reveals where record_date = oya_today_jst() - 4'), 0::bigint);
 
 :as_admin
-update oya_photos set active = true where id = oya_test.var('photo_c')::uuid;
+select oya_test.eq('管理者は無効化した写真を有効に戻せる',
+  oya_test.count(format('update oya_photos set active = true where id = %L returning 1', oya_test.var('photo_c'))), 1::bigint);
 
 :as_father
 select oya_test.eq('写真が追加された後にもう一度呼ぶと、その日の写真が選ばれる', (select photo_id::text from complete_oya_record(oya_today_jst() - 4)), oya_test.var('photo_c'));
 
 :as_admin
-delete from oya_photos where id = oya_test.var('photo_c')::uuid;
+select oya_test.eq('管理者は家族の写真を削除できる',
+  oya_test.count(format('delete from oya_photos where id = %L returning 1', oya_test.var('photo_c'))), 1::bigint);
 
 :as_father
 select oya_test.eq('写真が削除されると、その日の写真は返らない(再抽選しない)', (select photo_id is null from complete_oya_record(oya_today_jst() - 4)), true);

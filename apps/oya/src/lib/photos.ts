@@ -10,3 +10,15 @@ export async function getPhotoUrl(storagePath: string): Promise<string> {
   if (error) throw error;
   return data.signedUrl;
 }
+
+/** 複数の写真の表示用URL(一覧のため)。読めなかった写真は含まない。 */
+export async function getPhotoUrls(storagePaths: string[]): Promise<Map<string, string>> {
+  if (storagePaths.length === 0) return new Map();
+  const { data, error } = await db().storage.from(PHOTO_BUCKET).createSignedUrls(storagePaths, SIGNED_URL_TTL_SECONDS);
+  if (error) throw error;
+  const urls = new Map<string, string>();
+  for (const item of data) {
+    if (item.path && item.signedUrl && !item.error) urls.set(item.path, item.signedUrl);
+  }
+  return urls;
+}

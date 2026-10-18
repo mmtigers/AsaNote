@@ -57,11 +57,13 @@ test("未ログインでは、ホームからログイン画面(メールにコ�
   await expect(page.getByLabel("メールアドレス")).toBeVisible();
   await expect(page.getByRole("button", { name: "コードを送る" })).toBeEnabled();
 
-  // 家族・記録の画面は、未ログインではログインへ案内するだけ(データは読まない)。
+  // 家族・記録・写真の画面は、未ログインではログインへ案内するだけ(データは読まない)。
   await page.goto("/family");
   await expect(page.getByText("ログインすると、家族のメンバーを確認できます。")).toBeVisible();
   await page.goto("/record?date=2026-01-01");
   await expect(page.getByText("ログインすると、記録をつけられます。")).toBeVisible();
+  await page.goto("/photos");
+  await expect(page.getByText("ログインしてください。")).toBeVisible();
 
   expect(await violations()).toEqual([]);
   expect(pageErrors).toEqual([]);

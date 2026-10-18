@@ -72,6 +72,14 @@ export default function Home() {
           ) : (
             <p className="rounded-2xl bg-[var(--surface-2)] px-4 py-6 text-base leading-relaxed">父・母の記録を見る機能は、ただいま準備中です。</p>
           )}
+          {state.member.role === "admin" && (
+            <Link
+              href="/photos"
+              className="min-h-12 rounded-full bg-[var(--surface-2)] py-4 text-center text-lg font-bold text-[var(--ink)] focus:ring-2 focus:ring-[var(--accent)]"
+            >
+              孫の写真の管理
+            </Link>
+          )}
           <Link
             href="/family"
             className="min-h-12 rounded-full bg-[var(--surface-2)] py-4 text-center text-lg font-bold text-[var(--ink)] focus:ring-2 focus:ring-[var(--accent)]"
