@@ -105,8 +105,8 @@ export function toRowValues(input: DailyRecordInput) {
   };
 }
 
-/** 自分のその日の記録(無ければ null)。 */
-export async function fetchOwnRecord(userId: string, recordDate: string): Promise<DailyRecord | null> {
+/** その日の記録(無ければ null)。親は自分の記録を、家族管理者・閲覧者は父・母の記録を読める(RLS)。 */
+export async function fetchRecord(userId: string, recordDate: string): Promise<DailyRecord | null> {
   const { data, error } = await db()
     .from("oya_records")
     .select(RECORD_COLUMNS)
@@ -183,3 +183,20 @@ export async function fetchOwnRecordStatuses(userId: string, fromDate: string, t
   if (error) throw error;
   return data.map((row) => ({ recordDate: row.record_date, completedAt: row.completed_at }));
 }
+
+/**
+ * ある親の、期間内の記録(新しい順)。家族管理者・閲覧者が父・母の記録を見るために使う(SPEC §6)。
+ * 読めるかどうかは RLS が決める(親は自分の記録だけ。もう一方の親の記録は0件になる)。
+ */
+export async function fetchRecordsInRange(userId: string, fromDate: string, toDate: string): Promise<DailyRecord[]> {
+  const { data, error } = await db()
+    .from("oya_records")
+    .select(RECORD_COLUMNS)
+    .eq("user_id", userId)
+    .gte("record_date", fromDate)
+    .lte("record_date", toDate)
+    .order("record_date", { ascending: false });
+  if (error) throw error;
+  return data.map(fromRow);
+}
+

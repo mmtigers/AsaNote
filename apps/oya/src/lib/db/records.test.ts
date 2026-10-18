@@ -99,3 +99,18 @@ describe("completeOwnRecord", () => {
     await expect(completeOwnRecord("2026-10-17")).resolves.toEqual({ completedAt: "t", photo: null });
   });
 });
+
+describe("fetchRecordsInRange", () => {
+  it("ある親の期間内の記録を、新しい順に読む", async () => {
+    const chain: Record<string, ReturnType<typeof vi.fn>> = {};
+    for (const name of ["select", "eq", "gte", "lte"]) chain[name] = vi.fn(() => chain);
+    chain.order = vi.fn().mockResolvedValue({ data: [row], error: null });
+    from.mockReturnValue(chain);
+    const { fetchRecordsInRange } = await import("./records");
+    await expect(fetchRecordsInRange("u1", "2026-10-11", "2026-10-17")).resolves.toEqual([fromRow(row)]);
+    expect(chain.eq).toHaveBeenCalledWith("user_id", "u1");
+    expect(chain.gte).toHaveBeenCalledWith("record_date", "2026-10-11");
+    expect(chain.lte).toHaveBeenCalledWith("record_date", "2026-10-17");
+    expect(chain.order).toHaveBeenCalledWith("record_date", { ascending: false });
+  });
+});

@@ -47,3 +47,9 @@ export const MEAL_LABELS: Record<MealKey, string> = { breakfast: "朝食", lunch
 export const ACTIVITY_KEYS = ["wentOut", "shopping", "hospital"] as const;
 export type ActivityKey = (typeof ACTIVITY_KEYS)[number];
 export const ACTIVITY_LABELS: Record<ActivityKey, string> = { wentOut: "外出", shopping: "買い物", hospital: "病院" };
+
+/** 選んだ値の文言。null は「未入力」(家族向けの閲覧で、選んだ値と区別して出す)。 */
+export function choiceLabel<T>(choices: readonly Choice<T>[], value: T | null): string {
+  if (value === null) return "未入力";
+  return choices.find((c) => c.value === value)?.label ?? "未入力";
+}

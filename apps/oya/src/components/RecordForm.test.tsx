@@ -14,7 +14,7 @@ const { server } = vi.hoisted(() => ({
 }));
 vi.mock("@/lib/db/records", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/db/records")>()),
-  fetchOwnRecord: () => (server.fetchError ? Promise.reject(server.fetchError) : Promise.resolve(server.record)),
+  fetchRecord: () => (server.fetchError ? Promise.reject(server.fetchError) : Promise.resolve(server.record)),
   completeOwnRecord: () => Promise.resolve({ completedAt: "t", photo: server.photo }),
 }));
 vi.mock("@/lib/saveRecord", async (importOriginal) => ({

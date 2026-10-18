@@ -14,7 +14,7 @@ import {
 } from "@/constants/choices";
 import { ChoiceGroup } from "@/components/ChoiceGroup";
 import { CompletionPanel } from "@/components/CompletionPanel";
-import { completeOwnRecord, EMPTY_INPUT, fetchOwnRecord, type DailyRecord, type DailyRecordInput, type RevealedPhoto } from "@/lib/db/records";
+import { completeOwnRecord, EMPTY_INPUT, fetchRecord, type DailyRecord, type DailyRecordInput, type RevealedPhoto } from "@/lib/db/records";
 import { describeServerError } from "@/lib/errors";
 import { loadDraft, saveDraft } from "@/lib/recordDraft";
 import { RecordValidationError, saveDailyRecord } from "@/lib/saveRecord";
@@ -47,7 +47,7 @@ export function RecordForm({ userId, familyId, recordDate }: { userId: string; f
     setMessage(null);
     setCompletion(null);
     setNeedsCompleteRetry(false);
-    fetchOwnRecord(userId, recordDate)
+    fetchRecord(userId, recordDate)
       .then((server) => {
         if (cancelled) return;
         const draft = loadDraft(userId, recordDate);

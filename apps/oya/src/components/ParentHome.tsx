@@ -6,19 +6,7 @@ import { formatDateLabel } from "@note/core/date";
 import { fetchOwnRecordStatuses, type RecordStatus } from "@/lib/db/records";
 import { describeServerError } from "@/lib/errors";
 import { addDaysToDate, todayJst } from "@/lib/jst";
-
-type DayState = "completed" | "partial" | "none";
-
-const STATE_LABELS: Record<DayState, string> = {
-  completed: "✓ 完了",
-  partial: "途中まで",
-  none: "未記録",
-};
-
-export function dayState(status: RecordStatus | undefined): DayState {
-  if (!status) return "none";
-  return status.completedAt ? "completed" : "partial";
-}
+import { DAY_STATE_LABELS as STATE_LABELS, dayState } from "@/lib/recordStats";
 
 /** 親のホーム。今日の記録への入口と、直近7日の記録の状況(過去の日も開いて修正できる)。 */
 export function ParentHome({ userId }: { userId: string }) {

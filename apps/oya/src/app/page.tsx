@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { LoadingView } from "@note/core/components/LoadingView";
+import { FamilyHome } from "@/components/FamilyHome";
 import { JoinFamilyView } from "@/components/JoinFamilyView";
 import { ParentHome } from "@/components/ParentHome";
 import { SignOutButton } from "@/components/SignOutButton";
@@ -10,7 +11,8 @@ import { ROLE_LABELS } from "@/lib/db/family";
 import { describeServerError } from "@/lib/errors";
 import { useMembership } from "@/lib/membership";
 
-// ホーム。ログイン・家族への参加の状態で出し分ける。親には記録への入口と直近7日の状況を出す。家族向けの閲覧はタスク9。
+// ホーム。ログイン・家族への参加の状態で出し分ける。親には記録への入口と直近7日の状況、
+// 家族管理者・閲覧者には父・母の記録の状況と集計(FamilyHome)を出す。
 // 出し分けは表示のためだけで、権限の検証はサーバー(RLS と DB の関数)が行う。
 export default function Home() {
   const { state, refresh } = useMembership();
@@ -70,7 +72,7 @@ export default function Home() {
           {state.member.role === "parent" ? (
             <ParentHome userId={state.userId} />
           ) : (
-            <p className="rounded-2xl bg-[var(--surface-2)] px-4 py-6 text-base leading-relaxed">父・母の記録を見る機能は、ただいま準備中です。</p>
+            <FamilyHome />
           )}
           {state.member.role === "admin" && (
             <Link

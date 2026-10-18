@@ -4,21 +4,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const { statuses } = vi.hoisted(() => ({ statuses: { list: [] as { recordDate: string; completedAt: string | null }[] } }));
 vi.mock("@/lib/db/records", () => ({ fetchOwnRecordStatuses: () => Promise.resolve(statuses.list) }));
 
-import { dayState, ParentHome } from "./ParentHome";
+import { ParentHome } from "./ParentHome";
 import { addDaysToDate, todayJst } from "@/lib/jst";
 
 beforeEach(() => vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-10-17T03:00:00Z") }));
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
-});
-
-describe("dayState", () => {
-  it("記録が無い日・途中・完了を区別する(未記録を体調不良などとは判定しない)", () => {
-    expect(dayState(undefined)).toBe("none");
-    expect(dayState({ recordDate: "d", completedAt: null })).toBe("partial");
-    expect(dayState({ recordDate: "d", completedAt: "t" })).toBe("completed");
-  });
 });
 
 describe("ParentHome", () => {

@@ -64,6 +64,8 @@ test("未ログインでは、ホームからログイン画面(メールにコ�
   await expect(page.getByText("ログインすると、記録をつけられます。")).toBeVisible();
   await page.goto("/photos");
   await expect(page.getByText("ログインしてください。")).toBeVisible();
+  await page.goto("/view?user=x&date=2026-01-01");
+  await expect(page.getByText("ログインしてください。")).toBeVisible();
 
   expect(await violations()).toEqual([]);
   expect(pageErrors).toEqual([]);
