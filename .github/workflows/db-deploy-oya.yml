@@ -1,0 +1,87 @@
+name: Deploy DB schema (oyanote)
+
+# おやノート専用の Supabase プロジェクトへ、apps/oya/supabase/schema.sql を適用する(ADR 0001 §4)。
+# あさノート・よるノートの db-deploy.yml / db-deploy-yoru.yml とは、接続先(Secret)も DB も別。
+#
+# **自分自身のパスは paths に含めない**: このワークフローを追加・更新するだけで、本番DBへの適用が
+# 走らないようにするため(適用したい時は schema.sql を変更するか、手動実行する。db-deploy-yoru.yml と同じ)。
+#
+# 有効にするまでは何もしない: おやノートの Supabase プロジェクトを作るまでは、適用先が無い。
+# リポジトリ変数 OYA_DB_DEPLOY_ENABLED = true を足すまでは、理由を ::warning:: と job summary に出して終える
+# (e2e-supabase.yml と同じ「実行していないことが見える」方式)。有効にした後に Secret が無ければ失敗させる。
+#
+# schema.sql は何度流しても同じ結果になる書き方(drop table を含まない)なので、毎回まるごと流す。
+# 列の削除・改名はこの仕組みでは届かないので、SQL Editor から手動で行う。
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/oya/supabase/schema.sql"
+  # 有効にした直後の初回の適用や、反映漏れに気づいたときに、手動で流せるようにしておく。
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# おやノートの本番DBへの適用を直列化する。あさノート・よるノート(db-deploy-production)とは DB が別なので、
+# 別の group にする(待ち合わせる必要がない)。途中で打ち切らない。
+concurrency:
+  group: db-deploy-oya-production
+  cancel-in-progress: false
+
+jobs:
+  apply-schema:
+    name: Apply schema.sql to production (oyanote)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check deploy is enabled
+        id: gate
+        env:
+          ENABLED: ${{ vars.OYA_DB_DEPLOY_ENABLED }}
+        run: |
+          if [ "$ENABLED" != "true" ]; then
+            msg="おやノートの本番DBへの適用は未稼働です(リポジトリ変数 OYA_DB_DEPLOY_ENABLED が true ではない)。Supabase プロジェクトを作り、Secret OYA_SUPABASE_DB_URL を登録してから有効にしてください(apps/oya/docs/adr/0001-architecture.md)。"
+            echo "::warning::$msg"
+            echo "### ⚠️ 未実行: $msg" >> "$GITHUB_STEP_SUMMARY"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.gate.outputs.enabled == 'true'
+
+      # 有効にしたのに未設定のまま「成功した」ように見えるのが一番危ないので、先に落とす。
+      - name: Check secret is configured
+        if: steps.gate.outputs.enabled == 'true'
+        env:
+          OYA_SUPABASE_DB_URL: ${{ secrets.OYA_SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$OYA_SUPABASE_DB_URL" ]; then
+            echo "::error::OYA_SUPABASE_DB_URL が未設定です。リポジトリの Settings > Secrets and variables > Actions に、おやノートの Supabase の Session pooler の接続文字列(パスワード込み)を登録してください。あさノートの SUPABASE_DB_URL とは別のプロジェクトです。"
+            exit 1
+          fi
+
+      # 取り違えの防止(ADR 0001 §4): 接続先にあさノート・よるノートの表があれば、そこはおやノートの DB ではない。
+      # Secret の貼り間違いで、運用中のあさノートの本番DBへ流すのを防ぐ。
+      - name: Check target is not the AsaNote / YoruNote database
+        if: steps.gate.outputs.enabled == 'true'
+        env:
+          OYA_SUPABASE_DB_URL: ${{ secrets.OYA_SUPABASE_DB_URL }}
+        run: |
+          found=$(psql "$OYA_SUPABASE_DB_URL" -v ON_ERROR_STOP=1 -tA -c "select count(*) from (values ('public.records'), ('public.group_members'), ('public.evening_records')) t(name) where to_regclass(name) is not null")
+          if [ "$found" != "0" ]; then
+            echo "::error::接続先に、あさノート・よるノートの表(records / group_members / evening_records)があります。OYA_SUPABASE_DB_URL が、おやノート専用の Supabase プロジェクトを指しているか確認してください。適用は中止しました。"
+            exit 1
+          fi
+
+      # OYA_SUPABASE_DB_URL は Supabase の「Connect」→ Session pooler の接続文字列(GitHub Actions のランナーは
+      # IPv4 のみで、direct connection は IPv6 のため接続できない。db-deploy-yoru.yml と同じ)。
+      # ON_ERROR_STOP: 途中で失敗したら後続を流さない。single-transaction: 失敗時は何も適用しない。
+      - name: Apply schema.sql
+        if: steps.gate.outputs.enabled == 'true'
+        env:
+          OYA_SUPABASE_DB_URL: ${{ secrets.OYA_SUPABASE_DB_URL }}
+        run: psql "$OYA_SUPABASE_DB_URL" -v ON_ERROR_STOP=1 --single-transaction -f apps/oya/supabase/schema.sql

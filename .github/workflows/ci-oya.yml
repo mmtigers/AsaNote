@@ -1,0 +1,124 @@
+name: CI (oyanote)
+
+# おやノート(apps/oya)の CI。共通のジョブ(依存の検査・lint・型・単体テスト・ビルド、更新履歴の検査)は
+# _app-ci.yml にあり、ここにはおやノート固有のもの(E2E・DB の権限のテスト・型ずれの検査)だけを置く。
+
+on:
+  # main への push では走らせない(マージ前の PR の CI で済ませる。#225)。
+  pull_request:
+    branches: [main, master]
+    # ラベル・PR本文による例外指定(release-notes-check)を、付けた/書き換えた直後に反映させる(ci.yml と同じ)。
+    types: [opened, synchronize, reopened, labeled, unlabeled, edited, ready_for_review]
+    # Issue #225: Actions の無料枠(月2,000分)を守るため、関係のない変更では走らせない。
+    paths:
+      - "apps/oya/**"
+      - "packages/core/**"
+      - "scripts/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".nvmrc"
+      - ".github/**"
+
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Issue #60: 明示しないとリポジトリ設定次第で write 権限のトークンが供給される。全ジョブ読み取り専用。
+permissions:
+  contents: read
+
+jobs:
+  lint-build-test:
+    # ドラフトの PR では走らせない(Issue #225。ready にした時と、その後の push で走る)。
+    if: ${{ !github.event.pull_request.draft }}
+    uses: ./.github/workflows/_app-ci.yml
+    with:
+      app: apps/oya
+
+  e2e:
+    # ドラフトの PR では走らせない(Issue #225。ready にした時と、その後の push で走る)。
+    if: ${{ !github.event.pull_request.draft }}
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/oya
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        # モノレポ: package-lock.json はルートにあるので、ルートで全ワークスペースを入れる。
+        working-directory: .
+        run: npm ci
+
+      # Supabase の URL は CSP の接続先の許可に使われるため、placeholder を渡す(通信は発生しない)。
+      - name: Build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+        run: npm run build
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E tests
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report
+          path: |
+            apps/oya/playwright-report/
+            apps/oya/test-results/
+          retention-days: 7
+
+  # DB の権限(RLS・RPC)のテスト。素の Postgres へスタブと schema.sql(2回)を適用し、父・母・家族管理者・閲覧者・
+  # 部外者・未ログインごとに、読める行・書ける行を確かめる(apps/oya/supabase/tests/rls.test.sql)。
+  db-test:
+    # ドラフトの PR では走らせない(Issue #225。ready にした時と、その後の push で走る)。
+    if: ${{ !github.event.pull_request.draft }}
+    name: DB permission tests (RLS)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: apps/oya
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: RLS tests
+        env:
+          DB_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: bash scripts/test-db.sh
+
+  db-types-check:
+    # ドラフトの PR では走らせない(Issue #225。ready にした時と、その後の push で走る)。
+    if: ${{ !github.event.pull_request.draft }}
+    uses: ./.github/workflows/_db-types-check.yml
+    with:
+      # 素のPostgresへ、auth・storage のスタブ → schema.sql(2回)の順に適用する(scripts/gen-db-types.sh と同じ順)。
+      sql-files: apps/oya/supabase/ci/supabase-stub.sql apps/oya/supabase/schema.sql apps/oya/supabase/schema.sql
+      types-file: apps/oya/src/lib/db/database.types.ts
+      app: apps/oya
+      schema-file: apps/oya/supabase/schema.sql
