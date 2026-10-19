@@ -115,10 +115,10 @@
 
 所要時間は目安。SQL は読み取り専用で、`docs/triage/173-verify-readonly.sql` にまとめた(結果に ID が出るため、貼るのは件数だけ)。
 
-- [ ] **M1 Supabase の Redirect URLs を確認する(#228、約 3 分)**: Supabase → Authentication → URL Configuration。Site URL が `https://asa-note.vercel.app`、Redirect URLs に `https://yorunote-mm.vercel.app/**` があるか。無ければ追加。済んだら #228 を閉じてよい。
-- [ ] **M2 パートナーへのリリース(#173、約 15 分)**: URL は `https://yorunote-mm.vercel.app`(本文の `asa-note.vercel.app` はあさノート)。ホーム画面に追加 → メールのリンクでログイン → 「共有」タブで通知をオン。
-- [ ] **M3 通知の実機確認 2 台(#173、約 10 分)**: パートナーが今夜の記録を保存 → もう 1 台に届く。SQL(1) で `evening_subscriptions` が 2。リマインド(20 時台)が届いた日に、SQL(3) で `reminder_deliveries` にその日の行。
-- [ ] **M4 あさノート本番のログアウト確認(#173、約 5 分)**: ログアウト → SQL(2) で `push_subscriptions` が 1 減る → 再ログインして「共有」タブで通知オン → また届く。
+- [x] **M1 Supabase の Redirect URLs を確認する(#228、約 3 分)**: Supabase → Authentication → URL Configuration。Site URL が `https://asa-note.vercel.app`、Redirect URLs に `https://yorunote-mm.vercel.app/**` があるか。無ければ追加。済んだら #228 を閉じてよい。 (2026-10-19 完了。Site URL と Redirect URLs の両方を、オーナーが画面で確認。#228)
+- [x] **M2 パートナーへのリリース(#173、約 15 分)**: URL は `https://yorunote-mm.vercel.app`(本文の `asa-note.vercel.app` はあさノート)。ホーム画面に追加 → メールのリンクでログイン → 「共有」タブで通知をオン。 (2026-10-19 オーナーが確認済み)
+- [x] **M3 通知の実機確認 2 台(#173、約 10 分)**: パートナーが今夜の記録を保存 → もう 1 台に届く。SQL(1) で `evening_subscriptions` が 2。リマインド(20 時台)が届いた日に、SQL(3) で `reminder_deliveries` にその日の行。 (2026-10-19 オーナーが確認済み)
+- [x] **M4 あさノート本番のログアウト確認(#173、約 5 分)**: ログアウト → SQL(2) で `push_subscriptions` が 1 減る → 再ログインして「共有」タブで通知オン → また届く。 (2026-10-19 オーナーが確認済み)
 - [ ] **M5 Coverage summary の見た目(#226、約 2 分)**: <https://github.com/mmtigers/AsaNote/actions/runs/38393391031> → Summary の「Coverage」の表と折りたたみ。
 - [ ] **M6 Dependabot の二重実行(#226、約 5 分)**: Dependabot の PR に `@dependabot rebase` とコメント(または次の月曜 9:00 JST を待つ)→ その PR の `CI` が最後の 1 本だけ success、他が cancelled。
 - [ ] **M7 iOS PWA の復帰時の取り込み(#173、約 10 分)**: 2 台で、一方が保存 → もう一方を閉じずに 5 分以上おいて前面に戻す → 新しい記録が出る。
