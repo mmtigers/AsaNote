@@ -626,7 +626,7 @@ DBに一意制約が無く、2端末でオフライン中に同じ日を新規�
 
 ### 8.1 構成
 
-- アプリ本体: Next.js（App Router）のPWA。ホスティング先は Vercel（プロジェクト名 `go-to-school`。PRごとにプレビューがデプロイされる）。本番URLや対応ブラウザの公式範囲は確認できない。**要確認 Q12**
+- アプリ本体: Next.js（App Router）のPWA。ホスティング先は Vercel（プロジェクト名 `asa-note`、Root Directory `apps/asa`。本番URLは `https://asa-note.vercel.app`。オーナーが確認、2026-10-13。表は `docs/MONOREPO.md`。PRごとにプレビューがデプロイされる）。対応ブラウザの公式範囲は確認できない。**要確認 Q12**
 - バックエンド: Supabase（Postgres・Auth・Edge Functions・`pg_cron`・`pg_net`）。クライアントは `src/lib/supabase/client.ts` で遅延生成し、環境変数が未設定でもビルド・SSR・オフライン利用が失敗しないようにしている。
 
 ### 8.2 `schema.sql` の自動適用
@@ -922,7 +922,7 @@ npm run test:e2e:supabase  # 実Supabaseテストプロジェクト向けE2E（S
 | Q8 | 子ども一覧の取得に失敗（オフライン起動など）すると「子どもなし」扱いになり、複数の子どもがいても `childId: null` で保存される。許容か | §3.1.7 | `src/lib/db/children.ts`, `src/lib/db/useAuthedList.ts` |
 | Q9（解決済み #125） | 前面に戻ったとき、前回の取り込みから5分以上空いていれば `pullFromCloud` を呼ぶようにした。定期取得と Realtime は使わない | §7.3 | `src/lib/db/sync.ts`, `packages/core/src/pullOnResume.ts`, `packages/core/src/cloudSync.ts` |
 | Q11（解決済み #208） | 招待コード（8文字×32種）にアプリ側の試行回数制限が無い。→ 家族内の限定運用のため許容する。利用者の増加・公開範囲の拡大（Q13）の際にロックまたはレート制限を入れる | §6.4 | `src/lib/db/groups.ts`, `schema.sql` |
-| Q12 | 本番URL、対応ブラウザ・OSの公式な範囲（ホスティング先は Vercel と確認済み） | §8.1, §12 | `docs/push-notifications-setup.md`、PRのVercelプレビュー |
+| Q12 | 対応ブラウザ・OSの公式な範囲（ホスティング先は Vercel、本番URLは `asa-note.vercel.app` と確認済み） | §8.1, §12 | `docs/push-notifications-setup.md`、PRのVercelプレビュー |
 | Q13 | 想定利用者の範囲（家族内の限定運用か一般公開か）、記録データ本体の保持期間（ログは決定済み: `client_errors` 90日・`reminder_deliveries` 7日・`analytics_events` 365日）、退会（アカウント・データ削除）の方針。退会機能はコードに無い | §1.2, §6.5 | README、コード全般 |
 | Q14（解決済み #127） | タイムラインのカードに子ども名が出ない／エクスポートが子どもで分かれない。→ タイムライン・傾向は #180 でカードに子ども名と「未分類」の絞り込みを追加。エクスポートは子どもの絞り込みと、CSVの末尾の「子ども」列、印刷/PDFの子ども名を追加した | §3.2, §3.4 | `src/app/timeline/page.tsx`, `src/app/export/page.tsx`, `src/app/export/selectEntries.ts` |
 | Q15 | 初回訪問直後にオフラインで起動できるか（プリキャッシュは `/` とアイコンのみで、JS等は遅延キャッシュ）。未検証 | §7.7 | `public/sw.js` |

@@ -207,6 +207,12 @@ describe("apps/yoru の README・SPEC・docs(#228)", () => {
     expect(monorepo).toContain("https://yorunote-mm.vercel.app/**");
   });
 
+  it("あさノートの SPEC の Vercel の記述は、MONOREPO.md の表(プロジェクト名 asa-note)と食い違わない(#228)", () => {
+    const asaSpec = readFileSync(`${ROOT}/apps/asa/docs/SPEC.md`, "utf8");
+    expect(asaSpec).toContain("プロジェクト名 `asa-note`");
+    expect(asaSpec).not.toMatch(/プロジェクト名 `go-to-school`/);
+  });
+
   it("手順書の期待結果は、子どもの名前を書かない一般的な表現になっている(SPEC §6: 子ども名はハードコードしない)", () => {
     // 実名そのものを、このテストに書いてはいけない(公開リポジトリのため)。名前を書かない表現が
     // 残っていることを、肯定形で検査する。名前を戻すと、この行が書き換わって失敗する。
