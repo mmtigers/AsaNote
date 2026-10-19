@@ -10,12 +10,12 @@
 | Issue | 分類 | 状態 | PR |
 |---|---|---|---|
 | #237 Actions 分数の水平展開 | B | 11/1 ごろの実測待ち。再開条件と手順をコメント | - |
-| #228 よるノート docs の突き合わせ | A + D | SPEC の Vercel 記述を修正(A)。Redirect URLs の確認がオーナー作業(D) | [#267](https://github.com/mmtigers/AsaNote/pull/267)(ドラフト。`Closes` なし) |
+| #228 よるノート docs の突き合わせ | A + D | SPEC の Vercel 記述を修正(A)。Redirect URLs の確認がオーナー作業(D) | [#267](https://github.com/mmtigers/AsaNote/pull/267)(マージ済み。`Closes` なし) |
 | #226 CI 復旧後の確認 | D | 残りは画面確認 2 件のみ。手順をコメント | - |
 | #173 よるノート公開後の確認 | D | 実機作業。確認用 SQL(読み取り専用)を用意 | 本 PR(`docs/triage/173-verify-readonly.sql`) |
 | #156 モノレポ整理(Phase 3) | C + B | Dependabot 項目は確認済み。残り 2 件は判断(D3・D4) | - |
 | #117 実 Supabase E2E | B + D | 実装・ワークフローは済み。テスト用プロジェクトと Secrets 待ち | - |
-| #116 メジャー更新 | A(検証)+ C | ESLint 10・TS 7 を専用ブランチで検証。**Issue の保留理由が古い**。採否は判断(D1・D2) | [#268](https://github.com/mmtigers/AsaNote/pull/268)(検証のみ・マージ不可) |
+| #116 メジャー更新 | A(検証)+ C | ESLint 10・TS 7 を専用ブランチで検証。**Issue の保留理由が古い**。採否は判断(D1・D2) | [#268](https://github.com/mmtigers/AsaNote/pull/268)(検証のみ・マージ不可)、[#270](https://github.com/mmtigers/AsaNote/pull/270)(ESLint 10。D1 に従いマージ済み)。TS 7 は待ち(D2) |
 | #114 旧フィールド削除 | B | 2027 年 9 月まで着手不可。件数確認用 SQL を用意 | 本 PR(`docs/triage/114-legacy-fields-count.sql`) |
 
 ## 分類の根拠(確認したもの)
