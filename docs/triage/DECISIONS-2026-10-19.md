@@ -115,15 +115,15 @@
 
 所要時間は目安。SQL は読み取り専用で、`docs/triage/173-verify-readonly.sql` にまとめた(結果に ID が出るため、貼るのは件数だけ)。
 
-- [ ] **M1 Supabase の Redirect URLs を確認する(#228、約 3 分)**: Supabase → Authentication → URL Configuration。Site URL が `https://asa-note.vercel.app`、Redirect URLs に `https://yorunote-mm.vercel.app/**` があるか。無ければ追加。済んだら #228 を閉じてよい。
-- [ ] **M2 パートナーへのリリース(#173、約 15 分)**: URL は `https://yorunote-mm.vercel.app`(本文の `asa-note.vercel.app` はあさノート)。ホーム画面に追加 → メールのリンクでログイン → 「共有」タブで通知をオン。
-- [ ] **M3 通知の実機確認 2 台(#173、約 10 分)**: パートナーが今夜の記録を保存 → もう 1 台に届く。SQL(1) で `evening_subscriptions` が 2。リマインド(20 時台)が届いた日に、SQL(3) で `reminder_deliveries` にその日の行。
-- [ ] **M4 あさノート本番のログアウト確認(#173、約 5 分)**: ログアウト → SQL(2) で `push_subscriptions` が 1 減る → 再ログインして「共有」タブで通知オン → また届く。
-- [ ] **M5 Coverage summary の見た目(#226、約 2 分)**: <https://github.com/mmtigers/AsaNote/actions/runs/38393391031> → Summary の「Coverage」の表と折りたたみ。
+- [x] **M1 Supabase の Redirect URLs を確認する(#228、約 3 分)**: Supabase → Authentication → URL Configuration。Site URL が `https://asa-note.vercel.app`、Redirect URLs に `https://yorunote-mm.vercel.app/**` があるか。無ければ追加。済んだら #228 を閉じてよい。 (2026-10-19 完了。Site URL と Redirect URLs の両方を、オーナーが画面で確認。#228)
+- [x] **M2 パートナーへのリリース(#173、約 15 分)**: URL は `https://yorunote-mm.vercel.app`(本文の `asa-note.vercel.app` はあさノート)。ホーム画面に追加 → メールのリンクでログイン → 「共有」タブで通知をオン。 (2026-10-19 オーナーが確認済み)
+- [x] **M3 通知の実機確認 2 台(#173、約 10 分)**: パートナーが今夜の記録を保存 → もう 1 台に届く。SQL(1) で `evening_subscriptions` が 2。リマインド(20 時台)が届いた日に、SQL(3) で `reminder_deliveries` にその日の行。 (2026-10-19 オーナーが確認済み)
+- [x] **M4 あさノート本番のログアウト確認(#173、約 5 分)**: ログアウト → SQL(2) で `push_subscriptions` が 1 減る → 再ログインして「共有」タブで通知オン → また届く。 (2026-10-19 オーナーが確認済み)
+- [x] **M5 Coverage summary の見た目(#226、約 2 分)**: <https://github.com/mmtigers/AsaNote/actions/runs/38393391031> → Summary の「Coverage」の表と折りたたみ。 (2026-10-19 オーナーが確認済み)
 - [ ] **M6 Dependabot の二重実行(#226、約 5 分)**: Dependabot の PR に `@dependabot rebase` とコメント(または次の月曜 9:00 JST を待つ)→ その PR の `CI` が最後の 1 本だけ success、他が cancelled。
-- [ ] **M7 iOS PWA の復帰時の取り込み(#173、約 10 分)**: 2 台で、一方が保存 → もう一方を閉じずに 5 分以上おいて前面に戻す → 新しい記録が出る。
-- [ ] **M8 エクスポートの子ども絞り込み(#173、約 5 分)**: 子ども 2 人以上の家庭で、「すべて」「各お子さま」「未分類」、CSV 末尾の「子ども」列、印刷/PDF の見出し。
-- [ ] **M9 11/1 以降: Billing の実測(#237、約 5 分)**: Settings → Billing → Actions の使用量をリポジトリ別に見る。private だけで足りるか。足りなければ、クローズ済みの PR を再オープンせず、現状の main から作り直す。
-- [ ] **M10 2027 年 9 月ごろ: 旧フィールドの件数(#114、約 5 分)**: `docs/triage/114-legacy-fields-count.sql` を実行。`with_any_legacy` が 0、または許容できる量なら、#114 の削除対象一覧に沿って一括削除の PR を作る。
+- [x] **M7 iOS PWA の復帰時の取り込み(#173、約 10 分)**: 2 台で、一方が保存 → もう一方を閉じずに 5 分以上おいて前面に戻す → 新しい記録が出る。 (2026-10-19 オーナーが確認済み)
+- [x] **M8 エクスポートの子ども絞り込み(#173、約 5 分)**: 子ども 2 人以上の家庭で、「すべて」「各お子さま」「未分類」、CSV 末尾の「子ども」列、印刷/PDF の見出し。 (2026-10-19 オーナーが確認済み)
+- [x] **M9 11/1 以降: Billing の実測(#237、約 5 分)**: Settings → Billing → Actions の使用量をリポジトリ別に見る。private だけで足りるか。足りなければ、クローズ済みの PR を再オープンせず、現状の main から作り直す。 (2026-10-19 オーナー判断: 対応不要としてクローズ。11/1 のリマインドは取り消し済み)
+- [x] **M10 2027 年 9 月ごろ: 旧フィールドの件数(#114、約 5 分)**: `docs/triage/114-legacy-fields-count.sql` を実行。`with_any_legacy` が 0、または許容できる量なら、#114 の削除対象一覧に沿って一括削除の PR を作る。 (2026-10-19 オーナー判断: 先すぎるため、いったんクローズ。#114 は開いたまま。必要になったら再開する)
 - [ ] (任意)#173: アーカイブ済み `mmtigers/YoruNote` の README に移行案内を足す(アーカイブ解除が要る。約 10 分)。
 - [ ] (D5 で B を選んだ場合)#117: テスト用プロジェクトの作成と Secrets の登録(約 30 分。`apps/asa/docs/e2e-supabase.md`)。
