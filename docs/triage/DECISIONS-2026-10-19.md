@@ -119,7 +119,7 @@
 - [x] **M2 パートナーへのリリース(#173、約 15 分)**: URL は `https://yorunote-mm.vercel.app`(本文の `asa-note.vercel.app` はあさノート)。ホーム画面に追加 → メールのリンクでログイン → 「共有」タブで通知をオン。 (2026-10-19 オーナーが確認済み)
 - [x] **M3 通知の実機確認 2 台(#173、約 10 分)**: パートナーが今夜の記録を保存 → もう 1 台に届く。SQL(1) で `evening_subscriptions` が 2。リマインド(20 時台)が届いた日に、SQL(3) で `reminder_deliveries` にその日の行。 (2026-10-19 オーナーが確認済み)
 - [x] **M4 あさノート本番のログアウト確認(#173、約 5 分)**: ログアウト → SQL(2) で `push_subscriptions` が 1 減る → 再ログインして「共有」タブで通知オン → また届く。 (2026-10-19 オーナーが確認済み)
-- [ ] **M5 Coverage summary の見た目(#226、約 2 分)**: <https://github.com/mmtigers/AsaNote/actions/runs/38393391031> → Summary の「Coverage」の表と折りたたみ。
+- [x] **M5 Coverage summary の見た目(#226、約 2 分)**: <https://github.com/mmtigers/AsaNote/actions/runs/38393391031> → Summary の「Coverage」の表と折りたたみ。 (2026-10-19 オーナーが確認済み)
 - [ ] **M6 Dependabot の二重実行(#226、約 5 分)**: Dependabot の PR に `@dependabot rebase` とコメント(または次の月曜 9:00 JST を待つ)→ その PR の `CI` が最後の 1 本だけ success、他が cancelled。
 - [x] **M7 iOS PWA の復帰時の取り込み(#173、約 10 分)**: 2 台で、一方が保存 → もう一方を閉じずに 5 分以上おいて前面に戻す → 新しい記録が出る。 (2026-10-19 オーナーが確認済み)
 - [x] **M8 エクスポートの子ども絞り込み(#173、約 5 分)**: 子ども 2 人以上の家庭で、「すべて」「各お子さま」「未分類」、CSV 末尾の「子ども」列、印刷/PDF の見出し。 (2026-10-19 オーナーが確認済み)
