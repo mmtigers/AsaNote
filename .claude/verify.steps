@@ -1,21 +1,21 @@
-# 名前 | 作業ディレクトリ(repo相対) | コマンド   — CI(_app-ci.yml / ci-core.yml)と同じ順。test は CI の test:coverage の代わりに npm test(閾値は未検証)
+# 名前 | 作業ディレクトリ(repo相対) | コマンド   — CI(_app-ci.yml / ci-core.yml)と同じ順
 core-lint | packages/core | npm run lint
 core-typecheck | packages/core | npm run typecheck
-core-test | packages/core | npm test
+core-test | packages/core | npm run test:coverage
 asa-lint | apps/asa | npm run lint
 asa-typegen | apps/asa | npx next typegen
 asa-typecheck | apps/asa | npx tsc --noEmit
-asa-test | apps/asa | npm test
+asa-test | apps/asa | npm run test:coverage
 asa-build | apps/asa | npm run build
 yoru-lint | apps/yoru | npm run lint
 yoru-schema | apps/yoru | npm run check:schema
 yoru-stub | apps/yoru | npm run check:stub
 yoru-typegen | apps/yoru | npx next typegen
 yoru-typecheck | apps/yoru | npx tsc --noEmit
-yoru-test | apps/yoru | npm test
+yoru-test | apps/yoru | npm run test:coverage
 yoru-build | apps/yoru | npm run build
 oya-lint | apps/oya | npm run lint
 oya-typegen | apps/oya | npx next typegen
 oya-typecheck | apps/oya | npx tsc --noEmit
-oya-test | apps/oya | npm test
+oya-test | apps/oya | npm run test:coverage
 oya-build | apps/oya | npm run build
