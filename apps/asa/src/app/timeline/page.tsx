@@ -6,7 +6,7 @@ import { matchesChildFilter } from "@note/core/childFilter";
 import { ChildSwitcher } from "@note/core/components/ChildSwitcher";
 import { ConfirmDialog } from "@note/core/components/ConfirmDialog";
 import { PartnerAvatar } from "@note/core/components/PartnerAvatar";
-import { RecordFeedback } from "@note/core/components/RecordFeedback";
+import { RecordFeedback, RecordFeedbackActions, RecordFeedbackBody } from "@note/core/components/RecordFeedback";
 import { SkeletonList } from "@note/core/components/Skeleton";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useChildren } from "@/lib/db/children";
@@ -159,83 +159,85 @@ export default function TimelinePage() {
                 key={record.id}
                 className="relative rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3.5 py-3"
               >
-                <div className="mb-1.5 flex flex-wrap items-center gap-2">
-                  <span className="whitespace-nowrap text-sm font-bold">{formatDateShort(record.recordDate)}</span>
-                  {outcome && (
-                    <span
-                      className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-bold ${OUTCOME_BADGE_STYLES[outcome.color]}`}
-                    >
-                      {outcome.emoji} {outcome.label}
-                    </span>
-                  )}
-                  {showChildName && record.childId && childNameMap.has(record.childId) && (
-                    <span className="whitespace-nowrap rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-bold text-[var(--sub)]">
-                      {childNameMap.get(record.childId)}
-                    </span>
-                  )}
-                  {!own && <PartnerAvatar email={emailMap.get(record.userId ?? "")} />}
-                  {/* 編集・削除を隣接配置する(#2-1)。誤タップを防ぐため gap-3 で間隔を空ける。 */}
-                  <div className="ml-auto flex flex-none items-center gap-3">
-                    {canEdit && (
-                      <Link
-                        href={editHref}
-                        aria-label={`${formatDateShort(record.recordDate)}の記録を編集する`}
-                        className="-my-1 rounded-full px-2 py-1 text-base leading-none text-[var(--sub)]"
-                      >
-                        ✏️
-                      </Link>
-                    )}
-                    {canEdit && (
-                      <button
-                        type="button"
-                        onClick={() => setDeleteTarget(record.id)}
-                        aria-label={`${formatDateShort(record.recordDate)}の記録を削除する`}
-                        className="-my-1 rounded-full px-2 py-1 text-base leading-none text-[var(--sub)]"
-                      >
-                        🗑
-                      </button>
-                    )}
-                  </div>
-                </div>
-                {record.memo && (
-                  <p className="mb-2 text-[13px] leading-relaxed text-[var(--ink)] last:mb-0">{record.memo}</p>
-                )}
-                {(record.wakeTime || legacy || allTags.length > 0) && (
-                  <div className="flex flex-wrap gap-1.5 last:mb-0">
-                    {record.wakeTime && (
-                      <span className="whitespace-nowrap rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[11px] text-[var(--sub)]">
-                        {wakeTimeLabel(record.wakeTime) ?? record.wakeTime}起床
-                      </span>
-                    )}
-                    {legacy && (
-                      <span className="whitespace-nowrap rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-bold text-[var(--sub)]">
-                        {legacy}
-                      </span>
-                    )}
-                    {allTags.map((tag, i) => (
-                      <span
-                        key={`${tag}-${i}`}
-                        className="rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[11px] text-[var(--sub)]"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                )}
                 {/* 「読んだ」とコメントはサーバー上の記録に付くので、同期が済んだ記録にだけ出す。 */}
-                {record.syncStatus === "synced" && (
-                  <RecordFeedback
-                    recordId={record.id}
-                    currentUserId={session?.user.id}
-                    ownerUserId={record.userId}
-                    memberEmails={emailMap}
-                    reads={feedback.reads.filter((r) => r.recordId === record.id)}
-                    comments={feedback.comments.filter((c) => c.recordId === record.id)}
-                    onMarkRead={() => feedback.markRead(record.id)}
-                    onSaveComment={(body) => feedback.saveComment(record.id, body)}
-                    onDeleteComment={() => feedback.deleteComment(record.id)}
-                  />
-                )}
+                <RecordFeedback
+                  disabled={record.syncStatus !== "synced"}
+                  recordId={record.id}
+                  currentUserId={session?.user.id}
+                  ownerUserId={record.userId}
+                  memberEmails={emailMap}
+                  reads={feedback.reads.filter((r) => r.recordId === record.id)}
+                  comments={feedback.comments.filter((c) => c.recordId === record.id)}
+                  onMarkRead={() => feedback.markRead(record.id)}
+                  onSaveComment={(body) => feedback.saveComment(record.id, body)}
+                  onDeleteComment={() => feedback.deleteComment(record.id)}
+                >
+                  <div className="mb-1.5 flex flex-wrap items-center gap-2">
+                    <span className="whitespace-nowrap text-sm font-bold">{formatDateShort(record.recordDate)}</span>
+                    {outcome && (
+                      <span
+                        className={`whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-bold ${OUTCOME_BADGE_STYLES[outcome.color]}`}
+                      >
+                        {outcome.emoji} {outcome.label}
+                      </span>
+                    )}
+                    {showChildName && record.childId && childNameMap.has(record.childId) && (
+                      <span className="whitespace-nowrap rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-bold text-[var(--sub)]">
+                        {childNameMap.get(record.childId)}
+                      </span>
+                    )}
+                    {!own && <PartnerAvatar email={emailMap.get(record.userId ?? "")} />}
+                    {/* 編集・削除を隣接配置する(#2-1)。誤タップを防ぐため gap-3 で間隔を空ける。 */}
+                    <div className="ml-auto flex flex-none items-center gap-3">
+                      <RecordFeedbackActions />
+                      {canEdit && (
+                        <Link
+                          href={editHref}
+                          aria-label={`${formatDateShort(record.recordDate)}の記録を編集する`}
+                          className="-my-1 rounded-full px-2 py-1 text-base leading-none text-[var(--sub)]"
+                        >
+                          ✏️
+                        </Link>
+                      )}
+                      {canEdit && (
+                        <button
+                          type="button"
+                          onClick={() => setDeleteTarget(record.id)}
+                          aria-label={`${formatDateShort(record.recordDate)}の記録を削除する`}
+                          className="-my-1 rounded-full px-2 py-1 text-base leading-none text-[var(--sub)]"
+                        >
+                          🗑
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  {record.memo && (
+                    <p className="mb-2 text-[13px] leading-relaxed text-[var(--ink)] last:mb-0">{record.memo}</p>
+                  )}
+                  {(record.wakeTime || legacy || allTags.length > 0) && (
+                    <div className="flex flex-wrap gap-1.5 last:mb-0">
+                      {record.wakeTime && (
+                        <span className="whitespace-nowrap rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[11px] text-[var(--sub)]">
+                          {wakeTimeLabel(record.wakeTime) ?? record.wakeTime}起床
+                        </span>
+                      )}
+                      {legacy && (
+                        <span className="whitespace-nowrap rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[11px] font-bold text-[var(--sub)]">
+                          {legacy}
+                        </span>
+                      )}
+                      {allTags.map((tag, i) => (
+                        <span
+                          key={`${tag}-${i}`}
+                          className="rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[11px] text-[var(--sub)]"
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <RecordFeedbackBody />
+                </RecordFeedback>
               </li>
             );
           })}
