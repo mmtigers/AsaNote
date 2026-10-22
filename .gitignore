@@ -22,3 +22,6 @@ npm-debug.log*
 # supabase CLIのローカル作業用ディレクトリ(functions serve/linkの度に生成される)
 supabase/.temp
 apps/*/supabase/.temp
+
+# Claude Code の検証結果・引き継ぎメモ(devx/skills/verify-handoff が生成。コミットしない)
+.claude/handoff/
