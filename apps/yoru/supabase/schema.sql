@@ -246,6 +246,69 @@ create policy "evening_notification_settings are updatable by owner"
 create policy "evening_notification_settings are deletable by owner"
   on evening_notification_settings for delete to authenticated using (auth.uid() = user_id);
 
+-- パートナーが今夜の記録にコメントしたときのPush通知を受け取るか。notify_partner_record と同じく既定はOFF。
+alter table evening_notification_settings
+  add column if not exists notify_partner_comment boolean not null default false;
+
+-- 記録の「読んだ」印とひとことコメント(あさノートの record_reads / record_comments と同じ仕組み。docs/SPEC.md)。
+-- 「読んだ」は自分の記録にも押せる(未読/既読を見分けるため)。コメントは1つの記録に1人1件。
+-- 「記録が見える人だけ」の判定は、evening_records 自身のRLS(本人+同じグループ)を exists のサブクエリ経由で効かせる。
+create table if not exists evening_record_reads (
+  record_id uuid not null references evening_records(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  read_at timestamptz not null default now(),
+  primary key (record_id, user_id)
+);
+
+create table if not exists evening_record_comments (
+  record_id uuid not null references evening_records(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  body text not null check (char_length(btrim(body)) between 1 and 100),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (record_id, user_id)
+);
+
+alter table evening_record_reads enable row level security;
+alter table evening_record_comments enable row level security;
+
+drop policy if exists "evening_record_reads are readable by those who can see the record" on evening_record_reads;
+drop policy if exists "evening_record_reads are insertable by self" on evening_record_reads;
+drop policy if exists "evening_record_comments are readable by those who can see the record" on evening_record_comments;
+drop policy if exists "evening_record_comments are insertable by self" on evening_record_comments;
+drop policy if exists "evening_record_comments are updatable by author" on evening_record_comments;
+drop policy if exists "evening_record_comments are deletable by author" on evening_record_comments;
+
+create policy "evening_record_reads are readable by those who can see the record"
+  on evening_record_reads for select to authenticated
+  using (exists (select 1 from evening_records r where r.id = evening_record_reads.record_id));
+create policy "evening_record_reads are insertable by self"
+  on evening_record_reads for insert to authenticated
+  with check (
+    auth.uid() = user_id
+    and exists (select 1 from evening_records r where r.id = evening_record_reads.record_id)
+  );
+
+create policy "evening_record_comments are readable by those who can see the record"
+  on evening_record_comments for select to authenticated
+  using (exists (select 1 from evening_records r where r.id = evening_record_comments.record_id));
+create policy "evening_record_comments are insertable by self"
+  on evening_record_comments for insert to authenticated
+  with check (
+    auth.uid() = user_id
+    and exists (select 1 from evening_records r where r.id = evening_record_comments.record_id)
+  );
+create policy "evening_record_comments are updatable by author"
+  on evening_record_comments for update to authenticated
+  using (auth.uid() = user_id)
+  with check (
+    auth.uid() = user_id
+    and exists (select 1 from evening_records r where r.id = evening_record_comments.record_id)
+  );
+create policy "evening_record_comments are deletable by author"
+  on evening_record_comments for delete to authenticated
+  using (auth.uid() = user_id);
+
 -- 試したこと(ルール変更)と検討事項ボード(SPEC §4.4)。家族(グループ)で共有する設定情報なので、
 -- 閲覧・編集・削除は作成者と同じグループのメンバーなら誰でもできる(children と違い、片方の親が
 -- 立てた項目をもう片方が解決済みにできる必要があるため)。

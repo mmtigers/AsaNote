@@ -244,3 +244,47 @@ describe("runPartnerNotify(パートナーの記録通知)", () => {
     });
   });
 });
+
+describe("runPartnerNotify(コメント通知)", () => {
+  let send: Mock<SendNotification>;
+
+  beforeEach(() => {
+    send = vi.fn<SendNotification>().mockResolvedValue(undefined);
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it("notify_partner_comment がONのパートナーだけに、コメントした人の名前で送る(きろく追加の設定は見ない)", async () => {
+    const tables = baseTables();
+    // きろく追加はONでもコメントはOFF、またはその逆、を混ぜて、見ている列が違うことを確かめる。
+    tables.notification_settings = [
+      { user_id: "mom", notify_partner_record: true, notify_partner_comment: false },
+      { user_id: "dad", notify_partner_record: false, notify_partner_comment: true },
+      { user_id: "grandma", notify_partner_record: true, notify_partner_comment: false },
+    ];
+    const { db } = fakeDb(tables);
+
+    const result = await runPartnerNotify(db, send, "mom", email("taro.yamada@example.com"), "comment");
+
+    expect(result).toEqual({ status: 200, body: { partners: 2, targeted: 1, sent: 2 } });
+    expect(sentEndpoints(send)).toEqual(["https://push.example/s-dad-1", "https://push.example/s-dad-2"]);
+    const payload = JSON.parse(send.mock.calls[0]![1] as string);
+    expect(payload).toMatchObject({ title: "あさノート", url: "/timeline" });
+    expect(payload.body).toBe("taro.yamadaさんがコメントしました");
+  });
+
+  it("コメントした本人には送らない", async () => {
+    const tables = baseTables();
+    tables.notification_settings = [
+      { user_id: "mom", notify_partner_comment: true },
+      { user_id: "dad", notify_partner_comment: true },
+    ];
+    const { db } = fakeDb(tables);
+
+    await runPartnerNotify(db, send, "dad", email(null), "comment");
+
+    expect(sentEndpoints(send)).toEqual(["https://push.example/s-mom"]);
+    expect(JSON.parse(send.mock.calls[0]![1] as string).body).toBe("パートナーがコメントしました");
+  });
+});

@@ -8,6 +8,8 @@ export interface NotificationSettings {
   enabled: boolean;
   // パートナーが今夜の記録を追加したときのPush通知を受け取るか。
   notifyPartnerRecord: boolean;
+  // パートナーが記録にコメントしたときのPush通知を受け取るか。
+  notifyPartnerComment: boolean;
 }
 
 // 夜のリマインド通知の既定時刻(SPEC: 21:00)。
@@ -22,15 +24,18 @@ function normalizeReminderTime(value: string): string {
 export async function fetchNotificationSettings(userId: string): Promise<NotificationSettings> {
   const { data, error } = await getSupabaseClient()
     .from("evening_notification_settings")
-    .select("reminder_time, enabled, notify_partner_record")
+    .select("reminder_time, enabled, notify_partner_record, notify_partner_comment")
     .eq("user_id", userId)
     .maybeSingle();
   if (error) throw error;
-  if (!data) return { reminderTime: DEFAULT_REMINDER_TIME, enabled: false, notifyPartnerRecord: false };
+  if (!data) {
+    return { reminderTime: DEFAULT_REMINDER_TIME, enabled: false, notifyPartnerRecord: false, notifyPartnerComment: false };
+  }
   return {
     reminderTime: normalizeReminderTime(data.reminder_time),
     enabled: data.enabled,
     notifyPartnerRecord: data.notify_partner_record,
+    notifyPartnerComment: data.notify_partner_comment,
   };
 }
 
@@ -40,6 +45,7 @@ export async function saveNotificationSettings(userId: string, settings: Notific
     reminder_time: settings.reminderTime,
     enabled: settings.enabled,
     notify_partner_record: settings.notifyPartnerRecord,
+    notify_partner_comment: settings.notifyPartnerComment,
     updated_at: new Date().toISOString(),
   });
   if (error) throw error;

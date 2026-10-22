@@ -19,9 +19,11 @@ export interface NotificationSettingsAdmin {
   reminderTime: string;
   enabled: boolean;
   notifyPartnerRecord: boolean;
+  notifyPartnerComment: boolean;
   setReminderTime: (value: string) => Promise<void>;
   setEnabled: (value: boolean) => Promise<void>;
   setNotifyPartnerRecord: (value: boolean) => Promise<void>;
+  setNotifyPartnerComment: (value: boolean) => Promise<void>;
 }
 
 // ログアウトで解除された購読を、この端末へ戻す(#174)。許可の確認は出さず、ブラウザの許可が
@@ -47,6 +49,7 @@ export function useNotificationSettings(
   const [reminderTime, setReminderTimeState] = useState(DEFAULT_REMINDER_TIME);
   const [enabled, setEnabledState] = useState(false);
   const [notifyPartnerRecord, setNotifyPartnerRecordState] = useState(false);
+  const [notifyPartnerComment, setNotifyPartnerCommentState] = useState(false);
 
   useEffect(() => {
     if (!userId) {
@@ -62,8 +65,11 @@ export function useNotificationSettings(
           setReminderTimeState(result.value.reminderTime);
           setEnabledState(result.value.enabled);
           setNotifyPartnerRecordState(result.value.notifyPartnerRecord);
+          setNotifyPartnerCommentState(result.value.notifyPartnerComment);
           // ログインした本人の設定がONなら、ログアウトで解除された購読を戻す(#174)。画面の表示は待たせない。
-          if (result.value.enabled || result.value.notifyPartnerRecord) void restorePushIfNeeded(userId);
+          if (result.value.enabled || result.value.notifyPartnerRecord || result.value.notifyPartnerComment) {
+            void restorePushIfNeeded(userId);
+          }
         }
       })
       .finally(() => {
@@ -82,7 +88,7 @@ export function useNotificationSettings(
     onError(null);
     setSaving(true);
     await runAction(
-      () => saveNotificationSettings(userId, { reminderTime: value, enabled, notifyPartnerRecord }),
+      () => saveNotificationSettings(userId, { reminderTime: value, enabled, notifyPartnerRecord, notifyPartnerComment }),
       "通知時刻の保存に失敗しました",
       onError
     );
@@ -124,7 +130,7 @@ export function useNotificationSettings(
       return;
     }
     const saved = await runAction(
-      () => saveNotificationSettings(userId, { reminderTime, enabled: value, notifyPartnerRecord }),
+      () => saveNotificationSettings(userId, { reminderTime, enabled: value, notifyPartnerRecord, notifyPartnerComment }),
       "通知設定の保存に失敗しました",
       onError
     );
@@ -142,11 +148,29 @@ export function useNotificationSettings(
       return;
     }
     const saved = await runAction(
-      () => saveNotificationSettings(userId, { reminderTime, enabled, notifyPartnerRecord: value }),
+      () => saveNotificationSettings(userId, { reminderTime, enabled, notifyPartnerRecord: value, notifyPartnerComment }),
       "通知設定の保存に失敗しました",
       onError
     );
     if (saved.ok) setNotifyPartnerRecordState(value);
+    setSaving(false);
+  }
+
+  // パートナーのコメント通知。ONにする際は、他の通知と同じくこの端末のPush購読を用意する。
+  async function setNotifyPartnerComment(value: boolean) {
+    if (!userId) return;
+    onError(null);
+    setSaving(true);
+    if (value && !(await ensurePushSubscription())) {
+      setSaving(false);
+      return;
+    }
+    const saved = await runAction(
+      () => saveNotificationSettings(userId, { reminderTime, enabled, notifyPartnerRecord, notifyPartnerComment: value }),
+      "通知設定の保存に失敗しました",
+      onError
+    );
+    if (saved.ok) setNotifyPartnerCommentState(value);
     setSaving(false);
   }
 
@@ -157,8 +181,10 @@ export function useNotificationSettings(
     reminderTime,
     enabled,
     notifyPartnerRecord,
+    notifyPartnerComment,
     setReminderTime,
     setEnabled,
     setNotifyPartnerRecord,
+    setNotifyPartnerComment,
   };
 }

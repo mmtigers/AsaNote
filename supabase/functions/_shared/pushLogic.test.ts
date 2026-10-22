@@ -7,6 +7,7 @@ import {
   jstDateNow,
   jstTimeNow,
   minutesOfDay,
+  partnerCommentPayload,
   partnerRecordPayload,
   REMINDER_CATCHUP_WINDOW_MINUTES,
   reminderPayload,
@@ -264,5 +265,19 @@ describe("sendToSubscriptions", () => {
     const send = vi.fn();
     expect(await sendToSubscriptions(send, [], "p")).toEqual({ sent: 0, staleSubscriptionIds: [] });
     expect(send).not.toHaveBeenCalled();
+  });
+});
+
+describe("partnerCommentPayload", () => {
+  it("名前入りの文言と、タイムラインへのURLを返す", () => {
+    expect(JSON.parse(partnerCommentPayload("taro"))).toEqual({
+      title: "あさノート",
+      body: "taroさんがコメントしました",
+      url: "/timeline",
+    });
+  });
+
+  it("名前が無ければ「パートナー」の文言にする", () => {
+    expect(JSON.parse(partnerCommentPayload(null)).body).toBe("パートナーがコメントしました");
   });
 });

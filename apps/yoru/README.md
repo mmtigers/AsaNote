@@ -71,8 +71,8 @@ npm run dev
 
 ### 運用で手作業が要るもの
 
-- **`supabase/schema.sql` の変更**は、main へのマージ時に `Deploy DB schema (yorunote)`(`.github/workflows/db-deploy-yoru.yml`。あさノートの `db-deploy.yml` とは別)が本番へ自動適用します。リポジトリのシークレット `SUPABASE_DB_URL`(Session pooler の接続文字列)の登録が要ります。未登録の間は失敗するので、SQL Editor で手動実行してください(何度実行しても同じ結果になる書き方です)。適用前に `check:schema` で `evening_*` 以外に触れていないことを検査します。service role キーを含む `cron-evening-reminders.sql` と `evening-partner-notify-trigger.sql` は自動適用されません。
-- **Edge Function**(`supabase/functions/`)も同様に、変更したら `supabase functions deploy <関数名>`(`send-evening-reminders` / `notify-evening-partner`)で再デプロイが要ります。
+- **`supabase/schema.sql` の変更**は、main へのマージ時に `Deploy DB schema (yorunote)`(`.github/workflows/db-deploy-yoru.yml`。あさノートの `db-deploy.yml` とは別)が本番へ自動適用します。リポジトリのシークレット `SUPABASE_DB_URL`(Session pooler の接続文字列)の登録が要ります。未登録の間は失敗するので、SQL Editor で手動実行してください(何度実行しても同じ結果になる書き方です)。適用前に `check:schema` で `evening_*` 以外に触れていないことを検査します。service role キーを含む `cron-evening-reminders.sql`・`evening-partner-notify-trigger.sql`・`evening-comment-notify-trigger.sql` は自動適用されません。
+- **Edge Function**(`supabase/functions/`)も同様に、変更したら `supabase functions deploy <関数名>`(`send-evening-reminders` / `notify-evening-partner` / `notify-evening-comment`)で再デプロイが要ります。
 - 実機での同期・共有の確認手順は [docs/device-verification.md](./docs/device-verification.md)。
 
 ### 初回のSupabase準備

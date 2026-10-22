@@ -117,9 +117,29 @@ SQL Editor で `supabase/cron-evening-reminders.sql` の `<PROJECT_REF>`・`<SER
 5. 確認: 2つの端末(別アカウント・同じグループ)で、片方が通知をON、もう片方が様子を選んで保存する。ONにした側へ通知が届けば成功。
    既に様子が入っている記録の編集や、同期の再送では通知されない。
 
+## パートナーのコメント通知
+
+家族(同じグループ)のどなたかが記録にコメントしたとき、通知をONにした人へ「〇〇さんがコメントしました」と届ける。
+「共有」タブの「通知」にある「パートナーがコメントしたときの通知」を各自がONにする(既定はOFF)。
+関数 `notify-evening-comment` とトリガー `evening-comment-notify-trigger.sql`(対象は `evening_record_comments`)を使う。
+合言葉は上の「パートナーの記録通知」で作った `EVENING_NOTIFY_SECRET` と同じ値で、新しく作るものは無い(先にその手順を済ませておく)。
+
+1. `supabase/schema.sql` を実行して `evening_notification_settings.notify_partner_comment` 列と、`evening_record_reads` / `evening_record_comments` 表を作る(冪等なので再実行しても安全。mainへのマージ時にも自動適用される)。
+2. Edge Functionをデプロイする。
+
+   ```bash
+   cd apps/yoru
+   npx supabase functions deploy notify-evening-comment --project-ref <PROJECT_REF>
+   ```
+
+3. SQL Editor で `supabase/evening-comment-notify-trigger.sql` の `<PROJECT_REF>`・`<SERVICE_ROLE_KEY>`・`<NOTIFY_SECRET>` を置き換えて実行する
+   (`<NOTIFY_SECRET>` は `EVENING_NOTIFY_SECRET` と同じ値。置き換えた実値はコミットしない)。
+4. 確認: 2つの端末(別アカウント・同じグループ)で、片方がコメント通知をON、もう片方が「これまで」の記録にコメントを書く。ONにした側へ通知が届けば成功。
+   コメントの編集・削除では通知されない。
+
 ## トラブルシューティング
 
-- 通知が届かない場合は、Supabase ダッシュボードの Edge Functions > `send-evening-reminders`(パートナー通知なら `notify-evening-partner`)> Logs を確認する。
+- 通知が届かない場合は、Supabase ダッシュボードの Edge Functions > `send-evening-reminders`(パートナー通知なら `notify-evening-partner`、コメント通知なら `notify-evening-comment`)> Logs を確認する。
 - cronの呼び出し結果: `select status_code, content, created from net._http_response order by created desc limit 5;`
   (200なら正常、401は合言葉(`EVENING_CRON_SECRET` / `EVENING_NOTIFY_SECRET`)の不一致、404は PROJECT_REF の誤り)。
   合言葉の `401` が並ぶときは、cron・トリガーに入れた値と、`supabase secrets set` で設定した値を、同じにして登録し直す。

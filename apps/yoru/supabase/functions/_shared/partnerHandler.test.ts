@@ -139,3 +139,40 @@ describe("runPartnerNotify", () => {
     }
   });
 });
+
+describe("runPartnerNotify(コメント通知)", () => {
+  it("notify_partner_comment がONのパートナーだけに、コメントした人の名前で送る(記録追加の設定は見ない)", async () => {
+    const tables = baseTables();
+    tables.evening_notification_settings = [
+      { user_id: "dad", notify_partner_record: false, notify_partner_comment: true },
+      { user_id: "other", notify_partner_record: true, notify_partner_comment: true },
+    ];
+    const { db } = fakeDb(tables);
+    const send = vi.fn().mockResolvedValue({});
+
+    const result = await runPartnerNotify(db, send, "mom", email, "comment");
+
+    expect(result).toEqual({ status: 200, body: { partners: 1, targeted: 1, sent: 1 } });
+    expect(send.mock.calls[0][0].endpoint).toBe("https://push.example/s-dad");
+    expect(JSON.parse(send.mock.calls[0][1])).toMatchObject({ title: "よるノート", body: "momさんがコメントしました", url: "/timeline" });
+  });
+
+  it("コメント通知がOFFの人には送らない(記録追加の通知がONでも)", async () => {
+    const { db } = fakeDb(baseTables()); // dad は notify_partner_record だけがON
+    const send = vi.fn();
+
+    const result = await runPartnerNotify(db, send, "mom", email, "comment");
+
+    expect(result.body).toEqual({ partners: 1, sent: 0 });
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it("メールが取れなければ名前なしの文言になる", async () => {
+    const tables = baseTables();
+    tables.evening_notification_settings = [{ user_id: "dad", notify_partner_comment: true }];
+    const { db } = fakeDb(tables);
+    const send = vi.fn().mockResolvedValue({});
+    await runPartnerNotify(db, send, "mom", async () => null, "comment");
+    expect(JSON.parse(send.mock.calls[0][1]).body).toBe("パートナーがコメントしました");
+  });
+});
