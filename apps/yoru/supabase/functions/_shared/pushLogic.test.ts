@@ -5,6 +5,7 @@ import {
   isStaleSubscriptionError,
   jstDateNow,
   jstTimeNow,
+  partnerCommentPayload,
   partnerRecordPayload,
   selectReminderTargets,
   sendToSubscriptions,
@@ -107,5 +108,19 @@ describe("displayNameFromEmail / partnerRecordPayload", () => {
       url: "/timeline",
     });
     expect(JSON.parse(partnerRecordPayload(null)).body).toBe("パートナーが今夜の記録を追加しました");
+  });
+});
+
+describe("partnerCommentPayload", () => {
+  it("名前入りの文言と、タイムラインへのURLを返す", () => {
+    expect(JSON.parse(partnerCommentPayload("mom"))).toEqual({
+      title: "よるノート",
+      body: "momさんがコメントしました",
+      url: "/timeline",
+    });
+  });
+
+  it("名前が無ければ「パートナー」の文言にする", () => {
+    expect(JSON.parse(partnerCommentPayload(null)).body).toBe("パートナーがコメントしました");
   });
 });

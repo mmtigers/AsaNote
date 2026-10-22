@@ -46,6 +46,18 @@ export function NotificationSection({ admin }: { admin: NotificationSettingsAdmi
         />
       </label>
 
+      <label className="flex items-center justify-between gap-3 rounded-xl bg-[var(--surface)] px-4 py-3 text-sm">
+        <span>パートナーがコメントしたときの通知</span>
+        <input
+          type="checkbox"
+          role="switch"
+          checked={admin.notifyPartnerComment}
+          disabled={disabled}
+          onChange={(event) => void admin.setNotifyPartnerComment(event.target.checked)}
+          className="h-5 w-5 accent-[var(--accent)]"
+        />
+      </label>
+
       <div className="flex items-center gap-3 rounded-xl bg-[var(--surface)] px-4 py-3 text-sm">
         <label htmlFor="reminder-time" className="flex-1">
           通知時刻

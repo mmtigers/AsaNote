@@ -196,6 +196,7 @@ export type Database = {
       notification_settings: {
         Row: {
           enabled: boolean
+          notify_partner_comment: boolean
           notify_partner_record: boolean
           reminder_time: string
           updated_at: string
@@ -203,6 +204,7 @@ export type Database = {
         }
         Insert: {
           enabled?: boolean
+          notify_partner_comment?: boolean
           notify_partner_record?: boolean
           reminder_time?: string
           updated_at?: string
@@ -210,6 +212,7 @@ export type Database = {
         }
         Update: {
           enabled?: boolean
+          notify_partner_comment?: boolean
           notify_partner_record?: boolean
           reminder_time?: string
           updated_at?: string
@@ -243,6 +246,64 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      record_comments: {
+        Row: {
+          body: string
+          created_at: string
+          record_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          record_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          record_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "record_comments_record_id_fkey"
+            columns: ["record_id"]
+            isOneToOne: false
+            referencedRelation: "records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      record_reads: {
+        Row: {
+          read_at: string
+          record_id: string
+          user_id: string
+        }
+        Insert: {
+          read_at?: string
+          record_id: string
+          user_id: string
+        }
+        Update: {
+          read_at?: string
+          record_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "record_reads_record_id_fkey"
+            columns: ["record_id"]
+            isOneToOne: false
+            referencedRelation: "records"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       records: {
         Row: {

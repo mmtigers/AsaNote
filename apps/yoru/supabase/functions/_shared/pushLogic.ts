@@ -18,3 +18,11 @@ export function partnerRecordPayload(name: string | null): string {
     url: "/timeline",
   });
 }
+
+export function partnerCommentPayload(name: string | null): string {
+  return JSON.stringify({
+    title: "よるノート",
+    body: name ? `${name}さんがコメントしました` : "パートナーがコメントしました",
+    url: "/timeline",
+  });
+}

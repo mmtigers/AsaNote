@@ -187,3 +187,22 @@ JWT 検証を通すために残す。
   Edge Function側で自動削除された可能性が高い。もう一度「通知」をONにし直す。
 - iOSでは、Push通知を受け取るにはホーム画面に追加したPWAとして開いている必要がある
   (Safariのタブとして開いているだけでは通知が届かない)。
+
+## 6.6 パートナーへの「コメントしました」通知
+
+パートナーが記録にコメントしたとき、同じグループの他メンバーのうち`/group`で「パートナーがコメントしたとき」を
+ONにしている人へ通知する。VAPID鍵・シークレット(手順1〜4)と、`PARTNER_NOTIFY_SECRET`(6.5の手順1)は共通で、
+新しく作る値は無い。6.5を先に済ませておくこと。
+
+**切り替えの順番**(上から順に行う):
+
+1. 関数をデプロイする。
+   ```bash
+   npx supabase functions deploy notify-comment
+   ```
+2. SQL Editorで`supabase/comment-notify-trigger.sql`の`<PROJECT_REF>`・`<SERVICE_ROLE_KEY>`・
+   `<NOTIFY_SECRET>`(6.5と同じ`PARTNER_NOTIFY_SECRET`の値)を置き換えて実行する(record_commentsにトリガーを作る。
+   実値はコミットしない。実行後はタブを保存せずに閉じ、ターミナルは`clear`で消す)。
+
+`notify-comment`も`notify-partner`と同じく、`x-notify-secret`ヘッダが`PARTNER_NOTIFY_SECRET`と一致する呼び出しだけを
+受け付ける(それ以外は`401`、未設定なら`500`)。コメントの編集・削除では通知しない(INSERTだけ)。

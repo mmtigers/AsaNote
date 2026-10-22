@@ -590,6 +590,82 @@ create policy "notification_settings are deletable by owner"
   to authenticated
   using (auth.uid() = user_id);
 
+-- パートナーがきろくにコメントしたときのPush通知を受け取るか。notify_partner_recordと同じく既定はOFF。
+alter table notification_settings add column if not exists notify_partner_comment boolean not null default false;
+
+-- 記録の「読んだ」印。誰が(user_id)どの記録(record_id)を読んだかを1行で表し、押した日時を残す。
+-- 自分の記録にも押せる(読む側が未読/既読を見分けるため)。記録が見える人(本人+同じグループのメンバー)
+-- だけが読み書きでき、行は追加のみ(取り消しなし)。印は記録を保存し直しても消えない。
+create table if not exists record_reads (
+  record_id uuid not null references records(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  read_at timestamptz not null default now(),
+  primary key (record_id, user_id)
+);
+
+alter table record_reads enable row level security;
+
+-- 記録へのひとこと。1つの記録につき1人1件まで(主キー)。書いた本人だけが編集・削除できる。
+-- 「記録が見える人だけ」の判定は、records自身のRLS(本人+同じグループ)を exists のサブクエリ経由で
+-- 効かせる(recordsの閲覧条件を二重に書かない)。
+create table if not exists record_comments (
+  record_id uuid not null references records(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  body text not null check (char_length(btrim(body)) between 1 and 100),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (record_id, user_id)
+);
+
+alter table record_comments enable row level security;
+
+drop policy if exists "record_reads are readable by those who can see the record" on record_reads;
+drop policy if exists "record_reads are insertable by self" on record_reads;
+drop policy if exists "record_comments are readable by those who can see the record" on record_comments;
+drop policy if exists "record_comments are insertable by self" on record_comments;
+drop policy if exists "record_comments are updatable by author" on record_comments;
+drop policy if exists "record_comments are deletable by author" on record_comments;
+
+create policy "record_reads are readable by those who can see the record"
+  on record_reads for select
+  to authenticated
+  using (exists (select 1 from records r where r.id = record_reads.record_id));
+
+create policy "record_reads are insertable by self"
+  on record_reads for insert
+  to authenticated
+  with check (
+    auth.uid() = user_id
+    and exists (select 1 from records r where r.id = record_reads.record_id)
+  );
+
+create policy "record_comments are readable by those who can see the record"
+  on record_comments for select
+  to authenticated
+  using (exists (select 1 from records r where r.id = record_comments.record_id));
+
+create policy "record_comments are insertable by self"
+  on record_comments for insert
+  to authenticated
+  with check (
+    auth.uid() = user_id
+    and exists (select 1 from records r where r.id = record_comments.record_id)
+  );
+
+create policy "record_comments are updatable by author"
+  on record_comments for update
+  to authenticated
+  using (auth.uid() = user_id)
+  with check (
+    auth.uid() = user_id
+    and exists (select 1 from records r where r.id = record_comments.record_id)
+  );
+
+create policy "record_comments are deletable by author"
+  on record_comments for delete
+  to authenticated
+  using (auth.uid() = user_id);
+
 -- 未入力日のリマインドPushの送信済み記録(#130)。send-reminders は設定時刻を過ぎて直近N分以内の
 -- ユーザーを対象にする(cron/関数の1分の欠けを取り戻す)ため、同じ日に二重送信しないよう、
 -- 「ユーザー × JSTの日付」ごとに1行を残す。主キーの衝突で、同時実行された関数同士も二重に送らない。

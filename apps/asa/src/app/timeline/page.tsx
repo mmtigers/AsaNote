@@ -6,17 +6,22 @@ import { matchesChildFilter } from "@note/core/childFilter";
 import { ChildSwitcher } from "@note/core/components/ChildSwitcher";
 import { ConfirmDialog } from "@note/core/components/ConfirmDialog";
 import { PartnerAvatar } from "@note/core/components/PartnerAvatar";
+import { RecordFeedback } from "@note/core/components/RecordFeedback";
 import { SkeletonList } from "@note/core/components/Skeleton";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { useChildren } from "@/lib/db/children";
 import { buildMemberEmailMap, useGroupMembers } from "@note/core/db/groups";
 import { canEditRecord, isOwnRecord } from "@note/core/ownership";
+import { useRecordFeedback } from "@note/core/useRecordFeedback";
 import { deleteRecord } from "@/lib/db/records";
 import { useRecordsTimeline } from "@/lib/db/queries";
 import type { LocalRecord } from "@/lib/db/localDb";
 import { OUTCOME_OPTIONS, type Outcome } from "@/constants/choices";
 import { formatDateShort } from "@note/core/date";
 import { wakeTimeLabel } from "@/lib/wakeTime";
+
+// 「読んだ」印とコメントの表(定義は supabase/schema.sql)。useRecordFeedback の依存になるのでモジュールレベルに置く。
+const FEEDBACK_TABLES = { reads: "record_reads", comments: "record_comments" } as const;
 
 const OUTCOME_BADGE_STYLES = {
   accent: "bg-[var(--accent-soft)] text-[var(--accent)]",
@@ -45,6 +50,7 @@ export default function TimelinePage() {
   const records = useRecordsTimeline();
   const members = useGroupMembers();
   const emailMap = buildMemberEmailMap(members);
+  const feedback = useRecordFeedback(FEEDBACK_TABLES);
   const children = useChildren();
   // タイムラインの絞り込みはホーム画面の「今記録している子」とは独立させ、常に
   // 「すべて」から始める(子どもを追加した直後に、既存の未分類の記録が見えなくなるのを防ぐ)。
@@ -216,10 +222,30 @@ export default function TimelinePage() {
                     ))}
                   </div>
                 )}
+                {/* 「読んだ」とコメントはサーバー上の記録に付くので、同期が済んだ記録にだけ出す。 */}
+                {record.syncStatus === "synced" && (
+                  <RecordFeedback
+                    recordId={record.id}
+                    currentUserId={session?.user.id}
+                    ownerUserId={record.userId}
+                    memberEmails={emailMap}
+                    reads={feedback.reads.filter((r) => r.recordId === record.id)}
+                    comments={feedback.comments.filter((c) => c.recordId === record.id)}
+                    onMarkRead={() => feedback.markRead(record.id)}
+                    onSaveComment={(body) => feedback.saveComment(record.id, body)}
+                    onDeleteComment={() => feedback.deleteComment(record.id)}
+                  />
+                )}
               </li>
             );
           })}
         </ul>
+      )}
+
+      {feedback.error && (
+        <p role="alert" className="text-center text-[13px] font-semibold text-[var(--accent)]">
+          {feedback.error}
+        </p>
       )}
 
       {deleteError && (

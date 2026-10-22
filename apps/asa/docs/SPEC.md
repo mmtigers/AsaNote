@@ -232,6 +232,10 @@ flowchart TD
 - **操作**: 自分の記録だけに ✏️（フォームへ遷移。`/?date=…&childId=…`）と 🗑（確認ダイアログ「この記録を削除しますか？この操作は取り消せません。」経由で削除）を出す。2つのアイコンは誤タップを避けるため間隔を空ける。
   - 認証の読み込み中は所有者が確定しないため、どの記録にも編集・削除を出さない（`canEditRecord`。パートナーの記録を誤って消すとローカルから失われるため）。表示系（アバター等）は読み込み中を「自分の記録」と楽観的に扱う（`isOwnRecord`）。
   - 削除はまずローカルから消して削除キューへ積み、同期でサーバーへ反映する（§5.4）。
+- **読んだ・コメント**（`RecordFeedback`。`packages/core`。サーバーに同期済みの記録のカードにだけ出す。未同期の記録は、サーバーに記録が無く外部キーが成り立たないため出さない）:
+  - 「読んだ」: 未読なら「読んだ」ボタン、押すと「✓ 読みました M/D H:mm」に変わる。**自分の記録にも押せる**（読む側が未読/既読を見分けるため）。押したあとの取り消しは無い。他のメンバーが読んでいれば「✓ 〇〇さんが読みました M/D H:mm」を出す。自分の記録で、パートナーがいて、まだ誰も読んでいなければ「まだ読まれていません」を出す。記録を直して保存し直しても、読んだ印は消えない。既読にしても相手へ通知は送らない。
+  - コメント: 1つの記録に**1人1件**まで、100文字まで（前後の空白は除く。空は保存できない）。「💬 コメントする」で入力、保存で確定。相手のコメントは「〇〇さん: …」で読み取り専用。自分のコメントは「自分: …」と ✏️（編集）・🗑（確認ダイアログ「このコメントを削除しますか？」経由で削除）を出す。コメントを書く・直す・消すのはオンラインの操作で、失敗したら画面下部に赤文字でエラーを出す。
+  - 取得は、見える記録の分すべての「読んだ」とコメントを1回で取り、操作に成功したらその場で画面へ反映する。取得に失敗しても記録の閲覧は妨げない（印とコメントが出ないだけ。原因は `client_errors` へ送る）。
 - **空表示**: 記録が1件も無い→「まだ記録がありません…」。絞り込みで0件→「この条件に一致する記録がありません。」
 - 旧フォーム（〜v1）の記録は、旧フィールド（起床タグ・引き渡し先等）を含めて後方互換で表示する。
 - 「📄 エクスポート」リンクで `/export` へ。
@@ -349,10 +353,10 @@ ON/OFFと時刻の設定。仕様は §4。
 ### 4.2 通知設定（`/group` の「通知」）
 
 - ブラウザが Service Worker・Push API・Notification に対応していなければ「お使いのブラウザはプッシュ通知に対応していません。」のみ表示する（`src/lib/push.ts` の `isPushSupported`）。
-- 項目: 「未入力日のリマインド通知」スイッチ、「パートナーがきろくを追加したとき」スイッチ、「通知時刻」（既定21:00。変更は即保存）。
+- 項目: 「未入力日のリマインド通知」スイッチ、「パートナーがきろくを追加したとき」スイッチ、「パートナーがコメントしたとき」スイッチ、「通知時刻」（既定21:00。変更は即保存）。
 - どちらかのスイッチをONにすると、この端末にまだPush購読が無ければブラウザの通知許可を求め、購読を作成して `push_subscriptions` へ登録（同じ `endpoint` なら上書き）し、続けて設定を `notification_settings` へ保存する。次の場合はエラー文を出して保存しない: 公開鍵 `NEXT_PUBLIC_VAPID_PUBLIC_KEY` 未設定、許可が得られない、購読の保存に失敗。
 - OFFにしても購読は残し、フラグだけ倒す（送信側がフラグを見てスキップするため）。
-- 既定値: 設定行が無い間、画面はリマインドOFF・パートナー通知OFF・21:00を表示する。設定行は最初の保存で作られる。DBの列既定は `enabled = true` だが、行が無ければ送信対象にならない（`fetchNotificationSettings`）。パートナー通知の列既定はOFF（許可を求める操作を伴うため、本人が明示的にONにするまで送らない）。
+- 既定値: 設定行が無い間、画面はリマインドOFF・パートナー通知OFF・21:00を表示する。設定行は最初の保存で作られる。DBの列既定は `enabled = true` だが、行が無ければ送信対象にならない（`fetchNotificationSettings`）。パートナー通知（きろく追加・コメントとも）の列既定はOFF（許可を求める操作を伴うため、本人が明示的にONにするまで送らない）。
 
 ### 4.3 Push: 未入力日のリマインド
 
@@ -375,6 +379,16 @@ Supabase Edge Function `send-reminders`（`supabase/functions/send-reminders/ind
 3. 記録者と同じグループの、本人以外のメンバーのうち `notify_partner_record = true` の人の全購読へ送る。**判定に使うのは受信者側の設定のみ**（記録者の設定は無関係）。子どもは区別しない。
 4. 内容: 「〇〇さんがきろくを追加しました」（〇〇は記録者のメールアドレスの `@` より前。表示名を持たないため。取れなければ「パートナーがきろくを追加しました」）。遷移先 `/timeline`。
 5. 410 / 404 の購読は削除。通知の失敗（`pg_net` 側の問題等）で記録の保存を巻き戻さない（トリガー内で例外を握る）。
+
+### 4.4.1 Push: パートナーのコメント
+
+きろく追加（§4.4）と同じ仕組みで、コメントが付いたときにも通知する。
+
+1. `record_comments` のトリガー（`supabase/comment-notify-trigger.sql`）が、**コメントが新規にできた時（INSERT）だけ**発火する。コメントの編集・削除では発火しない。トリガーは手動で実行して入れる（`schema.sql` の自動適用の対象外）。
+2. トリガーが Edge Function `notify-comment` を呼ぶ（`{ user_id（コメントした人）, record_id }`）。合言葉は `notify-partner` と同じ `x-notify-secret` = `PARTNER_NOTIFY_SECRET`（`isAuthorizedSecret`）。
+3. コメントした人と同じグループの、本人以外のメンバーのうち `notify_partner_comment = true` の人の全購読へ送る。判定に使うのは受信者側の設定のみ。誰に送るかの処理は `notify-partner` と共通（`runPartnerNotify` の `kind`）。
+4. 内容: 「〇〇さんがコメントしました」（〇〇はコメントした人のメールアドレスの `@` より前。取れなければ「パートナーがコメントしました」）。遷移先 `/timeline`。
+5. 設定は「共有」タブの「通知」の「パートナーがコメントしたとき」スイッチ（§4.2。既定はOFF。ONにすると、きろく追加の通知と同じく、まだこの端末に購読が無ければ通知の許可を求める）。
 
 ### 4.5 通知の受信（Service Worker）
 
@@ -422,7 +436,9 @@ Supabase Edge Function `send-reminders`（`supabase/functions/send-reminders/ind
 | `children` | `id`, `created_by`(FK、削除で連鎖), `name` 1〜50文字(`CHECK`), `created_at`。索引 `created_by` | 子ども。グループ内で共有 |
 | `push_subscriptions` | `user_id`, `endpoint` **unique**, `p256dh`, `auth_key`。索引 `user_id` | Push購読。1ユーザーが複数端末を持てる |
 | `reminder_deliveries` | `(user_id, sent_on)` PK, `created_at` | 未入力リマインドの送信済み記録（ユーザー×JSTの日付。§4.3）。Edge Function（service role）専用。**7日で掃除**（使うのは当日の行だけ。`cleanup_old_logs()`） |
-| `notification_settings` | `user_id` PK, `reminder_time`(time, 既定 21:00), `enabled`(既定 true), `notify_partner_record`(既定 false), `updated_at` | 通知設定。ユーザー1人につき1行 |
+| `notification_settings` | `user_id` PK, `reminder_time`(time, 既定 21:00), `enabled`(既定 true), `notify_partner_record`(既定 false), `notify_partner_comment`(既定 false), `updated_at` | 通知設定。ユーザー1人につき1行 |
+| `record_reads` | PK(`record_id`,`user_id`)、`record_id`(FK→`records`、削除で連鎖)、`user_id`(FK、削除で連鎖)、`read_at`(既定 now) | 記録の「読んだ」印（§3.2）。誰がどの記録をいつ読んだか。追加のみ |
+| `record_comments` | PK(`record_id`,`user_id`)（=1つの記録に1人1件）、`body` 1〜100文字（前後の空白を除いて。`CHECK`）、`created_at`、`updated_at` | 記録へのひとことコメント（§3.2）。`record_id` は `records` へのFK（削除で連鎖） |
 | `analytics_events` | `user_id`, `record_id`, `event_name`, `properties`(jsonb), `client_ts`, `created_at`。索引 `user_id` / `record_id` | 記録フローの計測（§11）。書き込み専用。あさノート・よるノート共用。`properties` は2000字まで（check 制約。既存の行は検査しない）。**365日で掃除**（`cleanup_old_logs()`、§8.3） |
 | `client_errors` | `user_id`(null可), `app`, `source`, `message`, `stack`, `path`, `user_agent`, `app_version`, `context`(jsonb), `client_ts`, `created_at`。索引 `created_at` | ブラウザ側の想定外エラーの記録（§11.4）。書き込み専用。あさノート・よるノート共用。**90日で掃除**（`cleanup_old_logs()`、§8.3）、匿名insertの濫用対策として**総行数の上限20,000行**（`client_errors_enforce_cap` トリガー）。確認用ビュー `client_errors_summary_7d` |
 
@@ -480,6 +496,8 @@ stateDiagram-v2
 | `children` | 作成者本人＋同じグループのメンバー | 作成者本人のみ | 作成者本人のみ | 作成者本人のみ |
 | `push_subscriptions` | 本人のみ | 本人のみ | 本人のみ | 本人のみ |
 | `notification_settings` | 本人のみ | 本人のみ | 本人のみ | 本人のみ |
+| `record_reads` | その記録が見える人（`records` のRLSをサブクエリ経由で効かせる＝本人＋同じグループのメンバー） | 本人のみ（かつ記録が見えること） | なし | なし（記録の削除に連鎖して消える） |
+| `record_comments` | その記録が見える人（同上） | 本人のみ（かつ記録が見えること） | 書いた本人のみ | 書いた本人のみ |
 | `reminder_deliveries` | なし（service roleのみ） | なし | なし | なし |
 | `analytics_events` | **なし**（読み取り不可） | 本人のみ | なし | なし |
 | `client_errors` | **なし**（読み取り不可） | 未ログイン(anon)も可。`user_id` は null か本人のみ。総行数が20,000行に達すると insert は失敗する（トリガー） | なし | なし |
@@ -642,9 +660,10 @@ DBに一意制約が無く、2端末でオフライン中に同じ日を新規�
 
 | 作業 | 手順の場所 |
 |---|---|
-| Edge Function（`send-reminders` / `notify-partner`）のデプロイ、VAPIDシークレット設定 | `docs/push-notifications-setup.md` |
+| Edge Function（`send-reminders` / `notify-partner` / `notify-comment`）のデプロイ、VAPIDシークレット設定 | `docs/push-notifications-setup.md` |
 | `pg_cron` の登録（`supabase/cron-reminders.sql`） | 同上。`<PROJECT_REF>` と `<SERVICE_ROLE_KEY>` を実値に置き換えてSQL Editorで実行 |
 | パートナー通知のトリガー作成（`supabase/partner-notify-trigger.sql`） | 同上 |
+| コメント通知のトリガー作成（`supabase/comment-notify-trigger.sql`） | 同上（§6.6）。`notify-comment` のデプロイが先 |
 | 古いログの掃除の `pg_cron` 登録（`supabase/cron-cleanup-logs.sql`） | `docs/log-retention.md`。SQL Editor で1回実行（`schema.sql` の自動適用には含まれない）。登録するまで掃除は走らず、`client_errors` は上限に達すると新しい記録が入らなくなる |
 | 空グループ・期限切れ招待コードの掃除の `pg_cron` 登録（`supabase/cron-cleanup-groups.sql`） | `docs/group-cleanup.md`。SQL Editor で1回実行（`schema.sql` の自動適用には含まれない）。登録するまで掃除は走らない |
 | Supabase Auth の URL 設定 | 下記 |
@@ -727,9 +746,9 @@ src/
   types/models.ts         SchoolRecord / Group / Child などの型
 supabase/
   schema.sql              テーブル・RLS・SQL関数・計測ビュー（mainマージで自動適用）
-  functions/send-reminders, notify-partner                        Edge Function（Deno。index.ts は環境変数・合言葉・クライアントの組み立てだけ）
+  functions/send-reminders, notify-partner, notify-comment                        Edge Function（Deno。index.ts は環境変数・合言葉・クライアントの組み立てだけ）
   functions/_shared/      pushCommon.ts（よるノートと共通の純粋関数。正はこちら）, pushLogic.ts（あさノート固有）, reminderHandler.ts, partnerHandler.ts（処理の本体）と、そのテスト
-  cron-reminders.sql, partner-notify-trigger.sql,
+  cron-reminders.sql, partner-notify-trigger.sql, comment-notify-trigger.sql,
   cron-cleanup-logs.sql, cron-cleanup-groups.sql                  手動適用（§8.3）
   ci/auth-stub.sql        CIの型ドリフト検査用スタブ
 public/                   sw.js, manifest.webmanifest, icons/, apple-touch-icon.png

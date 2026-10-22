@@ -18,7 +18,12 @@ import { useRecordsTimeline } from "@/lib/db/queries";
 import { deleteRecord } from "@/lib/db/records";
 import { useGroupMembers, buildMemberEmailMap } from "@note/core/db/groups";
 import { PartnerAvatar } from "@note/core/components/PartnerAvatar";
+import { RecordFeedback } from "@note/core/components/RecordFeedback";
+import { useRecordFeedback, type RecordFeedbackState } from "@note/core/useRecordFeedback";
 import { buildRecordPreview } from "@/lib/recordPreview";
+
+// 「読んだ」印とコメントの表(定義は supabase/schema.sql)。useRecordFeedback の依存になるのでモジュールレベルに置く。
+const FEEDBACK_TABLES = { reads: "evening_record_reads", comments: "evening_record_comments" } as const;
 
 interface RecordCardProps {
   record: LocalRecord;
@@ -28,9 +33,22 @@ interface RecordCardProps {
   partnerEmail?: string | null;
   editable: boolean;
   onDelete: () => void;
+  currentUserId: string | null;
+  memberEmails: Map<string, string | null>;
+  feedback: RecordFeedbackState;
 }
 
-function RecordCard({ record, childName, ownerLabel, partnerEmail, editable, onDelete }: RecordCardProps) {
+function RecordCard({
+  record,
+  childName,
+  ownerLabel,
+  partnerEmail,
+  editable,
+  onDelete,
+  currentUserId,
+  memberEmails,
+  feedback,
+}: RecordCardProps) {
   const photos = useRecordPhotos(record.id);
   const outcome = OUTCOME_OPTIONS.find((o) => o.value === record.outcome);
   const preview = buildRecordPreview({ ...record, photoCount: photos?.length ?? 0 });
@@ -58,6 +76,20 @@ function RecordCard({ record, childName, ownerLabel, partnerEmail, editable, onD
           </button>
         </div>
       )}
+      {/* 「読んだ」とコメントはサーバー上の記録に付くので、同期が済んだ記録にだけ出す。 */}
+      {record.syncStatus === "synced" && (
+        <RecordFeedback
+          recordId={record.id}
+          currentUserId={currentUserId}
+          ownerUserId={record.userId}
+          memberEmails={memberEmails}
+          reads={feedback.reads.filter((r) => r.recordId === record.id)}
+          comments={feedback.comments.filter((c) => c.recordId === record.id)}
+          onMarkRead={() => feedback.markRead(record.id)}
+          onSaveComment={(body) => feedback.saveComment(record.id, body)}
+          onDeleteComment={() => feedback.deleteComment(record.id)}
+        />
+      )}
     </li>
   );
 }
@@ -68,6 +100,7 @@ export default function TimelinePage() {
   const records = useRecordsTimeline();
   const children = useChildren();
   const members = useGroupMembers();
+  const feedback = useRecordFeedback(FEEDBACK_TABLES);
   const [filterChildId, setFilterChildId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<LocalRecord | null>(null);
 
@@ -117,10 +150,19 @@ export default function TimelinePage() {
                 partnerEmail={own ? undefined : r.userId ? memberEmails.get(r.userId) : null}
                 editable={canEditRecord(r, userId, authLoading)}
                 onDelete={() => setPendingDelete(r)}
+                currentUserId={userId}
+                memberEmails={memberEmails}
+                feedback={feedback}
               />
             );
           })}
         </ul>
+      )}
+
+      {feedback.error && (
+        <p role="alert" className="text-center text-[13px] font-semibold text-[var(--accent)]">
+          {feedback.error}
+        </p>
       )}
 
       <ConfirmDialog

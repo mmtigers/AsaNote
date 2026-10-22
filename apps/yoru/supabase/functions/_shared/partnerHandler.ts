@@ -1,7 +1,8 @@
-// notify-evening-partner の本体。reminderHandler.ts と同じく、DB・送信関数・作成者のメール取得を
+// notify-evening-partner / notify-evening-comment の本体。reminderHandler.ts と同じく、DB・送信関数・作成者のメール取得を
 // 引数で受け取るので Vitest で通しで確かめられる(partnerHandler.test.ts)。
 import {
   displayNameFromEmail,
+  partnerCommentPayload,
   partnerRecordPayload,
   sendToSubscriptions,
   type PushSubscriptionRow,
@@ -11,16 +12,26 @@ import type { ReminderDb, ReminderResult } from "./reminderHandler.ts";
 
 type Row = Record<string, unknown>;
 
+// 通知の種類ごとの違い: 受信者のどの設定列を見るか、通知の文言。
+// コメント通知は notify-evening-comment が、記録追加の通知は notify-evening-partner が使う(誰に送るかの判定は共通)。
+export type PartnerNotifyKind = "record" | "comment";
+const KINDS = {
+  record: { settingsColumn: "notify_partner_record", payload: partnerRecordPayload },
+  comment: { settingsColumn: "notify_partner_comment", payload: partnerCommentPayload },
+} as const;
+
 const fail = (table: string): ReminderResult => ({ status: 500, body: `failed to load ${table}` });
 
-// 記録した人(authorId)の同じグループの、本人以外のメンバーのうち「パートナーの記録通知」をONにした人の
+// 記録した人(authorId)の同じグループの、本人以外のメンバーのうち該当する通知(記録追加: notify_partner_record、コメント: notify_partner_comment)をONにした人の
 // 全購読へ送る。あさノートの notification_settings / push_subscriptions ではなく evening_* の表だけを見る。
 export async function runPartnerNotify(
   db: ReminderDb,
   send: SendNotification,
   authorId: string,
-  getAuthorEmail: (userId: string) => Promise<string | null | undefined>
+  getAuthorEmail: (userId: string) => Promise<string | null | undefined>,
+  kind: PartnerNotifyKind = "record"
 ): Promise<ReminderResult> {
+  const { settingsColumn, payload } = KINDS[kind];
   const { data: ownMemberships, error: ownError } = await db
     .from("group_members")
     .select("group_id")
@@ -47,7 +58,7 @@ export async function runPartnerNotify(
   const { data: settings, error: settingsError } = await db
     .from("evening_notification_settings")
     .select("user_id")
-    .eq("notify_partner_record", true)
+    .eq(settingsColumn, true)
     .in("user_id", partnerIds);
   if (settingsError) {
     console.error("evening_notification_settingsの取得に失敗しました:", settingsError);
@@ -69,7 +80,7 @@ export async function runPartnerNotify(
   const { sent, staleSubscriptionIds } = await sendToSubscriptions(
     send,
     (subscriptions ?? []) as unknown as PushSubscriptionRow[],
-    partnerRecordPayload(name)
+    payload(name)
   );
 
   if (staleSubscriptionIds.length > 0) {

@@ -29,7 +29,7 @@ const KEYS = { endpoint: "https://push.example/1", p256dh: "p", auth: "a" };
 beforeEach(() => {
   vi.spyOn(console, "error").mockImplementation(() => {});
   vi.stubEnv("NEXT_PUBLIC_VAPID_PUBLIC_KEY", "vapid-key");
-  mocks.fetchNotificationSettings.mockResolvedValue({ reminderTime: "21:00", enabled: false, notifyPartnerRecord: false });
+  mocks.fetchNotificationSettings.mockResolvedValue({ reminderTime: "21:00", enabled: false, notifyPartnerRecord: false, notifyPartnerComment: false });
   mocks.saveNotificationSettings.mockResolvedValue(undefined);
   mocks.savePushSubscription.mockResolvedValue(undefined);
   mocks.requestPushSubscription.mockResolvedValue(KEYS);
@@ -50,7 +50,7 @@ async function setup() {
 
 describe("useNotificationSettings", () => {
   it("保存済みの設定を読み込む", async () => {
-    mocks.fetchNotificationSettings.mockResolvedValue({ reminderTime: "20:30", enabled: true, notifyPartnerRecord: true });
+    mocks.fetchNotificationSettings.mockResolvedValue({ reminderTime: "20:30", enabled: true, notifyPartnerRecord: true, notifyPartnerComment: false });
     const { hook } = await setup();
     expect(hook.result.current.reminderTime).toBe("20:30");
     expect(hook.result.current.enabled).toBe(true);
@@ -61,7 +61,7 @@ describe("useNotificationSettings", () => {
     const { hook } = await setup();
     await act(() => hook.result.current.setEnabled(true));
     expect(mocks.savePushSubscription).toHaveBeenCalledWith("u1", KEYS);
-    expect(mocks.saveNotificationSettings).toHaveBeenCalledWith("u1", { reminderTime: "21:00", enabled: true, notifyPartnerRecord: false });
+    expect(mocks.saveNotificationSettings).toHaveBeenCalledWith("u1", { reminderTime: "21:00", enabled: true, notifyPartnerRecord: false, notifyPartnerComment: false });
     expect(hook.result.current.enabled).toBe(true);
   });
 
@@ -84,11 +84,11 @@ describe("useNotificationSettings", () => {
   });
 
   it("OFFにしても購読は触らず、フラグだけ保存する", async () => {
-    mocks.fetchNotificationSettings.mockResolvedValue({ reminderTime: "21:00", enabled: true, notifyPartnerRecord: false });
+    mocks.fetchNotificationSettings.mockResolvedValue({ reminderTime: "21:00", enabled: true, notifyPartnerRecord: false, notifyPartnerComment: false });
     const { hook } = await setup();
     await act(() => hook.result.current.setEnabled(false));
     expect(mocks.requestPushSubscription).not.toHaveBeenCalled();
-    expect(mocks.saveNotificationSettings).toHaveBeenCalledWith("u1", { reminderTime: "21:00", enabled: false, notifyPartnerRecord: false });
+    expect(mocks.saveNotificationSettings).toHaveBeenCalledWith("u1", { reminderTime: "21:00", enabled: false, notifyPartnerRecord: false, notifyPartnerComment: false });
   });
 
   it("時刻を変えると即保存し、空にされたら保存しない", async () => {
@@ -98,6 +98,7 @@ describe("useNotificationSettings", () => {
       reminderTime: "20:45",
       enabled: false,
       notifyPartnerRecord: false,
+      notifyPartnerComment: false,
     });
     mocks.saveNotificationSettings.mockClear();
     await act(() => hook.result.current.setReminderTime(""));
@@ -105,7 +106,7 @@ describe("useNotificationSettings", () => {
   });
 
   it("パートナーの記録通知をONにすると購読を用意し、リマインド側の設定を保ったまま保存する", async () => {
-    mocks.fetchNotificationSettings.mockResolvedValue({ reminderTime: "20:30", enabled: true, notifyPartnerRecord: false });
+    mocks.fetchNotificationSettings.mockResolvedValue({ reminderTime: "20:30", enabled: true, notifyPartnerRecord: false, notifyPartnerComment: false });
     const { hook } = await setup();
     await act(() => hook.result.current.setNotifyPartnerRecord(true));
     expect(mocks.savePushSubscription).toHaveBeenCalledWith("u1", KEYS);
@@ -113,6 +114,7 @@ describe("useNotificationSettings", () => {
       reminderTime: "20:30",
       enabled: true,
       notifyPartnerRecord: true,
+      notifyPartnerComment: false,
     });
     expect(hook.result.current.notifyPartnerRecord).toBe(true);
   });
@@ -125,8 +127,38 @@ describe("useNotificationSettings", () => {
     expect(hook.result.current.notifyPartnerRecord).toBe(false);
   });
 
+  it("コメント通知をONにすると購読を用意し、他の設定を保ったままコメント通知だけを変えて保存する", async () => {
+    mocks.fetchNotificationSettings.mockResolvedValue({ reminderTime: "20:30", enabled: true, notifyPartnerRecord: true, notifyPartnerComment: false });
+    const { hook } = await setup();
+    await act(() => hook.result.current.setNotifyPartnerComment(true));
+    expect(mocks.savePushSubscription).toHaveBeenCalledWith("u1", KEYS);
+    expect(mocks.saveNotificationSettings).toHaveBeenCalledWith("u1", {
+      reminderTime: "20:30",
+      enabled: true,
+      notifyPartnerRecord: true,
+      notifyPartnerComment: true,
+    });
+    expect(hook.result.current.notifyPartnerComment).toBe(true);
+  });
+
+  it("通知が許可されなければコメント通知はONにならない", async () => {
+    mocks.requestPushSubscription.mockResolvedValue(null);
+    const { hook } = await setup();
+    await act(() => hook.result.current.setNotifyPartnerComment(true));
+    expect(mocks.saveNotificationSettings).not.toHaveBeenCalled();
+    expect(hook.result.current.notifyPartnerComment).toBe(false);
+  });
+
+  it("OFFにするときは購読を作らない", async () => {
+    mocks.fetchNotificationSettings.mockResolvedValue({ reminderTime: "20:30", enabled: false, notifyPartnerRecord: false, notifyPartnerComment: true });
+    const { hook } = await setup();
+    await act(() => hook.result.current.setNotifyPartnerComment(false));
+    expect(mocks.requestPushSubscription).not.toHaveBeenCalled();
+    expect(hook.result.current.notifyPartnerComment).toBe(false);
+  });
+
   describe("購読の復元(#174)", () => {
-    const ON = { reminderTime: "20:30", enabled: true, notifyPartnerRecord: false };
+    const ON = { reminderTime: "20:30", enabled: true, notifyPartnerRecord: false, notifyPartnerComment: false };
 
     it("設定がONで、復元すべき購読が返れば、許可を求めずにサーバーへ登録する", async () => {
       mocks.fetchNotificationSettings.mockResolvedValue(ON);
@@ -138,7 +170,7 @@ describe("useNotificationSettings", () => {
     });
 
     it("パートナー通知だけがONでも復元する", async () => {
-      mocks.fetchNotificationSettings.mockResolvedValue({ ...ON, enabled: false, notifyPartnerRecord: true });
+      mocks.fetchNotificationSettings.mockResolvedValue({ ...ON, enabled: false, notifyPartnerRecord: true, notifyPartnerComment: false });
       mocks.restorePushSubscription.mockResolvedValue(KEYS);
       await setup();
       await waitFor(() => expect(mocks.savePushSubscription).toHaveBeenCalledWith("u1", KEYS));

@@ -42,6 +42,7 @@ describe("useNotificationSettings", () => {
       reminderTime: "20:30",
       enabled: false,
       notifyPartnerRecord: false,
+      notifyPartnerComment: false,
     });
     mocks.saveNotificationSettings.mockResolvedValue(undefined);
     mocks.savePushSubscription.mockResolvedValue(undefined);
@@ -93,6 +94,7 @@ describe("useNotificationSettings", () => {
         reminderTime: "20:30",
         enabled: true,
         notifyPartnerRecord: false,
+        notifyPartnerComment: false,
       });
       expect(result.current.enabled).toBe(true);
       expect(result.current.saving).toBe(false);
@@ -151,6 +153,7 @@ describe("useNotificationSettings", () => {
       reminderTime: "20:30",
       enabled: true,
       notifyPartnerRecord: false,
+      notifyPartnerComment: false,
     });
     const { result } = await setup();
     await act(() => result.current.setEnabled(false));
@@ -159,6 +162,7 @@ describe("useNotificationSettings", () => {
       reminderTime: "20:30",
       enabled: false,
       notifyPartnerRecord: false,
+      notifyPartnerComment: false,
     });
     expect(result.current.enabled).toBe(false);
   });
@@ -168,6 +172,7 @@ describe("useNotificationSettings", () => {
     await act(async () => {
       await result.current.setEnabled(true);
       await result.current.setNotifyPartnerRecord(true);
+      await result.current.setNotifyPartnerComment(true);
       await result.current.setReminderTime("07:00");
     });
     expect(mocks.saveNotificationSettings).not.toHaveBeenCalled();
@@ -183,6 +188,7 @@ describe("useNotificationSettings", () => {
         reminderTime: "20:30",
         enabled: false,
         notifyPartnerRecord: true,
+        notifyPartnerComment: false,
       });
       expect(result.current.notifyPartnerRecord).toBe(true);
     });
@@ -201,6 +207,7 @@ describe("useNotificationSettings", () => {
         reminderTime: "20:30",
         enabled: false,
         notifyPartnerRecord: true,
+        notifyPartnerComment: false,
       });
       const { result } = await setup();
       await act(() => result.current.setNotifyPartnerRecord(false));
@@ -216,6 +223,52 @@ describe("useNotificationSettings", () => {
     });
   });
 
+  describe("setNotifyPartnerComment", () => {
+    it("ONにする際は購読を作成し、コメント通知フラグだけを変えて保存する", async () => {
+      const { result } = await setup();
+      await act(() => result.current.setNotifyPartnerComment(true));
+      expect(mocks.savePushSubscription).toHaveBeenCalledWith("u1", KEYS);
+      expect(mocks.saveNotificationSettings).toHaveBeenCalledWith("u1", {
+        reminderTime: "20:30",
+        enabled: false,
+        notifyPartnerRecord: false,
+        notifyPartnerComment: true,
+      });
+      expect(result.current.notifyPartnerComment).toBe(true);
+      expect(result.current.notifyPartnerRecord).toBe(false);
+    });
+
+    it("許可が拒否されたらONにしない", async () => {
+      mocks.requestPushSubscription.mockResolvedValue(null);
+      const { result, onError } = await setup();
+      await act(() => result.current.setNotifyPartnerComment(true));
+      expect(onError).toHaveBeenLastCalledWith(expect.stringContaining("通知が許可されませんでした"));
+      expect(mocks.saveNotificationSettings).not.toHaveBeenCalled();
+      expect(result.current.notifyPartnerComment).toBe(false);
+    });
+
+    it("OFFにする際は購読を作らない", async () => {
+      mocks.fetchNotificationSettings.mockResolvedValue({
+        reminderTime: "20:30",
+        enabled: false,
+        notifyPartnerRecord: false,
+        notifyPartnerComment: true,
+      });
+      const { result } = await setup();
+      expect(result.current.notifyPartnerComment).toBe(true);
+      await act(() => result.current.setNotifyPartnerComment(false));
+      expect(mocks.requestPushSubscription).not.toHaveBeenCalled();
+      expect(result.current.notifyPartnerComment).toBe(false);
+    });
+
+    it("設定の保存に失敗したら状態を変えない", async () => {
+      mocks.saveNotificationSettings.mockRejectedValue(new Error("db"));
+      const { result } = await setup();
+      await act(() => result.current.setNotifyPartnerComment(true));
+      expect(result.current.notifyPartnerComment).toBe(false);
+    });
+  });
+
   describe("setReminderTime", () => {
     it("画面の値を即時更新し、他の設定を保ったまま保存する", async () => {
       const { result } = await setup();
@@ -225,6 +278,7 @@ describe("useNotificationSettings", () => {
         reminderTime: "07:15",
         enabled: false,
         notifyPartnerRecord: false,
+        notifyPartnerComment: false,
       });
       expect(result.current.saving).toBe(false);
     });
@@ -239,7 +293,7 @@ describe("useNotificationSettings", () => {
   });
 
   describe("購読の復元(#174)", () => {
-    const ON = { reminderTime: "20:30", enabled: true, notifyPartnerRecord: false };
+    const ON = { reminderTime: "20:30", enabled: true, notifyPartnerRecord: false, notifyPartnerComment: false };
 
     it("設定がONで、復元すべき購読が返れば、許可を求めずにサーバーへ登録する", async () => {
       mocks.fetchNotificationSettings.mockResolvedValue(ON);
