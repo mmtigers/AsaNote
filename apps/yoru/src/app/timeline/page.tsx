@@ -18,7 +18,7 @@ import { useRecordsTimeline } from "@/lib/db/queries";
 import { deleteRecord } from "@/lib/db/records";
 import { useGroupMembers, buildMemberEmailMap } from "@note/core/db/groups";
 import { PartnerAvatar } from "@note/core/components/PartnerAvatar";
-import { RecordFeedback } from "@note/core/components/RecordFeedback";
+import { RecordFeedback, RecordFeedbackActions, RecordFeedbackBody } from "@note/core/components/RecordFeedback";
 import { useRecordFeedback, type RecordFeedbackState } from "@note/core/useRecordFeedback";
 import { buildRecordPreview } from "@/lib/recordPreview";
 
@@ -56,40 +56,44 @@ function RecordCard({
 
   return (
     <li className={`rounded-2xl border border-[var(--line)] p-3.5 ${record.outcome ? OUTCOME_SOFT_STYLES[record.outcome] : "bg-[var(--surface)]"}`}>
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-sm font-bold">
-          {formatDateShort(record.recordDate)} {outcome?.emoji} {outcome?.label}
-        </p>
-        <p className="flex items-center gap-1.5 text-[11px] text-[var(--sub)]">
-          {[childName, ownerLabel].filter(Boolean).join(" ・ ")}
-          {partnerEmail !== undefined && <PartnerAvatar email={partnerEmail} />}
-        </p>
-      </div>
-      {preview && <p className="mt-1.5 text-[13px] leading-relaxed">{preview}</p>}
-      {editable && (
-        <div className="mt-2 flex gap-3 text-xs">
-          <Link href={editHref} className="font-semibold text-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]">
-            ✏️ 編集
-          </Link>
-          <button type="button" onClick={onDelete} className="text-[var(--sub)] underline underline-offset-2 focus:ring-2 focus:ring-[var(--accent)]">
-            削除
-          </button>
-        </div>
-      )}
       {/* 「読んだ」とコメントはサーバー上の記録に付くので、同期が済んだ記録にだけ出す。 */}
-      {record.syncStatus === "synced" && (
-        <RecordFeedback
-          recordId={record.id}
-          currentUserId={currentUserId}
-          ownerUserId={record.userId}
-          memberEmails={memberEmails}
-          reads={feedback.reads.filter((r) => r.recordId === record.id)}
-          comments={feedback.comments.filter((c) => c.recordId === record.id)}
-          onMarkRead={() => feedback.markRead(record.id)}
-          onSaveComment={(body) => feedback.saveComment(record.id, body)}
-          onDeleteComment={() => feedback.deleteComment(record.id)}
-        />
-      )}
+      <RecordFeedback
+        disabled={record.syncStatus !== "synced"}
+        recordId={record.id}
+        currentUserId={currentUserId}
+        ownerUserId={record.userId}
+        memberEmails={memberEmails}
+        reads={feedback.reads.filter((r) => r.recordId === record.id)}
+        comments={feedback.comments.filter((c) => c.recordId === record.id)}
+        onMarkRead={() => feedback.markRead(record.id)}
+        onSaveComment={(body) => feedback.saveComment(record.id, body)}
+        onDeleteComment={() => feedback.deleteComment(record.id)}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-bold">
+            {formatDateShort(record.recordDate)} {outcome?.emoji} {outcome?.label}
+          </p>
+          <div className="flex items-center gap-2">
+            <p className="flex items-center gap-1.5 text-[11px] text-[var(--sub)]">
+              {[childName, ownerLabel].filter(Boolean).join(" ・ ")}
+              {partnerEmail !== undefined && <PartnerAvatar email={partnerEmail} />}
+            </p>
+            <RecordFeedbackActions />
+          </div>
+        </div>
+        {preview && <p className="mt-1.5 text-[13px] leading-relaxed">{preview}</p>}
+        {editable && (
+          <div className="mt-2 flex gap-3 text-xs">
+            <Link href={editHref} className="font-semibold text-[var(--accent)] focus:ring-2 focus:ring-[var(--accent)]">
+              ✏️ 編集
+            </Link>
+            <button type="button" onClick={onDelete} className="text-[var(--sub)] underline underline-offset-2 focus:ring-2 focus:ring-[var(--accent)]">
+              削除
+            </button>
+          </div>
+        )}
+        <RecordFeedbackBody />
+      </RecordFeedback>
     </li>
   );
 }
