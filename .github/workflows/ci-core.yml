@@ -17,6 +17,7 @@ on:
       - "package-lock.json"
       - ".nvmrc"
       - ".github/**"
+      - ".claude/**"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

@@ -27,7 +27,7 @@
 | `db-deploy-oya.yml` | おやノート → **おやノート専用の**本番DB | `apps/oya/supabase/schema.sql` の変更で自動適用。Secret は `OYA_SUPABASE_DB_URL`(`SUPABASE_DB_URL` とは別)。リポジトリ変数 `OYA_DB_DEPLOY_ENABLED=true` まで未稼働(警告のみ)。接続先にあさノート・よるノートの表があれば中止する |
 | `db-deploy-yoru.yml` | よるノート → 本番DB | `apps/yoru/supabase/schema.sql` の変更で自動適用。**自分自身のパスはトリガーに含めない**(ワークフローを足しただけで本番へ適用されないように)。適用前に `check-schema-safety` を通す |
 
-**CI の起動条件(#225。Actions の無料枠・月2,000分を守るため)**: `ci.yml`・`ci-yoru.yml`・`ci-oya.yml`・`ci-core.yml` は、`main` への push では走らせず、`main` への PR だけで走る。さらに `paths` で、そのアプリ(core は `packages/core`)・共通コード・`supabase/`・`scripts/`・`docs/`・ルートの `*.md` と package・`.nvmrc`・`.github/` に関わる変更だけが対象(他方のアプリだけの変更では走らない)。**ドラフトの PR では走らせない**(全ジョブに `if: !github.event.pull_request.draft`。ready にした時と、その後の push で走る)。マージ後の統合ミスは CI では検出しない。`db-deploy*.yml` は本番DBへの反映なので、push のまま。Node の版は `.nvmrc`(ルート)の1か所で、全ワークフローの `setup-node` が読む。
+**CI の起動条件(#225。Actions の無料枠・月2,000分を守るため)**: `ci.yml`・`ci-yoru.yml`・`ci-oya.yml`・`ci-core.yml` は、`main` への push では走らせず、`main` への PR だけで走る。さらに `paths` で、そのアプリ(core は `packages/core`)・共通コード・`supabase/`・`scripts/`・`docs/`・ルートの `*.md` と package・`.nvmrc`・`.github/`・`.claude/`(検証手順 `verify.steps`)に関わる変更だけが対象(他方のアプリだけの変更では走らない)。**ドラフトの PR では走らせない**(全ジョブに `if: !github.event.pull_request.draft`。ready にした時と、その後の push で走る)。マージ後の統合ミスは CI では検出しない。`db-deploy*.yml` は本番DBへの反映なので、push のまま。Node の版は `.nvmrc`(ルート)の1か所で、全ワークフローの `setup-node` が読む。
 
 `check-release-notes.mjs` はルートの `scripts/` に1つだけ置き、各アプリの CI が `working-directory` をアプリにして実行する(あさノート・よるノートで共通。テストは `apps/asa/src/lib/releaseNotesCheck.test.ts`)。アプリ単位で動く(変更ファイルはアプリ相対、lock の version はルートの
 `package-lock.json` の `packages["apps/<app>"]` を見る)。
