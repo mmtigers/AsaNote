@@ -20,3 +20,7 @@
 - 導入を戻す: `rm -r ~/.claude/skills/{repo-survey,issue-fix,verify-handoff}`(原本はこのリポジトリに残る)。
 - `node_modules` が無いと失敗する → `npm ci`。クラウドのセッションは `~/.claude` が永続しないので、毎回 `devx/install.sh` が必要。
 - スクリプトの手順は `eval` で実行する。`.claude/verify.steps` はコードと同じ扱いで、レビューを通すこと。
+
+## 実行記録
+- 2026-10-22 `issue-fix` を #227(修正済み)で再現: 修正前コミットの worktree で、Issue の記述を行番号で裏付け → 先に失敗するテストを書いて失敗を確認(asa のみ失敗)→ `gen-db-types.sh` の2行を修正 → テスト 58/58、lint・型・テスト PASS。結果の修正は実際の修正(f6d1730)と同一。所要は約10分、手動介入なし。比較データが1件のみのため、効率が上がったとは言えない。
+- 手順の穴(worktree の `node_modules` のリンクが不可、古いコミットに `verify.steps` が無い)は SKILL.md に反映済み。
