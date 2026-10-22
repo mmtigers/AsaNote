@@ -290,6 +290,8 @@ describe("Actions の分数を守るトリガー(#225)", () => {
       const block = onBlock(readFileSync(`${WORKFLOWS_DIR}${name}`, "utf8"));
       expect(block, name).toMatch(/^ {4}paths:/m);
       expect(block, name).toContain('".github/**"');
+      // .claude/verify.steps は CI と同じ手順を定義する。変えたら CI で確認する。
+      expect(block, name).toContain('".claude/**"');
       expect(block, name).toContain('"packages/core/**"');
       expect(block, name).toContain('"package-lock.json"');
     }
