@@ -4,6 +4,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import type { Outcome } from "@/constants/choices";
 import { localDb } from "./localDb";
 import { isOwnRecord } from "@note/core/ownership";
+import { isForChildOrUnassigned, pickDayStatuses } from "./childMatch";
 
 // タイムライン用: 日付の新しい順に並べた全記録(自分+グループメンバー)。
 export function useRecordsTimeline() {
@@ -22,7 +23,7 @@ export function useRecordsTimeline() {
 export function useOwnRecordsForReasons(userId: string | null, childId: string | null) {
   return useLiveQuery(async () => {
     const all = await localDb.records.toArray();
-    return all.filter((r) => isOwnRecord(r, userId) && (r.childId ?? null) === childId);
+    return all.filter((r) => isOwnRecord(r, userId) && isForChildOrUnassigned(r.childId, childId));
   }, [userId, childId]);
 }
 
@@ -31,15 +32,14 @@ export function useOwnRecordsForReasons(userId: string | null, childId: string |
 // 揃えて、パートナーの記録も含める(#1-2: 記録ページのカレンダーにパートナーの
 // 記録が反映されないバグの修正)。同じ日に複数件あれば最新のものを使う。
 // childIdは複数の子ども対応(#3)向け(詳しくはfindLatestOwnRecordForDateを参照)。
+// 子どもを複数にする前の記録(未分類)も、選択中の子どもの分として出す(同じ日は子どもの記録を優先)。
 export function useRecordStatusForMonth(monthKey: string, childId: string | null = null) {
   return useLiveQuery(async () => {
     const rows = await localDb.records.where("recordDate").startsWith(monthKey).toArray();
-    const relevant = rows.filter((r) => (r.childId ?? null) === childId);
-    relevant.sort((a, b) => a.updatedAt.localeCompare(b.updatedAt));
-    const map = new Map<string, Outcome | null>();
-    for (const r of relevant) {
-      map.set(r.recordDate, r.outcome ?? null);
-    }
+    const map: Map<string, Outcome | null> = pickDayStatuses(
+      rows.map((r) => ({ ...r, outcome: r.outcome ?? null })),
+      childId
+    );
     return map;
   }, [monthKey, childId]);
 }
@@ -71,6 +71,6 @@ export function useHasTodayPartnerRecord(
 ) {
   return useLiveQuery(async () => {
     const rows = await localDb.records.where("recordDate").equals(recordDate).toArray();
-    return rows.some((r) => !isOwnRecord(r, userId) && (r.childId ?? null) === childId && !!r.outcome);
+    return rows.some((r) => !isOwnRecord(r, userId) && isForChildOrUnassigned(r.childId, childId) && !!r.outcome);
   }, [recordDate, userId, childId]);
 }
