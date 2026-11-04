@@ -4,7 +4,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import type { Outcome } from "@/constants/choices";
 import { localDb } from "./localDb";
 import { isOwnRecord } from "@note/core/ownership";
-import { isForChildOrUnassigned, pickDayStatuses } from "./childMatch";
+import { isForChildOrUnassigned, pickDayStatuses, pickLatestForChild } from "./childMatch";
 
 // タイムライン用: 日付の新しい順に並べた全記録(自分+グループメンバー)。
 export function useRecordsTimeline() {
@@ -22,7 +22,7 @@ export function useRecordsTimeline() {
 export function useOwnRecordsForHistory(userId: string | null, childId: string | null) {
   return useLiveQuery(async () => {
     const all = await localDb.records.toArray();
-    return all.filter((r) => isOwnRecord(r, userId) && (r.childId ?? null) === childId);
+    return all.filter((r) => isOwnRecord(r, userId) && isForChildOrUnassigned(r.childId, childId));
   }, [userId, childId]);
 }
 
@@ -41,9 +41,7 @@ export function useRecordStatusForMonth(monthKey: string, childId: string | null
 export function useOwnRecordForDate(recordDate: string, userId: string | null, childId: string | null) {
   return useLiveQuery(async () => {
     const rows = await localDb.records.where("recordDate").equals(recordDate).toArray();
-    const own = rows.filter((r) => isOwnRecord(r, userId) && (r.childId ?? null) === childId);
-    own.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-    return own[0] ?? null;
+    return pickLatestForChild(rows.filter((r) => isOwnRecord(r, userId)), childId) ?? null;
   }, [recordDate, userId, childId]);
 }
 

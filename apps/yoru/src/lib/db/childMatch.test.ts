@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isForChildOrUnassigned, pickDayStatuses } from "./childMatch";
+import { isForChildOrUnassigned, pickDayStatuses, pickLatestForChild } from "./childMatch";
 
 describe("isForChildOrUnassigned", () => {
   it("選択中の子どもの記録と未分類の記録が対象", () => {
@@ -34,5 +34,19 @@ describe("pickDayStatuses", () => {
       "a"
     );
     expect(m.get("2026-10-01")).toBe("rough");
+  });
+});
+
+describe("pickLatestForChild", () => {
+  const r = (id: string, childId: string | null, updatedAt: string) => ({ id, childId, updatedAt });
+  it("子どもの記録を優先し、無ければ未分類の記録を返す", () => {
+    expect(pickLatestForChild([r("n", null, "2"), r("a", "a", "1")], "a")?.id).toBe("a");
+    expect(pickLatestForChild([r("n", null, "2")], "a")?.id).toBe("n");
+  });
+  it("別の子どもの記録は対象外", () => {
+    expect(pickLatestForChild([r("b", "b", "1")], "a")).toBeUndefined();
+  });
+  it("同じ区分なら更新が新しいもの", () => {
+    expect(pickLatestForChild([r("old", "a", "1"), r("new", "a", "2")], "a")?.id).toBe("new");
   });
 });
