@@ -1,5 +1,6 @@
 import { localDb, type LocalRecord } from "./localDb";
 import { isOwnRecord } from "@note/core/ownership";
+import { pickLatestForChild } from "./childMatch";
 import { syncPendingChanges } from "./sync";
 import type { EveningRecord } from "@/types/models";
 
@@ -50,16 +51,18 @@ export async function deleteRecord(id: string): Promise<void> {
 
 // ホーム画面で選んだ日付の自分の記録が既にあれば、編集対象として読み込む(無ければ新規作成)。
 // 同じ日付に複数件あれば直近のものを使う。childId は複数の子ども対応向け。子どもを登録して
-// いない家庭では常に null で、その場合は childId 未設定の記録のみを対象にする。
+// いない家庭では null で、その場合は childId 未設定の記録のみを対象にする。
+// 子どもを選んでいるときは、その子の記録を優先し、無ければ未分類の記録(複数にする前の分)を対象にする。
 export async function findLatestOwnRecordForDate(
   recordDate: string,
   userId: string | null,
   childId: string | null = null
 ): Promise<LocalRecord | undefined> {
   const candidates = await localDb.records.where("recordDate").equals(recordDate).toArray();
-  const own = candidates.filter((r) => isOwnRecord(r, userId) && (r.childId ?? null) === childId);
-  own.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
-  return own[0];
+  return pickLatestForChild(
+    candidates.filter((r) => isOwnRecord(r, userId)),
+    childId
+  );
 }
 
 // ログアウト前の確認などで使う、この端末にだけ存在してクラウドへ未反映の変更の件数。

@@ -20,3 +20,18 @@ export function pickDayStatuses<T extends { recordDate: string; childId?: string
   for (const r of relevant) ((r.childId ?? null) === childId ? exact : unassigned).set(r.recordDate, r.outcome);
   return new Map([...unassigned, ...exact]);
 }
+
+// 同じ日・同じ子どもの記録が複数あるとき、編集・表示の対象にする1件を選ぶ。
+// 選択中の子どもの記録を優先し、無ければ未分類の記録。同順位は更新が新しいもの。
+export function pickLatestForChild<T extends { childId?: string | null; updatedAt: string }>(
+  rows: T[],
+  childId: string | null
+): T | undefined {
+  return rows
+    .filter((r) => isForChildOrUnassigned(r.childId, childId))
+    .sort((a, b) => {
+      const ea = (a.childId ?? null) === childId ? 1 : 0;
+      const eb = (b.childId ?? null) === childId ? 1 : 0;
+      return eb - ea || b.updatedAt.localeCompare(a.updatedAt);
+    })[0];
+}
