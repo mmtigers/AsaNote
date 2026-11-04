@@ -6,6 +6,7 @@
 - [ ] 挙動・スキーマ・運用手順を変えたので、同じ PR で `apps/<app>/docs/SPEC.md`(と関連 docs)を更新した
 - [ ] `supabase/schema.sql`(よるノートは `apps/yoru/supabase/schema.sql`)を変えたので、`npm run db:types` で型を再生成した(`db-types-check` が検出)。`main` へのマージで本番 DB に自動適用される点も確認した
 - [ ] Edge Function / cron / trigger を変えた場合: **自動反映されない**ので、手動デプロイ・SQL の実行が要る(手順は `apps/asa/docs/push-notifications-setup.md` / `docs/group-cleanup.md`)。要否と、いつ行うかを下に書いた
+- [ ] 不具合の修正・共通の仕様の変更は、同型のコードがもう一方のアプリ(あさノート ⇄ よるノート)にないか、`apps` と `packages` 全体を検索して確かめた(直した、または発生しない根拠を下に書いた。`docs/MONOREPO.md` の「同型コードの横展開」)
 - [ ] ユーザーに見える変更は `releases.ts` と version(`package.json` / `package-lock.json`)を上げた。`packages/core/src/` の変更は**あさノート・よるノートの両方**で必要
 - [ ] `[skip release-note]` / `no-release-note` を使う場合は、更新履歴に載せない理由を下に書いた
 
