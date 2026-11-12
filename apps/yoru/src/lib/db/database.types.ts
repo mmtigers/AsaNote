@@ -434,6 +434,8 @@ export type Database = {
           asa_to: string | null
           attempts: number
           child_id: string
+          contact_draft_text: string | null
+          contact_edited_text: string | null
           created_at: string
           draft_text: string | null
           due_date: string
@@ -456,6 +458,8 @@ export type Database = {
           asa_to?: string | null
           attempts?: number
           child_id: string
+          contact_draft_text?: string | null
+          contact_edited_text?: string | null
           created_at?: string
           draft_text?: string | null
           due_date: string
@@ -478,6 +482,8 @@ export type Database = {
           asa_to?: string | null
           attempts?: number
           child_id?: string
+          contact_draft_text?: string | null
+          contact_edited_text?: string | null
           created_at?: string
           draft_text?: string | null
           due_date?: string

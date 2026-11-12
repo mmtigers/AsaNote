@@ -72,8 +72,8 @@ npx supabase functions deploy send-evening-reminders --project-ref <PROJECT_REF>
 ## 5.5 依存の版と、再デプロイ
 
 `npm:` で取り込む依存(`@supabase/supabase-js`・`web-push`)は、版を固定している(あさノートの関数と同じ版。
-`supabase/functions/_shared/npmPins.test.ts` が検査する)。版を上げるときは、あさノート・よるノートの**4つの
-`index.ts` を同時に**直し、4つとも再デプロイする。
+`supabase/functions/_shared/npmPins.test.ts` が検査する)。版を上げるときは、あさノート・よるノートの**すべての
+`index.ts` を同時に**直し、すべて再デプロイする。連絡メモの関数だけが Claude API の SDK(`@anthropic-ai/sdk`)も固定している。
 
 `_shared/pushCommon.ts`(認証・送信などの共通ロジック)は、**あさノート側が正で、これは `node scripts/sync-push-common.mjs` の同一コピー**。
 直接編集しない(ずれたら CI が失敗する)。通知の文言(`pushLogic.ts` の `reminderPayload` など)は、よるノート固有でここにある。関数のコードを変えても、再デプロイするまで本番には反映されない。
@@ -136,6 +136,39 @@ SQL Editor で `supabase/cron-evening-reminders.sql` の `<PROJECT_REF>`・`<SER
    (`<NOTIFY_SECRET>` は `EVENING_NOTIFY_SECRET` と同じ値。置き換えた実値はコミットしない)。
 4. 確認: 2つの端末(別アカウント・同じグループ)で、片方がコメント通知をON、もう片方が「これまで」の記録にコメントを書く。ONにした側へ通知が届けば成功。
    コメントの編集・削除では通知されない。
+
+## 連絡メモの下書き
+
+療育先などへ毎週送るメモの下書きを、記録から AI(Claude API)で作り、設定した曜日・時刻に「今週の連絡メモの下書きができました」と知らせる
+(仕様: `docs/liaison-memo.md`)。関数 `generate-liaison-memos` と cron `cron-liaison-memos.sql` を使う。VAPID 鍵と
+`EVENING_CRON_SECRET` は夜のリマインドと共通なので、先に手順1〜6を済ませておく。
+
+1. 表(`liaison_memo_settings` / `liaison_memos`)はルートの `supabase/schema.sql`、通知設定の列(`evening_notification_settings.notify_liaison_memo`)は
+   よるノートの `supabase/schema.sql` にある。どちらも main へのマージで自動適用される。
+2. Claude API のキーを設定する(Claude Console で発行。公開してはいけない値)。
+
+   ```bash
+   npx supabase secrets set ANTHROPIC_API_KEY=<Claude API のキー> --project-ref <PROJECT_REF>
+   # 任意: モデルを変えるとき(既定は claude-opus-5-5)
+   # npx supabase secrets set LIAISON_MEMO_MODEL=<モデル名> --project-ref <PROJECT_REF>
+   ```
+
+3. Edge Function をデプロイする。
+
+   ```bash
+   cd apps/yoru
+   npx supabase functions deploy generate-liaison-memos --project-ref <PROJECT_REF>
+   ```
+
+   画面の「今すぐ作る」「作り直す」は、ログイン中の人の JWT で、この関数を直接呼ぶ(関数の側で、その子どもが見える人かを確かめる)。
+   cron からの呼び出しは `x-cron-secret`(`EVENING_CRON_SECRET`)で確かめる。
+
+4. SQL Editor で `supabase/cron-liaison-memos.sql` の `<PROJECT_REF>`・`<SERVICE_ROLE_KEY>`・`<CRON_SECRET>` を置き換えて実行する
+   (`<CRON_SECRET>` は `EVENING_CRON_SECRET` と同じ値。置き換えた実値はコミットしない)。10分ごとに動き、予定の時刻から3時間以内の子どもの下書きを作る。
+5. 確認: 「共有」の「連絡メモ」でオンにし、`/memo` の「今すぐ作る」で下書きができることを確かめる。自動作成は、時刻を次の時(1時間きざみ)にして待つ。
+   失敗したときは、`liaison_memos` の `status`・`error` と、関数の Logs を見る(Logs に記録の中身・下書きの本文は出ない)。
+
+費用は、子ども1人につき週に1〜数回の呼び出し(文字数が外れたときの直しを含む)。
 
 ## トラブルシューティング
 

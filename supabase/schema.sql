@@ -769,7 +769,7 @@ create table if not exists liaison_memo_settings (
   consented_at timestamptz,
   weekday smallint not null default 4 check (weekday between 0 and 6),
   hour smallint not null default 13 check (hour between 0 and 23),
-  target_chars smallint not null default 200 check (target_chars between 100 and 400 and target_chars % 50 = 0),
+  target_chars smallint not null default 80 check (target_chars between 50 and 300 and target_chars % 10 = 0),
   recipient_label text not null default '療育先' check (char_length(recipient_label) between 1 and 20),
   include_memo boolean not null default true,
   style_examples text[] not null default '{}' check (cardinality(style_examples) <= 3),
@@ -781,7 +781,8 @@ create table if not exists liaison_memo_settings (
 -- 下書き(子ども × 回に1行)。回は予定日(due_date。設定の曜日に当たる日)で識別し、二重に作らない。
 -- status: generating(作成中。locked_at が作成中の印)/ generated / no_records(記録が無く AI を呼ばなかった)/ failed。
 -- regenerate_count: 作り直し・今すぐ作るの回数。上限3を DB でも守る。
--- クライアントが更新できるのは edited_text / final_text / sent_at / sent_by だけ(列の権限。下の do ブロック)。
+-- contact_*: 「スタッフへの連絡事項」欄の下書き(伝えることがある週だけ。無ければ null)と、その編集後。
+-- クライアントが更新できるのは edited_text / contact_edited_text / final_text / sent_at / sent_by だけ(列の権限。下の do ブロック)。
 create table if not exists liaison_memos (
   id uuid primary key default uuid_generate_v4(),
   child_id uuid not null references children(id) on delete cascade,
@@ -796,6 +797,8 @@ create table if not exists liaison_memos (
   locked_at timestamptz,
   draft_text text check (draft_text is null or char_length(draft_text) <= 2000),
   edited_text text check (edited_text is null or char_length(edited_text) <= 2000),
+  contact_draft_text text check (contact_draft_text is null or char_length(contact_draft_text) <= 500),
+  contact_edited_text text check (contact_edited_text is null or char_length(contact_edited_text) <= 500),
   final_text text check (final_text is null or char_length(final_text) <= 2000),
   sent_at timestamptz,
   sent_by uuid references auth.users(id) on delete set null,
@@ -918,7 +921,7 @@ create policy "liaison_memos updatable by child viewers"
   with check (exists (select 1 from children c where c.id = liaison_memos.child_id));
 
 -- 権限。Supabase は新しい表に anon / authenticated への全権限を自動で付けるため、いったん外してから付け直す。
--- RLS は列を区別できないので、liaison_memos の更新は列単位の権限で edited_text / final_text / sent_at / sent_by に限る
+-- RLS は列を区別できないので、liaison_memos の更新は列単位の権限で edited_text / contact_edited_text / final_text / sent_at / sent_by に限る
 -- (行の作成・削除と、下書き・状態などの列は Edge Function=service role だけが書く)。
 -- ロールが無い環境(CI の素のPostgres)でも失敗しないよう、存在するロールだけを対象にする。
 do $$
@@ -933,7 +936,7 @@ begin
     revoke all on table liaison_memos from authenticated;
     grant select, insert, update on table liaison_memo_settings to authenticated;
     grant select on table liaison_memos to authenticated;
-    grant update (edited_text, final_text, sent_at, sent_by) on table liaison_memos to authenticated;
+    grant update (edited_text, contact_edited_text, final_text, sent_at, sent_by) on table liaison_memos to authenticated;
   end if;
 
   if exists (select 1 from pg_roles where rolname = 'service_role') then
