@@ -7,6 +7,7 @@ import { useAuth } from "@/lib/auth/AuthProvider";
 import { APP_NAME } from "@/lib/appConfig";
 import { pullFromCloud } from "@/lib/db/sync";
 import { ChildrenSection } from "@note/core/components/group/ChildrenSection";
+import { LiaisonSection } from "./LiaisonSection";
 import { NotificationSection } from "./NotificationSection";
 import { GroupMemberSections } from "@note/core/components/group/GroupMemberSections";
 import { GroupOnboardingSections } from "@note/core/components/group/GroupOnboardingSections";
@@ -33,6 +34,13 @@ export default function GroupPage() {
   });
   const refreshGroup = groupAdmin.refresh;
   const notificationAdmin = useNotificationSettings(session?.user.id, setErrorMessage);
+
+  // 連絡メモをオンにしたら、この端末で下書きの通知を受け取れるようにする(Push の許可を求める)。
+  // 通知に対応していない端末では何もしない(下書きは画面で見られる)。
+  const setNotifyLiaisonMemo = notificationAdmin.setNotifyLiaisonMemo;
+  const enableLiaisonNotification = useCallback(async () => {
+    if (notificationAdmin.supported) await setNotifyLiaisonMemo(true);
+  }, [notificationAdmin.supported, setNotifyLiaisonMemo]);
 
   const refresh = useCallback(async () => {
     await refreshGroup();
@@ -92,6 +100,13 @@ export default function GroupPage() {
       <ChildrenSection admin={childrenAdmin} />
 
       <NotificationSection admin={notificationAdmin} />
+
+      <LiaisonSection
+        childList={childrenAdmin.children}
+        currentUserId={session.user.id}
+        onError={setErrorMessage}
+        onEnabled={enableLiaisonNotification}
+      />
 
       {groupAdmin.group ? (
         <GroupMemberSections admin={groupAdmin} currentUserId={session.user.id} />

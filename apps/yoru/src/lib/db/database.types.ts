@@ -57,6 +57,7 @@ export type Database = {
       evening_notification_settings: {
         Row: {
           enabled: boolean
+          notify_liaison_memo: boolean
           notify_partner_comment: boolean
           notify_partner_record: boolean
           reminder_time: string
@@ -65,6 +66,7 @@ export type Database = {
         }
         Insert: {
           enabled?: boolean
+          notify_liaison_memo?: boolean
           notify_partner_comment?: boolean
           notify_partner_record?: boolean
           reminder_time?: string
@@ -73,6 +75,7 @@ export type Database = {
         }
         Update: {
           enabled?: boolean
+          notify_liaison_memo?: boolean
           notify_partner_comment?: boolean
           notify_partner_record?: boolean
           reminder_time?: string
@@ -371,6 +374,142 @@ export type Database = {
           name?: string | null
         }
         Relationships: []
+      }
+      liaison_memo_settings: {
+        Row: {
+          child_id: string
+          consented_at: string | null
+          consented_by: string | null
+          enabled: boolean
+          hour: number
+          include_memo: boolean
+          recipient_label: string
+          style_examples: string[]
+          target_chars: number
+          updated_at: string
+          updated_by: string | null
+          weekday: number
+        }
+        Insert: {
+          child_id: string
+          consented_at?: string | null
+          consented_by?: string | null
+          enabled?: boolean
+          hour?: number
+          include_memo?: boolean
+          recipient_label?: string
+          style_examples?: string[]
+          target_chars?: number
+          updated_at?: string
+          updated_by?: string | null
+          weekday?: number
+        }
+        Update: {
+          child_id?: string
+          consented_at?: string | null
+          consented_by?: string | null
+          enabled?: boolean
+          hour?: number
+          include_memo?: boolean
+          recipient_label?: string
+          style_examples?: string[]
+          target_chars?: number
+          updated_at?: string
+          updated_by?: string | null
+          weekday?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "liaison_memo_settings_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: true
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      liaison_memos: {
+        Row: {
+          asa_from: string | null
+          asa_to: string | null
+          attempts: number
+          child_id: string
+          contact_draft_text: string | null
+          contact_edited_text: string | null
+          created_at: string
+          draft_text: string | null
+          due_date: string
+          edited_text: string | null
+          error: string | null
+          final_text: string | null
+          id: string
+          locked_at: string | null
+          model: string | null
+          regenerate_count: number
+          sent_at: string | null
+          sent_by: string | null
+          status: string
+          updated_at: string
+          yoru_from: string | null
+          yoru_to: string | null
+        }
+        Insert: {
+          asa_from?: string | null
+          asa_to?: string | null
+          attempts?: number
+          child_id: string
+          contact_draft_text?: string | null
+          contact_edited_text?: string | null
+          created_at?: string
+          draft_text?: string | null
+          due_date: string
+          edited_text?: string | null
+          error?: string | null
+          final_text?: string | null
+          id?: string
+          locked_at?: string | null
+          model?: string | null
+          regenerate_count?: number
+          sent_at?: string | null
+          sent_by?: string | null
+          status?: string
+          updated_at?: string
+          yoru_from?: string | null
+          yoru_to?: string | null
+        }
+        Update: {
+          asa_from?: string | null
+          asa_to?: string | null
+          attempts?: number
+          child_id?: string
+          contact_draft_text?: string | null
+          contact_edited_text?: string | null
+          created_at?: string
+          draft_text?: string | null
+          due_date?: string
+          edited_text?: string | null
+          error?: string | null
+          final_text?: string | null
+          id?: string
+          locked_at?: string | null
+          model?: string | null
+          regenerate_count?: number
+          sent_at?: string | null
+          sent_by?: string | null
+          status?: string
+          updated_at?: string
+          yoru_from?: string | null
+          yoru_to?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "liaison_memos_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

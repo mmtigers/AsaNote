@@ -36,6 +36,12 @@ vi.mock("@note/core/db/children", () => ({
   deleteChild: mocks.deleteChild,
 }));
 
+// 連絡メモの設定(この画面の一部)は、ここでは扱わない(LiaisonSection.test.tsx)。サーバーへは行かせない。
+vi.mock("@/lib/db/liaisonMemos", () => ({
+  fetchLiaisonSettings: vi.fn(async () => new Map()),
+  saveLiaisonSettings: vi.fn(),
+}));
+
 vi.mock("@/lib/db/notificationSettings", () => ({
   DEFAULT_REMINDER_TIME: "21:00",
   fetchNotificationSettings: vi.fn().mockResolvedValue({ reminderTime: "21:00", enabled: false }),

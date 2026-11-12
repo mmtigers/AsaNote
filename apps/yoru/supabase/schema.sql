@@ -250,6 +250,11 @@ create policy "evening_notification_settings are deletable by owner"
 alter table evening_notification_settings
   add column if not exists notify_partner_comment boolean not null default false;
 
+-- 連絡メモの下書きができたときのPush通知を受け取るか(apps/yoru/docs/liaison-memo.md §3)。
+-- notify_partner_* と違い既定はON。行が無い人にも送る(Edge Function 側で「行が無い=ON」として扱う)。
+alter table evening_notification_settings
+  add column if not exists notify_liaison_memo boolean not null default true;
+
 -- 記録の「読んだ」印とひとことコメント(あさノートの record_reads / record_comments と同じ仕組み。docs/SPEC.md)。
 -- 「読んだ」は自分の記録にも押せる(未読/既読を見分けるため)。コメントは1つの記録に1人1件。
 -- 「記録が見える人だけ」の判定は、evening_records 自身のRLS(本人+同じグループ)を exists のサブクエリ経由で効かせる。

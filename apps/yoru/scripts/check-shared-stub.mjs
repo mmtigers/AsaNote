@@ -3,7 +3,7 @@
 // ルート supabase/schema.sql)とずれていないかを検査する(#156)。
 //
 // スタブは、素の Postgres で よるノートの schema.sql を適用し、型を生成するためだけの最小定義。
-// あさノート側が共通表(groups / group_members / children)の列を変えたのにスタブが追随しないと、
+// あさノート側が共通表(groups / group_members / children / liaison_memo_settings / liaison_memos)の列を変えたのにスタブが追随しないと、
 // よるノートの CI は緑のまま、生成される型だけが実際の DB とずれる。それを CI で止める。
 //
 // 比べるのは、各表の「列名・型・not null・unique・references・check」。次は比べない(意図的な差):
@@ -15,7 +15,7 @@
 import { readFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 
-export const SHARED_TABLES = ["groups", "group_members", "children"];
+export const SHARED_TABLES = ["groups", "group_members", "children", "liaison_memo_settings", "liaison_memos"];
 
 // コメントを除く。
 function stripComments(sql) {

@@ -754,6 +754,198 @@ create table if not exists client_errors (
   created_at timestamptz not null default now()
 );
 
+-- 連絡メモの下書き(仕様: apps/yoru/docs/liaison-memo.md)。療育先などへ毎週送るメモの下書きを、
+-- Edge Function(generate-liaison-memos。service role)が記録から AI で作り、ここへ保存する。
+-- いずれあさノートからも参照するため、共通表として置く(よるノートの型はスタブ
+-- apps/yoru/supabase/ci/shared-tables-stub.sql 経由。列を変えたらスタブも合わせる)。
+-- 読み書きできるのは、子どもが見える人(children の RLS。作成者と同じグループのメンバー)。
+
+-- 設定(子ども1人に1行)。グループで共有する。消さずに enabled=false で止める(削除のポリシーは作らない)。
+-- weekday は 0=日〜6=土、hour は日本時間の時(1時間きざみ)。
+create table if not exists liaison_memo_settings (
+  child_id uuid primary key references children(id) on delete cascade,
+  enabled boolean not null default false,
+  consented_by uuid references auth.users(id) on delete set null,
+  consented_at timestamptz,
+  weekday smallint not null default 4 check (weekday between 0 and 6),
+  hour smallint not null default 13 check (hour between 0 and 23),
+  target_chars smallint not null default 80 check (target_chars between 50 and 300 and target_chars % 10 = 0),
+  recipient_label text not null default '療育先' check (char_length(recipient_label) between 1 and 20),
+  include_memo boolean not null default true,
+  style_examples text[] not null default '{}' check (cardinality(style_examples) <= 3),
+  updated_by uuid references auth.users(id) on delete set null,
+  updated_at timestamptz not null default now(),
+  check (not enabled or consented_at is not null)
+);
+
+-- 下書き(子ども × 回に1行)。回は予定日(due_date。設定の曜日に当たる日)で識別し、二重に作らない。
+-- status: generating(作成中。locked_at が作成中の印)/ generated / no_records(記録が無く AI を呼ばなかった)/ failed。
+-- regenerate_count: 作り直し・今すぐ作るの回数。上限3を DB でも守る。
+-- contact_*: 「スタッフへの連絡事項」欄の下書き(伝えることがある週だけ。無ければ null)と、その編集後。
+-- クライアントが更新できるのは edited_text / contact_edited_text / final_text / sent_at / sent_by だけ(列の権限。下の do ブロック)。
+create table if not exists liaison_memos (
+  id uuid primary key default uuid_generate_v4(),
+  child_id uuid not null references children(id) on delete cascade,
+  due_date date not null,
+  asa_from date,
+  asa_to date,
+  yoru_from date,
+  yoru_to date,
+  status text not null default 'generating' check (status in ('generating', 'generated', 'no_records', 'failed')),
+  error text check (error is null or char_length(error) <= 200),
+  attempts smallint not null default 0 check (attempts between 0 and 10),
+  locked_at timestamptz,
+  draft_text text check (draft_text is null or char_length(draft_text) <= 2000),
+  edited_text text check (edited_text is null or char_length(edited_text) <= 2000),
+  contact_draft_text text check (contact_draft_text is null or char_length(contact_draft_text) <= 500),
+  contact_edited_text text check (contact_edited_text is null or char_length(contact_edited_text) <= 500),
+  final_text text check (final_text is null or char_length(final_text) <= 2000),
+  sent_at timestamptz,
+  sent_by uuid references auth.users(id) on delete set null,
+  regenerate_count smallint not null default 0 check (regenerate_count between 0 and 3),
+  model text check (model is null or char_length(model) <= 100),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (child_id, due_date),
+  check (sent_at is null or final_text is not null)
+);
+
+create index if not exists idx_liaison_memos_child_due on liaison_memos(child_id, due_date desc);
+
+-- 設定の作成・変更で、変えた人・日時と、同意した人・日時をサーバー側で入れる(クライアントの値は使わない)。
+-- 同意は「オフ→オン」(作成時にオンを含む)のときに、その操作をした人で記録し直す。それ以外は前の値を保つ。
+-- 書き方の見本は、各要素を1〜400字に制限する(CHECK では要素ごとに書けないため、ここで確かめる)。
+create or replace function liaison_memo_settings_before_write()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if exists (
+    select 1 from unnest(new.style_examples) as e(v)
+    where e.v is null or char_length(btrim(e.v)) = 0 or char_length(e.v) > 400
+  ) then
+    raise exception 'style_example_invalid' using errcode = '23514';
+  end if;
+
+  new.updated_by := auth.uid();
+  new.updated_at := now();
+
+  if new.enabled and (tg_op = 'INSERT' or not old.enabled) then
+    new.consented_by := auth.uid();
+    new.consented_at := now();
+  elsif tg_op = 'INSERT' then
+    new.consented_by := null;
+    new.consented_at := null;
+  else
+    new.consented_by := old.consented_by;
+    new.consented_at := old.consented_at;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_liaison_memo_settings_before_write on liaison_memo_settings;
+create trigger trg_liaison_memo_settings_before_write
+  before insert or update on liaison_memo_settings
+  for each row execute function liaison_memo_settings_before_write();
+
+-- 下書きの更新。クライアント(auth.uid() がある)からの「送った」は、日時と押した人をサーバー側で入れ、
+-- 取り消し(sent_at を null)では最終版も消す。service role(auth.uid() が null)の更新には手を出さない。
+create or replace function liaison_memos_before_update()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  new.updated_at := now();
+
+  if auth.uid() is not null then
+    if new.sent_at is null then
+      new.sent_by := null;
+      new.final_text := null;
+    elsif old.sent_at is null then
+      new.sent_at := now();
+      new.sent_by := auth.uid();
+    else
+      new.sent_at := old.sent_at;
+      new.sent_by := old.sent_by;
+    end if;
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists trg_liaison_memos_before_update on liaison_memos;
+create trigger trg_liaison_memos_before_update
+  before update on liaison_memos
+  for each row execute function liaison_memos_before_update();
+
+alter table liaison_memo_settings enable row level security;
+alter table liaison_memos enable row level security;
+
+drop policy if exists "liaison_memo_settings readable by child viewers" on liaison_memo_settings;
+drop policy if exists "liaison_memo_settings insertable by child viewers" on liaison_memo_settings;
+drop policy if exists "liaison_memo_settings updatable by child viewers" on liaison_memo_settings;
+drop policy if exists "liaison_memos readable by child viewers" on liaison_memos;
+drop policy if exists "liaison_memos updatable by child viewers" on liaison_memos;
+
+-- 「子どもが見える人」は、children 自身の RLS を exists のサブクエリ経由で効かせる(条件を二重に書かない)。
+create policy "liaison_memo_settings readable by child viewers"
+  on liaison_memo_settings for select
+  to authenticated
+  using (exists (select 1 from children c where c.id = liaison_memo_settings.child_id));
+
+create policy "liaison_memo_settings insertable by child viewers"
+  on liaison_memo_settings for insert
+  to authenticated
+  with check (exists (select 1 from children c where c.id = liaison_memo_settings.child_id));
+
+create policy "liaison_memo_settings updatable by child viewers"
+  on liaison_memo_settings for update
+  to authenticated
+  using (exists (select 1 from children c where c.id = liaison_memo_settings.child_id))
+  with check (exists (select 1 from children c where c.id = liaison_memo_settings.child_id));
+
+create policy "liaison_memos readable by child viewers"
+  on liaison_memos for select
+  to authenticated
+  using (exists (select 1 from children c where c.id = liaison_memos.child_id));
+
+create policy "liaison_memos updatable by child viewers"
+  on liaison_memos for update
+  to authenticated
+  using (exists (select 1 from children c where c.id = liaison_memos.child_id))
+  with check (exists (select 1 from children c where c.id = liaison_memos.child_id));
+
+-- 権限。Supabase は新しい表に anon / authenticated への全権限を自動で付けるため、いったん外してから付け直す。
+-- RLS は列を区別できないので、liaison_memos の更新は列単位の権限で edited_text / contact_edited_text / final_text / sent_at / sent_by に限る
+-- (行の作成・削除と、下書き・状態などの列は Edge Function=service role だけが書く)。
+-- ロールが無い環境(CI の素のPostgres)でも失敗しないよう、存在するロールだけを対象にする。
+do $$
+begin
+  if exists (select 1 from pg_roles where rolname = 'anon') then
+    revoke all on table liaison_memo_settings from anon;
+    revoke all on table liaison_memos from anon;
+  end if;
+
+  if exists (select 1 from pg_roles where rolname = 'authenticated') then
+    revoke all on table liaison_memo_settings from authenticated;
+    revoke all on table liaison_memos from authenticated;
+    grant select, insert, update on table liaison_memo_settings to authenticated;
+    grant select on table liaison_memos to authenticated;
+    grant update (edited_text, contact_edited_text, final_text, sent_at, sent_by) on table liaison_memos to authenticated;
+  end if;
+
+  if exists (select 1 from pg_roles where rolname = 'service_role') then
+    grant select, insert, update, delete on table liaison_memo_settings to service_role;
+    grant select, insert, update, delete on table liaison_memos to service_role;
+  end if;
+end
+$$;
+
 -- 後から足した列と制約(create table if not exists は既存テーブルを変えないため、ここで冪等に足す)。
 -- source: 捕まえたエラーに加え、握りつぶされる同期失敗(sync-failure)・端末DB不可(local-db)・受け止めたエラー(handled-error。場所は context.where。#213)も記録する。
 -- context: 調査用の付帯情報(オンライン状態・同期待ち件数など)。記録の内容は入れない。

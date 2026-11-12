@@ -5,6 +5,7 @@ import { ChildSwitcher } from "@note/core/components/ChildSwitcher";
 import { ReleaseNotice } from "@/components/ReleaseNotice";
 import { PartnerRecordStatus } from "@/components/PartnerRecordStatus";
 import { RecordReminderNotice } from "@/components/RecordReminderNotice";
+import { LiaisonMemoNotice } from "@/components/LiaisonMemoNotice";
 import { MonthCalendar } from "@/components/MonthCalendar";
 import { OUTCOME_OPTIONS, type Outcome } from "@/constants/choices";
 import { formatDateLabel, toMonthOf } from "@note/core/date";
@@ -76,6 +77,7 @@ export function HomeStepView({
 
       {isToday && <PartnerRecordStatus childId={childId} />}
       {isToday && <RecordReminderNotice childId={childId} onStartRecording={onStart} />}
+      {isToday && <LiaisonMemoNotice />}
 
       {childList.length >= 2 && <ChildSwitcher childList={childList} selectedId={childId} onSelect={onSelectChild} />}
 
