@@ -1,5 +1,8 @@
 # あさノートのスマホアプリ化:検討事項の洗い出し
 
+> **状態: 検討を停止(2026-11-15)。あさノートは Web アプリ(PWA)のまま続ける。**
+> 以下は、再開するときのための記録として残す。退会・一般公開・収益化の論点の一部(退会時の外部キーの問題など)は、Web アプリのままでも当てはまる。
+
 - 作成: 2026-11-13(調査のみ。コードは変更していない)
 - 対象: `apps/asa`(あさノート)。よるノート(`apps/yoru`)・おやノート(`apps/oya`)への波及も扱う
 - 根拠は、リポジトリの実装と `apps/asa/docs/SPEC.md`。ストアの規約・料金は**著者の知識で書いており、最新の情報で確認していない**(「調査が必要なこと」に挙げた)
@@ -195,12 +198,42 @@
 | 削除の方向は今の DB と合っている | `records`・`children`・`notification_settings`・`push_subscriptions`・`record_reads`・`record_comments`・`analytics_events` は、`auth.users` への `on delete cascade`(`supabase/schema.sql`)。アカウントを消せば連鎖して消える。`client_errors` は `on delete set null` で、本人との紐づけだけが外れて90日で消える(SPEC §11.4) | 中 | — |
 | **よるノートの記録も消える** | あさノートとよるノートは同じ Supabase・同じアカウント(`docs/MONOREPO.md`)。よるノートの表も `auth.users` への `on delete cascade`(`apps/yoru/supabase/schema.sql`)。「あさノートだけ退会」はできない。退会の画面で「よるノートの記録も消えます」と示すか、アプリごとの「記録だけ全部消す」を別に用意する | 高 | よるノートの公開時期 |
 | 退会の仕組みが要る | アカウントの削除は、公開鍵(anon)のクライアントからはできない。Edge Function で呼び出した人のログインを確かめ、管理者の権限で消す。Edge Function は手動デプロイ(`apps/asa/docs/push-notifications-setup.md` と同じ運用)。アプリ内の画面(確認の手順つき)と、ストアに載せる Web の削除ページ(Google Play が求める。**要確認**)も要る | 高 | — |
-| 子どもの所有の引き継ぎ | 退会でも、グループの脱退時の「子どもの所有をパートナーへ移す」トリガー(`transfer_children_on_group_leave`)が動く想定と書かれている(`supabase/schema.sql`)。ただし同じ削除で `children` の行そのものも連鎖して消えるため、**移す処理と消す処理のどちらが先に動くかで、パートナーから子どもが消える恐れがある**。実際の DB で検証が要る。パートナーの記録の `child_id` は `set null` なので記録自体は残るが、子どもの割り当てが外れる | 高 | 退会者が作った子どもを、パートナーに残したいか |
+| 子どもの所有の引き継ぎ | **検証済み(2026-11-15。下の「退会の検証結果」)**。ローカルの Postgres 16 では、退会者が作った子どもはパートナーへ移り、パートナーの記録の子どもの割り当ても残った。ただし、これは連鎖削除の実行順(`auth.users` 側の外部キーのトリガー名の順=作成順)に頼った結果。順序に頼らないよう、退会の処理では**先に `group_members` の行を消してから、アカウントを消す**のが確実 | 中 | 退会者が作った子どもを、パートナーに残したいか |
+| **グループ・招待コードを作った人は退会できない** | **検証で判明(2026-11-15)**。`groups.created_by`・`group_invites.created_by`・`group_invites.used_by` は `auth.users` への外部キーで、削除時の動作の指定が無い(既定の `no action`)。グループを作った人・招待コードを発行または使った人のアカウントを消すと、外部キー違反で**削除そのものが失敗する**。夫婦で使っている人は、ほぼ全員が当てはまる。退会機能の前に、この3つを `on delete set null` に変える必要(3列とも null を許す定義なので、`not null` の変更は要らない) | 高 | — |
 | パートナーから見えていた記録・コメント | 退会者の記録とコメントは消え、パートナーの画面からも消える(今のグループ脱退と同じ結果。SPEC §3.5)。退会の確認画面で伝える | 中 | — |
 | 課金中の退会 | アカウントを消しても、App Store / Google Play のサブスクリプションは自動では解約されない。退会の前に解約の方法を案内する必要(Apple は案内を求めている。**要確認**) | 高 | — |
 | 端末内のデータ | ログアウトと同じく、IndexedDB・localStorage・Push 購読を消す(SPEC §3.6 の手順を流用) | 低 | — |
 | バックアップ | Supabase のバックアップには、削除後もしばらく残る(**保存期間は要確認**)。プライバシーポリシーに書く | 低 | — |
 | 退会前のエクスポート | 消すと戻せないので、退会の前に CSV・PDF での書き出し(`apps/asa/src/app/export/`)を案内すると親切 | 低 | — |
+
+#### 退会の検証結果(2026-11-15)
+
+ローカルの Postgres 16 に `supabase/ci/auth-stub.sql` と `supabase/schema.sql` を適用し、次の状態でアカウント A を削除した(本番の DB には触れていない)。
+
+- A と B が同じグループ(A が先に参加)。A が子どもを作成。A と B が、その子どもの記録を1件ずつ持つ。
+
+| 確かめたこと | 結果 |
+|---|---|
+| A の削除がそのまま通るか | **失敗**。`groups_created_by_fkey` の違反(A がグループを作ったため)。`group_invites` の `created_by`・`used_by` も同じく削除時の動作の指定が無い |
+| 上の3つを検証用に `on delete set null` に変えて、A を削除 | 通った |
+| 子どもの所有 | B に移った(`transfer_children_on_group_leave` が働いた) |
+| B の記録の子どもの割り当て | 残った |
+| A の記録・グループの所属 | 消えた |
+
+`auth.users` を参照する外部キーの一覧(削除時の動作):`records`・`group_members`・`children`・`push_subscriptions`・`notification_settings`・`record_reads`・`record_comments`・`reminder_deliveries`・`analytics_events`・`evening_records`・`evening_photos` は cascade、`client_errors`・`liaison_memo_settings`(2列)・`liaison_memos` は set null、**`groups.created_by`・`group_invites.created_by`・`group_invites.used_by` は指定なし(削除を妨げる)**。
+
+注意:子どもの引き継ぎが働いたのは、`group_members` の連鎖削除が `children` より先に動いたから。この順は外部キーのトリガー名(作成順)で決まり、本番でも `group_members` の表が先に作られているので同じと見込まれるが、本番の DB では確かめていない。本番で確かめるなら、SQL Editor で次を実行し、`group_members` の行の `tgname` が `children` より小さいことを見る(読むだけの問い合わせ)。
+
+```sql
+select c.conrelid::regclass as tbl, t.tgname
+from pg_constraint c join pg_trigger t on t.tgconstraint = c.oid
+where c.confrelid = 'auth.users'::regclass and t.tgrelid = 'auth.users'::regclass
+  and c.conrelid::regclass::text in ('group_members', 'children')
+  and t.tgtype & 8 = 8
+order by t.tgname;
+```
+
+いずれにせよ、退会の処理では先に `group_members` を消してから `auth.users` を消せば、順序に頼らずに済む。
 
 ### D. 月額課金
 
@@ -272,7 +305,7 @@
 
 ## 次の一歩(2026-11-13 の再回答を受けて更新)
 
-1. **退会機能を作る**(ストアに出さなくても必要)。Edge Function でのアカウント削除、確認の画面、端末内データの消去。先に、**退会時の子どもの引き継ぎが本当に動くかを、テスト用の DB で検証する**(`supabase/schema.sql` の `transfer_children_on_group_leave`)。よるノートの記録も消える点の扱い(確認事項 5)を決めてから着手する。
+1. **退会機能を作る**(ストアに出さなくても必要)。順番:(a) `groups`・`group_invites` の作成者などの外部キーを `on delete set null` に変える(`supabase/schema.sql`。main マージで本番に自動適用される DB の変更)、(b) Edge Function でのアカウント削除(先に `group_members` を消してから `auth.users` を消す)、(c) 確認の画面と端末内データの消去。よるノートの記録も消える点の扱い(確認事項 5)を決めてから着手する。
 2. **月額課金の設計を決める**(確認事項 1〜4)。何を有料にするか、課金の単位で、DB の表と RLS が決まる。決まったら、課金の状態の表の設計を別の文書にまとめる。
 3. **ストアに出さなくても必要なものを並行して進める**:確認コードでのログイン(core。よるノートにも効く)、プライバシーポリシー・利用規約、メール配信サービス(SMTP)の設定、招待コードの試行制限。
 4. **Capacitor の試作を作る(Android から)**。`output: "export"` でビルドが通るか、Dexie・同期が WebView で動くか、ネイティブの通知とアプリ内課金(RevenueCat 等の試用)がつながるかを確かめる。コードは別ブランチに置き、main には入れない。
