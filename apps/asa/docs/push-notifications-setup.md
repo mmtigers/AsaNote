@@ -33,7 +33,7 @@ NEXT_PUBLIC_VAPID_PUBLIC_KEY=<1で生成した公開鍵>
 
 ```bash
 npx supabase login
-npx supabase link --project-ref <PROJECT_REF>
+npx supabase link <PROJECT_REF>
 ```
 
 ## 4. Edge Functionのシークレットを設定する
