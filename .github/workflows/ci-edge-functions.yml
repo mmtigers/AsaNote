@@ -1,0 +1,55 @@
+name: CI (Edge Functions)
+
+# Issue #301: Edge Function(Deno)の型検査。
+# supabase/functions/(あさノート)と apps/yoru/supabase/functions/(よるノート)は Deno 用のため、
+# 各アプリの tsconfig の exclude と ESLint の対象外で、ほかの CI では型を確かめていない。
+# _shared/ の純粋なロジックは Vitest でテストしているが、index.ts(環境変数・本物のクライアントの組み立て)や
+# npm: の SDK の型との食い違いは、本番で動かして初めて気づくことになる。ここで毎回 deno check する。
+# npm: の取り込み(版は固定。npmPins.test.ts)は Deno が解決する。関数のデプロイは手動のまま(この CI は型を見るだけ)。
+
+on:
+  # main への push では走らせない(マージ前の PR の CI で済ませる。#225)。
+  pull_request:
+    branches: [main, master]
+    # ドラフトから ready にした時(ready_for_review)にも走らせる。#225
+    types: [opened, synchronize, reopened, ready_for_review]
+    # Issue #225: Actions の無料枠(月2,000分)を守るため、関数・その取り込み先・CI の定義の変更だけ走らせる。
+    # よるノートの _shared は apps/asa/src/constants と scripts/ の一部も読む(テスト経由)ため、それらも対象。
+    paths:
+      - "supabase/functions/**"
+      - "apps/yoru/supabase/functions/**"
+      - "apps/asa/src/constants/**"
+      - "scripts/**"
+      - ".github/workflows/ci-edge-functions.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deno-check:
+    # ドラフトの PR では走らせない(Issue #225。ready にした時と、その後の push で走る)。
+    if: ${{ !github.event.pull_request.draft }}
+    name: deno check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
+        with:
+          deno-version: v2.9.8
+
+      # 入口(各関数の index.ts)から、_shared/ の取り込み先まで辿って検査する。
+      # 関数を足したときに検査の対象から漏れないよう、ディレクトリを列挙して全部渡す。
+      - name: Type-check Edge Functions
+        run: |
+          set -euo pipefail
+          entries=$(ls supabase/functions/*/index.ts apps/yoru/supabase/functions/*/index.ts)
+          echo "$entries"
+          # 何も見つからないまま成功しないように(配置が変わったら、ここを直す)。
+          test "$(echo "$entries" | wc -l)" -ge 7
+          deno check $entries
