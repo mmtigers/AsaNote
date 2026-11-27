@@ -335,6 +335,12 @@ create table if not exists evening_concerns (
   created_at timestamptz not null default now()
 );
 
+-- 検討事項の対象の子ども(#298)。null = 子ども全員(evening_rules.child_id と同じ扱い)。
+-- 連絡メモの下書きは、その子向け・全員向けの検討事項だけを AI に渡す(子どもが2人以上でも混ざらない)。
+-- 既存の環境にも反映されるよう、create table とは別に add column if not exists で足す(既存の行は null = 全員)。
+alter table evening_concerns
+  add column if not exists child_id uuid references children(id) on delete set null;
+
 alter table evening_rules enable row level security;
 alter table evening_concerns enable row level security;
 

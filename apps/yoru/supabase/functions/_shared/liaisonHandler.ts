@@ -78,7 +78,7 @@ export interface LiaisonStore {
   asaRecords(userIds: string[], from: string, to: string): Promise<Row[]>;
   yoruRecords(userIds: string[], from: string, to: string): Promise<Row[]>;
   rules(userIds: string[], from: string, to: string): Promise<{ title: string; child_id: string | null; started_on: string; ended_on: string | null }[]>;
-  openConcerns(userIds: string[]): Promise<{ title: string }[]>;
+  openConcerns(userIds: string[]): Promise<{ title: string; child_id: string | null }[]>;
   // その子の、直近に「送った」文面(新しい順)。
   sentTexts(childId: string, limit: number): Promise<string[]>;
   // 通知を受け取る人(notify_liaison_memo が false の人を除く。行が無い人は受け取る)の購読。
@@ -147,8 +147,8 @@ async function produce(
     const rules = (await store.rules(users, periods.yoruFrom, periods.yoruTo)).filter(
       (r) => r.child_id === null || r.child_id === child.id
     );
-    // 検討事項は子どもとのつながりを持たないため、子どもが1人の家庭でだけ渡す(仕様 §5.2)。
-    const concerns = childCount === 1 ? await store.openConcerns(users) : [];
+    // 検討事項も「その子向け、または全員向け(child_id が null)」だけを渡す(仕様 §5.2、#298)。
+    const concerns = (await store.openConcerns(users)).filter((c) => c.child_id === null || c.child_id === child.id);
     const sent = await store.sentTexts(child.id, 3);
     const styleExamples = [...sent, ...settings.style_examples].slice(0, 3);
 
