@@ -44,7 +44,7 @@ create index if not exists idx_records_record_date on records(record_date desc);
 create table if not exists groups (
   id uuid primary key default uuid_generate_v4(),
   name text,
-  created_by uuid references auth.users(id),
+  created_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now()
 );
 
@@ -60,15 +60,49 @@ create table if not exists group_invites (
   id uuid primary key default uuid_generate_v4(),
   group_id uuid not null references groups(id) on delete cascade,
   code text not null unique,
-  created_by uuid references auth.users(id),
+  created_by uuid references auth.users(id) on delete set null,
   expires_at timestamptz not null default (now() + interval '24 hours'),
   used_at timestamptz,
-  used_by uuid references auth.users(id),
+  used_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now()
 );
 
 create index if not exists idx_group_members_group_id on group_members(group_id);
 create index if not exists idx_group_invites_group_id on group_invites(group_id);
+
+-- 作成者・使用者の外部キーは、アカウント(auth.users の行)を消したら null にする(#289)。
+-- 当初は削除時の動作が無く(no action)、グループを作った人・招待コードを発行/使用した人の
+-- アカウントを消そうとすると外部キー違反で削除そのものが失敗していた(退会機能 #290 の前提)。
+-- 3列とも null を許す。グループ・招待コードの行は残り、メンバーやコードの有効性には影響しない
+-- (グループの所属は group_members、空のグループの掃除は cleanup_empty_groups_and_invites() が見る)。
+-- create table if not exists では既存の表の制約は変わらないため、ここで付け替える。
+-- 毎回の適用で付け替え(表のロックと再検証)をしないよう、まだ set null でないときだけ行う。
+do $$
+declare
+  v record;
+begin
+  for v in
+    select * from (values
+      ('groups', 'created_by', 'groups_created_by_fkey'),
+      ('group_invites', 'created_by', 'group_invites_created_by_fkey'),
+      ('group_invites', 'used_by', 'group_invites_used_by_fkey')
+    ) as t(tbl, col, con)
+  loop
+    if not exists (
+      select 1 from pg_constraint
+      where conrelid = format('public.%I', v.tbl)::regclass
+        and conname = v.con
+        and confdeltype = 'n'
+    ) then
+      execute format('alter table public.%I drop constraint if exists %I', v.tbl, v.con);
+      execute format(
+        'alter table public.%I add constraint %I foreign key (%I) references auth.users(id) on delete set null',
+        v.tbl, v.con, v.col
+      );
+    end if;
+  end loop;
+end
+$$;
 
 alter table records enable row level security;
 alter table groups enable row level security;

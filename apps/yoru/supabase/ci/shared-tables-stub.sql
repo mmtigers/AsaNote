@@ -8,7 +8,7 @@
 create table if not exists groups (
   id uuid primary key default gen_random_uuid(),
   name text,
-  created_by uuid references auth.users(id),
+  created_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now()
 );
 
