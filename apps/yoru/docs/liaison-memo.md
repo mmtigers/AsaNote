@@ -221,6 +221,7 @@
 - よるノートの `src/data/releases.ts` と version の更新(画面の変更があるため)。共通表の追加だけの PR は `[skip release-note]`。
 - `SPEC.md` の §4(画面の表)・§9(ロードマップ)・下部ナビの説明の更新。
 - 単体テスト(対象の記録の絞り込み、期間の計算、名前の置き換え、文字数の検証、回数の上限)と E2E(`/memo` の表示・コピー・送った)。
+  E2E は `e2e/memo.spec.ts`(#297)。Supabase と Edge Function の応答は `e2e/fakeSupabase.ts`(placeholder の宛先への通信を横取りする、メモリ上の偽の Supabase)で返し、本物の Claude API は呼ばない。
 - ~~本番で使う前に、Anthropic の API の利用条件(送ったデータの保存期間・学習に使われないこと)を確認し、同意の画面の説明に反映する。~~
   **2026-11-27 に確認し、同意の説明(`LiaisonSection.tsx` の `CONSENT_TEXT`)に反映した(#295)。** 確認した内容:
   - 学習: API の入力・出力は、既定でモデルの学習に使われない(Commercial Terms §B「Anthropic may not train models on Customer Content from Services」、Privacy Center「Is my data used for model training?」2026-08-18 更新)。評価ボタンなどでフィードバックを送った場合は例外だが、このアプリは送らない。
