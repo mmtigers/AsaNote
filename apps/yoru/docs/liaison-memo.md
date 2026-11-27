@@ -221,7 +221,11 @@
 - よるノートの `src/data/releases.ts` と version の更新(画面の変更があるため)。共通表の追加だけの PR は `[skip release-note]`。
 - `SPEC.md` の §4(画面の表)・§9(ロードマップ)・下部ナビの説明の更新。
 - 単体テスト(対象の記録の絞り込み、期間の計算、名前の置き換え、文字数の検証、回数の上限)と E2E(`/memo` の表示・コピー・送った)。
-- 本番で使う前に、Anthropic の API の利用条件(送ったデータの保存期間・学習に使われないこと)を確認し、同意の画面の説明に反映する。
+- ~~本番で使う前に、Anthropic の API の利用条件(送ったデータの保存期間・学習に使われないこと)を確認し、同意の画面の説明に反映する。~~
+  **2026-11-27 に確認し、同意の説明(`LiaisonSection.tsx` の `CONSENT_TEXT`)に反映した(#295)。** 確認した内容:
+  - 学習: API の入力・出力は、既定でモデルの学習に使われない(Commercial Terms §B「Anthropic may not train models on Customer Content from Services」、Privacy Center「Is my data used for model training?」2026-08-18 更新)。評価ボタンなどでフィードバックを送った場合は例外だが、このアプリは送らない。
+  - 保存期間: API の入力・出力は、受け取りまたは生成から30日以内にサーバーから削除される。例外は、利用規約(Usage Policy)違反の疑いと自動で判定された場合(入力・出力を最長2年、判定のスコアを最長7年)、法令による場合、ゼロデータ保持などの別の合意がある場合(Privacy Center「How long do you store my organization's data?」2026-07-01 更新)。
+  - 注意: API のドキュメント(「API and data retention」)は「既定では保持しない(Covered Models は30日)」と書いていて、表現が Privacy Center と違う。同意の説明は、長いほう(30日)で書いた。保存期間はまた変わりうるので、規約の更新時に見直す。
 
 ## 11. 決定事項
 

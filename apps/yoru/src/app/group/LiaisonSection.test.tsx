@@ -36,7 +36,11 @@ describe("LiaisonSection", () => {
   it("オンにする前に、AI に送る内容を示して同意を求める(やめれば保存しない)", async () => {
     renderSection();
     fireEvent.click(await screen.findByRole("switch", { name: "連絡メモの下書き" }));
-    expect(screen.getByRole("dialog", { name: "AI に送る内容の確認" }).textContent).toContain("Anthropic");
+    const consent = screen.getByRole("dialog", { name: "AI に送る内容の確認" }).textContent ?? "";
+    expect(consent).toContain("Anthropic");
+    // 確認した API のデータの扱い(#295)。
+    expect(consent).toContain("AI の学習には使われません");
+    expect(consent).toContain("30日以内に削除");
     fireEvent.click(screen.getByRole("button", { name: "やめる" }));
     expect(mocks.saveLiaisonSettings).not.toHaveBeenCalled();
   });
