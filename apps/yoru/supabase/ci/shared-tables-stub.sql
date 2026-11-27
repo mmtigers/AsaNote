@@ -45,6 +45,10 @@ create table if not exists liaison_memo_settings (
   check (not enabled or consented_at is not null)
 );
 
+-- 伏せたい名前(#299)。あさノート側の schema.sql と同じく、create table とは別に足す。
+alter table liaison_memo_settings
+  add column if not exists masked_names text[] not null default '{}' check (cardinality(masked_names) <= 20);
+
 create table if not exists liaison_memos (
   id uuid primary key default gen_random_uuid(),
   child_id uuid not null references children(id) on delete cascade,

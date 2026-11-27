@@ -146,6 +146,14 @@ describe("runAuto(cron)", () => {
     expect(content).not.toContain("夜泣き");
   });
 
+  it("設定の伏せたい名前を、AI に送る前に置き換える(#299)", async () => {
+    env.state.settings[0]!.masked_names = ["遅刻"];
+    await runAuto({ store: env.store, generate, send }, NOW);
+    const content = generate.mock.calls[0]?.[0].messages[0]?.content ?? "";
+    expect(content).not.toContain("遅刻");
+    expect(content).toContain("本人が〇〇");
+  });
+
   it("2回目の呼び出しでは、作成済みの回を作り直さない", async () => {
     await runAuto({ store: env.store, generate, send }, NOW);
     const again = await runAuto({ store: env.store, generate, send }, new Date(NOW.getTime() + 10 * 60 * 1000));

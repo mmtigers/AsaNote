@@ -8,10 +8,12 @@ import { runAction } from "@note/core/group/runAction";
 import { fetchLiaisonSettings, saveLiaisonSettings } from "@/lib/db/liaisonMemos";
 import {
   HOUR_OPTIONS,
+  MASKED_NAMES_MAX_COUNT,
   RECIPIENT_LABEL_MAX,
   STYLE_EXAMPLE_MAX,
   STYLE_EXAMPLES_MAX_COUNT,
   TARGET_CHARS_OPTIONS,
+  parseMaskedNames,
   type LiaisonSettings,
 } from "@/lib/liaisonMemo";
 
@@ -20,7 +22,7 @@ import {
 export const CONSENT_TEXT = [
   "オンにすると、毎週、この子の直近1週間のあさノート・よるノートの記録(結果・タグ・メモ欄)と、試したこと・検討事項を、AI(Anthropic 社の Claude)に送って下書きを作ります。",
   "家族の方が書いた記録も使います。子どもの名前は「本人」に置き換えて送ります。写真は送りません。",
-  "メモ欄に書いた友だち・先生などの名前は、送られることがあります(「メモ欄も使う」をオフにすると、メモ欄は送りません)。",
+  "メモ欄に書いた友だち・先生などの名前は、「伏せたい名前」に登録すると「〇〇」に置き換えます。登録していない名前は送られることがあります(「メモ欄も使う」をオフにすると、メモ欄は送りません)。",
 ];
 
 function formatDay(iso: string | null): string {
@@ -101,6 +103,8 @@ function LiaisonChildCard({
   onEnabled: () => Promise<void>;
 }) {
   const [draft, setDraft] = useState(value);
+  // 伏せたい名前は、入力中の区切り(改行・読点)を崩さないよう、文字列のまま持ち、保存するときに配列にする。
+  const [namesText, setNamesText] = useState(value.maskedNames.join("\n"));
   const [askingConsent, setAskingConsent] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
@@ -109,10 +113,12 @@ function LiaisonChildCard({
     onError(null);
     setSaving(true);
     setSavedMessage(null);
-    const result = await runAction(() => saveLiaisonSettings(next), "連絡メモの設定の保存に失敗しました", onError);
+    const withNames = { ...next, maskedNames: parseMaskedNames(namesText) };
+    const result = await runAction(() => saveLiaisonSettings(withNames), "連絡メモの設定の保存に失敗しました", onError);
     setSaving(false);
     if (!result.ok) return false;
     setDraft(result.value);
+    setNamesText(result.value.maskedNames.join("\n"));
     onSaved(result.value);
     setSavedMessage(message);
     return true;
@@ -257,6 +263,21 @@ function LiaisonChildCard({
                 className="mt-2 w-full rounded-lg border border-[var(--line)] bg-[var(--surface-2)] px-2 py-1.5 text-base"
               />
             ))}
+          </details>
+
+          <details className="text-xs">
+            <summary className="cursor-pointer text-[var(--sub)]">伏せたい名前(任意)</summary>
+            <p className="mt-2 text-[var(--sub)]">
+              お子さまの呼び名・愛称や、メモ欄に書くことのある友だち・先生などの名前を、1行に1つ書いてください(最大{MASKED_NAMES_MAX_COUNT}件)。AI に送る前に「〇〇」に置き換えます。登録したお子さまの名前は、ここに書かなくても「本人」「きょうだい」に置き換えます。
+            </p>
+            <textarea
+              aria-label="伏せたい名前"
+              value={namesText}
+              rows={3}
+              placeholder={"例: ともくん\n田中"}
+              onChange={(e) => setNamesText(e.target.value)}
+              className="mt-2 w-full rounded-lg border border-[var(--line)] bg-[var(--surface-2)] px-2 py-1.5 text-base"
+            />
           </details>
 
           <button

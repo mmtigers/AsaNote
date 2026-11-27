@@ -61,4 +61,18 @@ describe("LiaisonSection", () => {
     fireEvent.click(screen.getByRole("button", { name: "保存する" }));
     await waitFor(() => expect(mocks.saveLiaisonSettings).toHaveBeenCalledWith(expect.objectContaining({ hour: 20 })));
   });
+
+  it("伏せたい名前を、改行・読点で区切って保存する(#299)", async () => {
+    mocks.fetchLiaisonSettings.mockResolvedValue(
+      new Map([["c1", { ...off, enabled: true, consentedBy: "uB", consentedAt: "2026-11-01T00:00:00Z", maskedNames: ["ともくん"] }]])
+    );
+    renderSection();
+    const field = (await screen.findByLabelText("伏せたい名前")) as HTMLTextAreaElement;
+    expect(field.value).toBe("ともくん");
+    fireEvent.change(field, { target: { value: "ともくん\n田中、 佐藤\n\n田中" } });
+    fireEvent.click(screen.getByRole("button", { name: "保存する" }));
+    await waitFor(() =>
+      expect(mocks.saveLiaisonSettings).toHaveBeenCalledWith(expect.objectContaining({ maskedNames: ["ともくん", "田中", "佐藤"] }))
+    );
+  });
 });

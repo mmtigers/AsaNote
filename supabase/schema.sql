@@ -812,6 +812,12 @@ create table if not exists liaison_memo_settings (
   check (not enabled or consented_at is not null)
 );
 
+-- 伏せたい名前(#299): 子どもの呼び名・愛称、友だち・先生など。AI に送る前に「〇〇」に置き換える
+-- (子どもの登録名は、ここに無くても置き換える)。各要素の長さは下のトリガーで確かめる。
+-- 既存の環境にも反映されるよう、create table とは別に add column if not exists で足す。
+alter table liaison_memo_settings
+  add column if not exists masked_names text[] not null default '{}' check (cardinality(masked_names) <= 20);
+
 -- 下書き(子ども × 回に1行)。回は予定日(due_date。設定の曜日に当たる日)で識別し、二重に作らない。
 -- status: generating(作成中。locked_at が作成中の印)/ generated / no_records(記録が無く AI を呼ばなかった)/ failed。
 -- regenerate_count: 作り直し・今すぐ作るの回数。上限3を DB でも守る。
@@ -848,7 +854,7 @@ create index if not exists idx_liaison_memos_child_due on liaison_memos(child_id
 
 -- 設定の作成・変更で、変えた人・日時と、同意した人・日時をサーバー側で入れる(クライアントの値は使わない)。
 -- 同意は「オフ→オン」(作成時にオンを含む)のときに、その操作をした人で記録し直す。それ以外は前の値を保つ。
--- 書き方の見本は、各要素を1〜400字に制限する(CHECK では要素ごとに書けないため、ここで確かめる)。
+-- 書き方の見本は、各要素を1〜400字に制限する(CHECK では要素ごとに書けないため、ここで確かめる)。伏せたい名前も同様(1〜20字)。
 create or replace function liaison_memo_settings_before_write()
 returns trigger
 language plpgsql
@@ -860,6 +866,14 @@ begin
     where e.v is null or char_length(btrim(e.v)) = 0 or char_length(e.v) > 400
   ) then
     raise exception 'style_example_invalid' using errcode = '23514';
+  end if;
+
+  -- 伏せたい名前は、各要素を1〜20字(前後の空白を除いて空でない)に制限する(#299)。
+  if exists (
+    select 1 from unnest(new.masked_names) as n(v)
+    where n.v is null or char_length(btrim(n.v)) = 0 or char_length(n.v) > 20
+  ) then
+    raise exception 'masked_name_invalid' using errcode = '23514';
   end if;
 
   new.updated_by := auth.uid();

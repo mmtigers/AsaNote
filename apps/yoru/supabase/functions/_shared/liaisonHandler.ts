@@ -26,6 +26,8 @@ export interface LiaisonSettings {
   recipient_label: string;
   include_memo: boolean;
   style_examples: string[];
+  // 伏せたい名前(#299)。列を足す前の行・テストの値に無くても動くよう、省略可にする。
+  masked_names?: string[] | null;
 }
 
 export interface MemoRow {
@@ -157,7 +159,8 @@ async function produce(
       { targetChars: settings.target_chars, recipientLabel: settings.recipient_label, includeMemo: settings.include_memo },
       children,
       child.id,
-      instruction
+      instruction,
+      settings.masked_names ?? []
     );
 
     const messages: GenerateRequest["messages"] = [{ role: "user", content }];

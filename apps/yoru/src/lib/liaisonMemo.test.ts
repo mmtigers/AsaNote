@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   countChars,
+  parseMaskedNames,
   currentMemo,
   formatPeriod,
   historyBody,
@@ -82,5 +83,12 @@ describe("お知らせカード", () => {
   it("noticeMemo は新しい回を優先する", () => {
     const older = memo({ id: "old", dueDate: "2026-11-05" });
     expect(noticeMemo([older, memo()], THU_NOON)?.id).toBe("m1");
+  });
+});
+
+describe("parseMaskedNames(#299)", () => {
+  it("改行・読点・カンマで区切り、前後の空白・空の要素・重複を除く", () => {
+    expect(parseMaskedNames("ともくん\n田中、 佐藤,鈴木，\n\n田中")).toEqual(["ともくん", "田中", "佐藤", "鈴木"]);
+    expect(parseMaskedNames("   ")).toEqual([]);
   });
 });

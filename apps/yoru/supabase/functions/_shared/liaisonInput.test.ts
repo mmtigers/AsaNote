@@ -22,6 +22,41 @@ describe("maskNames", () => {
   it("対象の子は「本人」、ほかの子は「きょうだい」。長い名前から置き換える", () => {
     expect(maskNames("ともやととも", [SIS, TOMO], "c1")).toBe("本人ときょうだい");
   });
+
+  describe("短い名前の誤置換を防ぐ(#299)", () => {
+    it("2文字以下の名前は、ほかの語の一部なら置き換えない", () => {
+      expect(maskNames("ともだちと遊んだ", [SIS], "c1")).toBe("ともだちと遊んだ");
+    });
+    it("直後が助詞・記号・文末なら置き換える", () => {
+      expect(maskNames("ともが泣いた。ともと公園へ。帰ったのは、とも", [SIS], "c2")).toBe("本人が泣いた。本人と公園へ。帰ったのは、本人");
+      expect(maskNames("とも、ともだけ、とも!", [SIS], "c2")).toBe("本人、本人だけ、本人!");
+    });
+    it("3文字以上の名前は、続く文字にかかわらず置き換える", () => {
+      expect(maskNames("ともやだって", [TOMO], "c1")).toBe("本人だって");
+    });
+  });
+
+  describe("呼び名・表記ゆれ(#299)", () => {
+    it("子どもの名前の直後の敬称は、名前と一緒に置き換える(短い名前でも)", () => {
+      expect(maskNames("ともくんが来た。ともちゃん", [SIS], "c2")).toBe("本人が来た。本人");
+    });
+    it("ひらがな・カタカナの表記ゆれも置き換える", () => {
+      expect(maskNames("トモヤが笑った", [TOMO], "c1")).toBe("本人が笑った");
+      expect(maskNames("はるとが", [{ id: "c3", name: "ハルト" }], "c3")).toBe("本人が");
+    });
+  });
+
+  describe("伏せたい名前(#299)", () => {
+    it("登録した名前は「〇〇」に置き換え、敬称は残す", () => {
+      expect(maskNames("田中先生と翔太くんに会った", [TOMO], "c1", ["田中", "翔太"])).toBe("〇〇先生と〇〇くんに会った");
+    });
+    it("子どもの名前を優先し、置き換えた後の文字を別の名前でさらに置き換えない", () => {
+      expect(maskNames("ともやの", [TOMO], "c1", ["人の", "ともや"])).toBe("本人の");
+    });
+    it("空の要素は無視する", () => {
+      expect(maskNames("ともや", [TOMO], "c1", ["", "  "])).toBe("本人");
+    });
+  });
 });
 
 describe("describeAsaRecord", () => {
@@ -81,5 +116,12 @@ describe("buildUserContent", () => {
     expect(text).toContain("本人は毎日登校できました。");
     expect(text).toContain("今回の追加の希望: もっと短く");
     expect(text).toContain("80字程度");
+  });
+
+  it("設定の伏せたい名前も、全体で置き換える(#299)", () => {
+    const withFriend = { ...source, asaRecords: [{ record_date: "2026-11-10", outcome: "smooth", memo: "佐藤さんと登校" }] };
+    const text = buildUserContent(withFriend, settings, [TOMO, SIS], "c1", "佐藤さんの話は控えて", ["佐藤"]);
+    expect(text).not.toContain("佐藤");
+    expect(text).toContain("〇〇さんと登校");
   });
 });
