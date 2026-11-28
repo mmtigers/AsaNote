@@ -11,7 +11,7 @@ export function SyncFailureNotice({ failing, onDismiss }: { failing: boolean; on
     <div
       role="status"
       aria-live="polite"
-      className="fixed bottom-20 left-1/2 z-30 flex w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 items-center justify-between gap-3 rounded-2xl bg-[var(--ink)] px-4 py-2 text-[13px] font-medium text-[var(--bg)] shadow-lg print:hidden"
+      className="fixed bottom-28 left-1/2 z-30 flex w-[calc(100%-2rem)] max-w-sm -translate-x-1/2 items-center justify-between gap-3 rounded-2xl bg-[var(--ink)] px-4 py-2 text-[13px] font-medium text-[var(--bg)] shadow-lg print:hidden"
     >
       <span>⚠️ 同期がうまくいっていません。電波の良い場所で確認してください。</span>
       <button

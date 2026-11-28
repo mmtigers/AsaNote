@@ -43,7 +43,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <ServiceWorkerRegister />
         <ClientErrorReporter app="yoru" appVersion={releases[0]?.version} />
         <AuthProvider>
-          <div className="flex-1 pb-20">{children}</div>
+          <div className="flex-1 pb-28">{children}</div>
           <LocalDbNotice />
           <SyncFailureNotice />
           <BottomNav />

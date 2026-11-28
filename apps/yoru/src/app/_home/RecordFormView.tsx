@@ -126,7 +126,7 @@ export function RecordFormView({
   }
 
   return (
-    <main className="mx-auto flex max-w-md flex-col gap-3 px-4 pb-28 pt-4">
+    <main className="mx-auto flex max-w-md flex-col gap-3 px-4 pb-38 pt-4">
       <header className="flex items-center justify-between gap-2">
         <button type="button" onClick={onBack} className="text-[13px] text-[var(--sub)] focus:ring-2 focus:ring-[var(--accent)]">
           ← もどる
@@ -278,7 +278,7 @@ export function RecordFormView({
 
       {error && <p className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p>}
 
-      <div className="fixed inset-x-0 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] z-30 px-4">
+      <div className="fixed inset-x-0 bottom-[calc(7rem+env(safe-area-inset-bottom))] z-30 px-4">
         <div className="mx-auto max-w-md">
           <button
             type="button"
