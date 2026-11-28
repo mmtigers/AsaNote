@@ -49,7 +49,7 @@ test("通常の操作(記録・一覧・各ページ)で CSP 違反が1件も出
   await expect(page.getByRole("button", { name: "記録を編集する" })).toBeVisible();
 
   // 全ページを開く(ログイン前でも開ける画面)。
-  for (const path of ["/timeline", "/stats", "/export", "/group", "/updates", "/login"]) {
+  for (const path of ["/timeline", "/stats", "/rules", "/export", "/group", "/updates", "/login"]) {
     await page.goto(path);
     await page.waitForLoadState("networkidle");
   }

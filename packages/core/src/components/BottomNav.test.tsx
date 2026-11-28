@@ -64,6 +64,30 @@ describe("BottomNav", () => {
     expect(onHomeReselect).toHaveBeenCalledTimes(1);
   });
 
+  it("ホーム(記録する)だけを丸いボタンにし、表示はアプリが渡した並び順のまま", () => {
+    const centered = [items[1], items[0], items[2]];
+    render(<BottomNav items={centered} hasDraft={false} onHomeReselect={vi.fn()} />);
+    const links = screen.getAllByRole("link");
+    expect(links.map((l) => l.getAttribute("href"))).toEqual(["/timeline", "/", "/group"]);
+    expect(screen.getAllByTestId("bottom-nav-primary")).toHaveLength(1);
+    const primary = screen.getByTestId("bottom-nav-primary");
+    expect(primary.closest("a")?.getAttribute("href")).toBe("/");
+    expect(primary.className).toContain("rounded-full");
+  });
+
+  it("記録画面にいるときだけ、丸いボタンに輪を付ける", () => {
+    const { rerender } = render(<BottomNav items={items} hasDraft={false} onHomeReselect={vi.fn()} />);
+    expect(screen.getByTestId("bottom-nav-primary").className).toContain("outline-2");
+    pathname.value = "/timeline";
+    rerender(<BottomNav items={items} hasDraft={false} onHomeReselect={vi.fn()} />);
+    expect(screen.getByTestId("bottom-nav-primary").className).not.toContain("outline-2");
+  });
+
+  it("入力途中の記録があるとき、印は丸いボタンに付く", () => {
+    render(<BottomNav items={items} hasDraft onHomeReselect={vi.fn()} />);
+    expect(screen.getByTestId("bottom-nav-primary").querySelector(".rounded-full.absolute, .absolute.rounded-full")).toBeTruthy();
+  });
+
   it("他の画面にいるときのホームのタブは、onHomeReselect を呼ばない", () => {
     pathname.value = "/timeline";
     const onHomeReselect = vi.fn();
