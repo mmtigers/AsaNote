@@ -994,6 +994,132 @@ begin
 end
 $$;
 
+-- 試したこと(ルール変更)と検討事項ボード(SPEC「試したこと」)。よるノートの evening_rules / evening_concerns
+-- (apps/yoru/supabase/schema.sql)と同じ形で、あさノート用に別の表を持つ(朝と夜で試すことが違うため、混ぜない)。
+-- 家族(グループ)で共有する設定情報なので、閲覧・編集・削除は作成者と同じグループのメンバーなら誰でもできる
+-- (children と違い、片方の親が立てた項目をもう片方が解決済みにできる必要があるため)。
+create table if not exists morning_rules (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  child_id uuid references children(id) on delete set null, -- null = 子ども全員
+  title text not null check (char_length(title) between 1 and 100),
+  started_on date not null,
+  ended_on date,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists morning_concerns (
+  id uuid primary key default uuid_generate_v4(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  child_id uuid references children(id) on delete set null, -- null = 子ども全員
+  title text not null check (char_length(title) between 1 and 200),
+  resolved_at timestamptz,
+  created_at timestamptz not null default now()
+);
+
+alter table morning_rules enable row level security;
+alter table morning_concerns enable row level security;
+
+-- 更新ポリシーは同じグループのメンバーにも開いているため、user_id を書き換えて他の人の
+-- 持ち物にしたり自分の持ち物にしたりできてしまう。作成者(user_id)は変更不可にする。
+create or replace function morning_prevent_owner_change()
+returns trigger
+language plpgsql
+as $$
+begin
+  if new.user_id is distinct from old.user_id then
+    raise exception 'owner_change_not_allowed';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists morning_rules_keep_owner on morning_rules;
+create trigger morning_rules_keep_owner
+  before update on morning_rules
+  for each row execute function morning_prevent_owner_change();
+
+drop trigger if exists morning_concerns_keep_owner on morning_concerns;
+create trigger morning_concerns_keep_owner
+  before update on morning_concerns
+  for each row execute function morning_prevent_owner_change();
+
+drop policy if exists "morning_rules are readable by owner or group members" on morning_rules;
+drop policy if exists "morning_rules are insertable by owner" on morning_rules;
+drop policy if exists "morning_rules are updatable by owner or group members" on morning_rules;
+drop policy if exists "morning_rules are deletable by owner or group members" on morning_rules;
+
+create policy "morning_rules are readable by owner or group members"
+  on morning_rules for select to authenticated
+  using (
+    auth.uid() = user_id
+    or exists (
+      select 1 from group_members gm_self
+      join group_members gm_owner on gm_owner.group_id = gm_self.group_id
+      where gm_self.user_id = auth.uid() and gm_owner.user_id = morning_rules.user_id
+    )
+  );
+create policy "morning_rules are insertable by owner"
+  on morning_rules for insert to authenticated with check (auth.uid() = user_id);
+create policy "morning_rules are updatable by owner or group members"
+  on morning_rules for update to authenticated
+  using (
+    auth.uid() = user_id
+    or exists (
+      select 1 from group_members gm_self
+      join group_members gm_owner on gm_owner.group_id = gm_self.group_id
+      where gm_self.user_id = auth.uid() and gm_owner.user_id = morning_rules.user_id
+    )
+  );
+create policy "morning_rules are deletable by owner or group members"
+  on morning_rules for delete to authenticated
+  using (
+    auth.uid() = user_id
+    or exists (
+      select 1 from group_members gm_self
+      join group_members gm_owner on gm_owner.group_id = gm_self.group_id
+      where gm_self.user_id = auth.uid() and gm_owner.user_id = morning_rules.user_id
+    )
+  );
+
+drop policy if exists "morning_concerns are readable by owner or group members" on morning_concerns;
+drop policy if exists "morning_concerns are insertable by owner" on morning_concerns;
+drop policy if exists "morning_concerns are updatable by owner or group members" on morning_concerns;
+drop policy if exists "morning_concerns are deletable by owner or group members" on morning_concerns;
+
+create policy "morning_concerns are readable by owner or group members"
+  on morning_concerns for select to authenticated
+  using (
+    auth.uid() = user_id
+    or exists (
+      select 1 from group_members gm_self
+      join group_members gm_owner on gm_owner.group_id = gm_self.group_id
+      where gm_self.user_id = auth.uid() and gm_owner.user_id = morning_concerns.user_id
+    )
+  );
+create policy "morning_concerns are insertable by owner"
+  on morning_concerns for insert to authenticated with check (auth.uid() = user_id);
+create policy "morning_concerns are updatable by owner or group members"
+  on morning_concerns for update to authenticated
+  using (
+    auth.uid() = user_id
+    or exists (
+      select 1 from group_members gm_self
+      join group_members gm_owner on gm_owner.group_id = gm_self.group_id
+      where gm_self.user_id = auth.uid() and gm_owner.user_id = morning_concerns.user_id
+    )
+  );
+create policy "morning_concerns are deletable by owner or group members"
+  on morning_concerns for delete to authenticated
+  using (
+    auth.uid() = user_id
+    or exists (
+      select 1 from group_members gm_self
+      join group_members gm_owner on gm_owner.group_id = gm_self.group_id
+      where gm_self.user_id = auth.uid() and gm_owner.user_id = morning_concerns.user_id
+    )
+  );
+
 -- 後から足した列と制約(create table if not exists は既存テーブルを変えないため、ここで冪等に足す)。
 -- source: 捕まえたエラーに加え、握りつぶされる同期失敗(sync-failure)・端末DB不可(local-db)・受け止めたエラー(handled-error。場所は context.where。#213)も記録する。
 -- context: 調査用の付帯情報(オンライン状態・同期待ち件数など)。記録の内容は入れない。

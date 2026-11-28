@@ -80,6 +80,7 @@ CIが強制しないもの（レビューで担保する。PRを出すときの�
 | `/timeline` | これまでの記録 | 自分＋パートナーの記録を新しい順に見る | 子ども・結果での絞り込み、編集、削除 | `/?date=…`（編集）、`/export` |
 | `/stats` | 傾向 | 内訳・カレンダー・曜日別/起床時刻別スムーズ率・理由を見る | 子ども切替、各項目タップで詳細シート | `/?date=…`（詳細シートから編集） |
 | `/export` | エクスポート | 期間を指定して日記形式で印刷/PDF、またはCSV出力する | 期間・パートナー含有の指定、印刷、CSV | `/timeline` |
+| `/rules` | 試したこと | 試したこと(ルール変更)の前後比較と、検討事項ボード | 試したこと・検討事項の登録/終了/解決/削除 | `/login`（未ログイン時の案内のみ） |
 | `/group` | 共有 | 子ども・通知・グループの設定 | 子どもの追加/改名/削除、通知設定、グループ作成/参加/脱退、招待 | `/login`（未ログイン時） |
 | `/login` | ログイン | メールのマジックリンクでログインする | メール入力→送信 | ログイン済みなら `/` へ置換 |
 | `/updates` | 更新履歴 | 全バージョンの更新内容を見る（開くと最新版を既読にする） | 閲覧 | `/` |
@@ -305,6 +306,20 @@ ON/OFFと時刻の設定。仕様は §4。
 - 共有の効果: 同じグループのメンバーの記録・子どもが互いに閲覧できる。**編集・削除は記録した本人のみ**（§6）。
 - 通信エラー時は画面上部に赤いエラー文（通信エラーは共通文言、それ以外は「〇〇に失敗しました(詳細)」）を出す。
 
+### 3.5.1 試したこと・検討事項ボード（`/rules`）
+
+よるノートの「試したこと」(よるノート SPEC §4.4)と同じ機能。画面と読み書きは `@note/core`(`components/RulesBoardView`・`board`)の共通部品で、表と前後比較の中身だけがあさノート用。
+
+- 試したこと: 「前の晩に持ち物をそろえる」のような**ルール変更**を、内容(100文字まで)・開始日・対象の子ども(全員も可。子どもが2人以上のときだけ選べる)で登録する。
+  - 開始前14日と開始後(開始日を含み、終了日か今日まで・最大14日)を並べて見られる。各期間の値は次のとおり(`src/app/rules/compare.ts`)。
+    - **行き渋り率**: 結果を選んだ記録のうち「行き渋った」「行かなかった」の割合
+    - **最も多い起床の時間帯**: 記録画面と同じ3区分。同数なら早い帯
+  - 「やめた日を今日にする/再開する」・削除ができる。
+- 検討事項: 「困っていること」(200文字まで)を、対象の子ども(全員も可)つきで溜めて、解決したらチェックするボード。
+- 家族で共有する設定情報なので、同じグループのメンバーなら誰でも閲覧・更新・削除できる(作成者は変更できない)。表は `morning_rules` / `morning_concerns`(§5.2)。端末内には保存せず、オンライン時に Supabase へ直接読み書きする。
+- 未ログインでは「ログインすると、家族で共有できます。」とだけ出す。
+- あさノートの連絡メモ(下書き)には、まだ渡していない(よるノートは渡している)。
+
 ### 3.6 ログイン・ログアウト
 
 - **ログイン（`/login`）**: パスワード不要。メールアドレスを入れると、Supabase Auth がマジックリンクを送る。リンクを開くとログインされる（コードの手入力UIは無い）。
@@ -440,6 +455,8 @@ Supabase Edge Function `send-reminders`（`supabase/functions/send-reminders/ind
 | `notification_settings` | `user_id` PK, `reminder_time`(time, 既定 21:00), `enabled`(既定 true), `notify_partner_record`(既定 false), `notify_partner_comment`(既定 false), `updated_at` | 通知設定。ユーザー1人につき1行 |
 | `record_reads` | PK(`record_id`,`user_id`)、`record_id`(FK→`records`、削除で連鎖)、`user_id`(FK、削除で連鎖)、`read_at`(既定 now) | 記録の「読んだ」印（§3.2）。誰がどの記録をいつ読んだか。追加のみ |
 | `record_comments` | PK(`record_id`,`user_id`)（=1つの記録に1人1件）、`body` 1〜100文字（前後の空白を除いて。`CHECK`）、`created_at`、`updated_at` | 記録へのひとことコメント（§3.2）。`record_id` は `records` へのFK（削除で連鎖） |
+| `morning_rules` | `user_id`(FK、削除で連鎖), `child_id`(FK→`children`、削除で null=全員), `title` 1〜100文字, `started_on`, `ended_on`(null=続けている), `created_at` | 試したこと（§3.5.1） |
+| `morning_concerns` | `user_id`(FK、削除で連鎖), `child_id`(同上), `title` 1〜200文字, `resolved_at`(null=未解決), `created_at` | 検討事項ボード（§3.5.1） |
 | `analytics_events` | `user_id`, `record_id`, `event_name`, `properties`(jsonb), `client_ts`, `created_at`。索引 `user_id` / `record_id` | 記録フローの計測（§11）。書き込み専用。あさノート・よるノート共用。`properties` は2000字まで（check 制約。既存の行は検査しない）。**365日で掃除**（`cleanup_old_logs()`、§8.3） |
 | `client_errors` | `user_id`(null可), `app`, `source`, `message`, `stack`, `path`, `user_agent`, `app_version`, `context`(jsonb), `client_ts`, `created_at`。索引 `created_at` | ブラウザ側の想定外エラーの記録（§11.4）。書き込み専用。あさノート・よるノート共用。**90日で掃除**（`cleanup_old_logs()`、§8.3）、匿名insertの濫用対策として**総行数の上限20,000行**（`client_errors_enforce_cap` トリガー）。確認用ビュー `client_errors_summary_7d` |
 
@@ -499,6 +516,7 @@ stateDiagram-v2
 | `notification_settings` | 本人のみ | 本人のみ | 本人のみ | 本人のみ |
 | `record_reads` | その記録が見える人（`records` のRLSをサブクエリ経由で効かせる＝本人＋同じグループのメンバー） | 本人のみ（かつ記録が見えること） | なし | なし（記録の削除に連鎖して消える） |
 | `record_comments` | その記録が見える人（同上） | 本人のみ（かつ記録が見えること） | 書いた本人のみ | 書いた本人のみ |
+| `morning_rules` / `morning_concerns` | 作成者本人＋同じグループのメンバー | 作成者本人のみ | 作成者本人＋同じグループのメンバー（`user_id` は変更不可。トリガー `morning_prevent_owner_change()`） | 作成者本人＋同じグループのメンバー |
 | `reminder_deliveries` | なし（service roleのみ） | なし | なし | なし |
 | `analytics_events` | **なし**（読み取り不可） | 本人のみ | なし | なし |
 | `client_errors` | **なし**（読み取り不可） | 未ログイン(anon)も可。`user_id` は null か本人のみ。総行数が20,000行に達すると insert は失敗する（トリガー） | なし | なし |
