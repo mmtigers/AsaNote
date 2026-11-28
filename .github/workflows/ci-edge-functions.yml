@@ -46,6 +46,11 @@ jobs:
       # 入口(各関数の index.ts)から、_shared/ の取り込み先まで辿って検査する。
       # 関数を足したときに検査の対象から漏れないよう、ディレクトリを列挙して全部渡す。
       - name: Type-check Edge Functions
+        # ルートの package.json(npm のワークスペース)を Deno が読むと、npm: の依存を node_modules から探して
+        # 失敗する(関数の依存はアプリの package.json に無い)。デプロイ時と同じく package.json を使わず、
+        # npm: の取り込みは Deno のキャッシュへ取ってくる。
+        env:
+          DENO_NO_PACKAGE_JSON: "1"
         run: |
           set -euo pipefail
           entries=$(ls supabase/functions/*/index.ts apps/yoru/supabase/functions/*/index.ts)
