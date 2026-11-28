@@ -201,6 +201,7 @@ export type Database = {
           enabled: boolean
           hour: number
           include_memo: boolean
+          masked_names: string[]
           recipient_label: string
           style_examples: string[]
           target_chars: number
@@ -215,6 +216,7 @@ export type Database = {
           enabled?: boolean
           hour?: number
           include_memo?: boolean
+          masked_names?: string[]
           recipient_label?: string
           style_examples?: string[]
           target_chars?: number
@@ -229,6 +231,7 @@ export type Database = {
           enabled?: boolean
           hour?: number
           include_memo?: boolean
+          masked_names?: string[]
           recipient_label?: string
           style_examples?: string[]
           target_chars?: number

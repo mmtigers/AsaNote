@@ -36,7 +36,11 @@ describe("LiaisonSection", () => {
   it("オンにする前に、AI に送る内容を示して同意を求める(やめれば保存しない)", async () => {
     renderSection();
     fireEvent.click(await screen.findByRole("switch", { name: "連絡メモの下書き" }));
-    expect(screen.getByRole("dialog", { name: "AI に送る内容の確認" }).textContent).toContain("Anthropic");
+    const consent = screen.getByRole("dialog", { name: "AI に送る内容の確認" }).textContent ?? "";
+    expect(consent).toContain("Anthropic");
+    // 確認した API のデータの扱い(#295)。
+    expect(consent).toContain("AI の学習には使われません");
+    expect(consent).toContain("30日以内に削除");
     fireEvent.click(screen.getByRole("button", { name: "やめる" }));
     expect(mocks.saveLiaisonSettings).not.toHaveBeenCalled();
   });
@@ -60,5 +64,19 @@ describe("LiaisonSection", () => {
     fireEvent.change(screen.getByLabelText("時刻"), { target: { value: "20" } });
     fireEvent.click(screen.getByRole("button", { name: "保存する" }));
     await waitFor(() => expect(mocks.saveLiaisonSettings).toHaveBeenCalledWith(expect.objectContaining({ hour: 20 })));
+  });
+
+  it("伏せたい名前を、改行・読点で区切って保存する(#299)", async () => {
+    mocks.fetchLiaisonSettings.mockResolvedValue(
+      new Map([["c1", { ...off, enabled: true, consentedBy: "uB", consentedAt: "2026-11-01T00:00:00Z", maskedNames: ["ともくん"] }]])
+    );
+    renderSection();
+    const field = (await screen.findByLabelText("伏せたい名前")) as HTMLTextAreaElement;
+    expect(field.value).toBe("ともくん");
+    fireEvent.change(field, { target: { value: "ともくん\n田中、 佐藤\n\n田中" } });
+    fireEvent.click(screen.getByRole("button", { name: "保存する" }));
+    await waitFor(() =>
+      expect(mocks.saveLiaisonSettings).toHaveBeenCalledWith(expect.objectContaining({ maskedNames: ["ともくん", "田中", "佐藤"] }))
+    );
   });
 });

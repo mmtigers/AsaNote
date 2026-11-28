@@ -8,7 +8,7 @@
 create table if not exists groups (
   id uuid primary key default gen_random_uuid(),
   name text,
-  created_by uuid references auth.users(id),
+  created_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now()
 );
 
@@ -44,6 +44,10 @@ create table if not exists liaison_memo_settings (
   updated_at timestamptz not null default now(),
   check (not enabled or consented_at is not null)
 );
+
+-- 伏せたい名前(#299)。あさノート側の schema.sql と同じく、create table とは別に足す。
+alter table liaison_memo_settings
+  add column if not exists masked_names text[] not null default '{}' check (cardinality(masked_names) <= 20);
 
 create table if not exists liaison_memos (
   id uuid primary key default gen_random_uuid(),

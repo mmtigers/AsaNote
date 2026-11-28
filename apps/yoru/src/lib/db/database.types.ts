@@ -32,6 +32,7 @@ export type Database = {
       }
       evening_concerns: {
         Row: {
+          child_id: string | null
           created_at: string
           id: string
           resolved_at: string | null
@@ -39,6 +40,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          child_id?: string | null
           created_at?: string
           id?: string
           resolved_at?: string | null
@@ -46,13 +48,22 @@ export type Database = {
           user_id: string
         }
         Update: {
+          child_id?: string | null
           created_at?: string
           id?: string
           resolved_at?: string | null
           title?: string
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "evening_concerns_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       evening_notification_settings: {
         Row: {
@@ -383,6 +394,7 @@ export type Database = {
           enabled: boolean
           hour: number
           include_memo: boolean
+          masked_names: string[]
           recipient_label: string
           style_examples: string[]
           target_chars: number
@@ -397,6 +409,7 @@ export type Database = {
           enabled?: boolean
           hour?: number
           include_memo?: boolean
+          masked_names?: string[]
           recipient_label?: string
           style_examples?: string[]
           target_chars?: number
@@ -411,6 +424,7 @@ export type Database = {
           enabled?: boolean
           hour?: number
           include_memo?: boolean
+          masked_names?: string[]
           recipient_label?: string
           style_examples?: string[]
           target_chars?: number

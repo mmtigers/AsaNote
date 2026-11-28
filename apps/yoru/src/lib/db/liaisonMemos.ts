@@ -4,6 +4,8 @@ import { getSupabaseClient } from "@note/core/supabase/client";
 import {
   DEFAULT_LIAISON_SETTINGS,
   INSTRUCTION_MAX,
+  MASKED_NAME_MAX,
+  MASKED_NAMES_MAX_COUNT,
   RECIPIENT_LABEL_MAX,
   STYLE_EXAMPLE_MAX,
   STYLE_EXAMPLES_MAX_COUNT,
@@ -30,6 +32,7 @@ function toSettings(row: Row): LiaisonSettings {
     recipientLabel: row.recipient_label as string,
     includeMemo: row.include_memo as boolean,
     styleExamples: (row.style_examples as string[] | null) ?? [],
+    maskedNames: (row.masked_names as string[] | null) ?? [],
     updatedBy: (row.updated_by as string | null) ?? null,
     updatedAt: (row.updated_at as string | null) ?? null,
   };
@@ -74,6 +77,9 @@ export function validateSettings(settings: LiaisonSettings): string | null {
   if (label.length > RECIPIENT_LABEL_MAX) return `宛先の呼び名は${RECIPIENT_LABEL_MAX}文字以内で入力してください`;
   if (settings.styleExamples.length > STYLE_EXAMPLES_MAX_COUNT) return `書き方の見本は${STYLE_EXAMPLES_MAX_COUNT}件までです`;
   if (settings.styleExamples.some((e) => e.length > STYLE_EXAMPLE_MAX)) return `書き方の見本は1件${STYLE_EXAMPLE_MAX}文字以内で入力してください`;
+  const names = settings.maskedNames.map((n) => n.trim()).filter(Boolean);
+  if (names.length > MASKED_NAMES_MAX_COUNT) return `伏せたい名前は${MASKED_NAMES_MAX_COUNT}件までです`;
+  if (names.some((n) => n.length > MASKED_NAME_MAX)) return `伏せたい名前は1件${MASKED_NAME_MAX}文字以内で入力してください`;
   return null;
 }
 
@@ -93,6 +99,7 @@ export async function saveLiaisonSettings(settings: LiaisonSettings): Promise<Li
       include_memo: settings.includeMemo,
       // 空の見本は送らない(サーバーは空の要素を拒否する)。
       style_examples: settings.styleExamples.map((e) => e.trim()).filter(Boolean),
+      masked_names: settings.maskedNames.map((n) => n.trim()).filter(Boolean),
     })
     .select()
     .single();

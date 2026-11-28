@@ -8,6 +8,9 @@ export const INSTRUCTION_MAX = 100;
 export const STYLE_EXAMPLE_MAX = 400;
 export const STYLE_EXAMPLES_MAX_COUNT = 3;
 export const RECIPIENT_LABEL_MAX = 20;
+// 伏せたい名前(#299)。DB の制約(cardinality ≤ 20・各1〜20字)と合わせる。
+export const MASKED_NAMES_MAX_COUNT = 20;
+export const MASKED_NAME_MAX = 20;
 export const TARGET_CHARS_OPTIONS = Array.from({ length: 26 }, (_, i) => 50 + i * 10); // 50〜300字(10字きざみ)
 export const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => i);
 // お知らせカードを出すのは、予定日から何日後までか(次の回が来たら消える)。
@@ -26,6 +29,7 @@ export interface LiaisonSettings {
   recipientLabel: string;
   includeMemo: boolean;
   styleExamples: string[];
+  maskedNames: string[];
   updatedBy: string | null;
   updatedAt: string | null;
 }
@@ -40,6 +44,7 @@ export const DEFAULT_LIAISON_SETTINGS: Omit<LiaisonSettings, "childId"> = {
   recipientLabel: "療育先",
   includeMemo: true,
   styleExamples: [],
+  maskedNames: [],
   updatedBy: null,
   updatedAt: null,
 };
@@ -129,4 +134,13 @@ export function formatPeriod(from: string | null, to: string | null): string | n
   if (!from || !to) return null;
   const md = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
   return `${md(from)}〜${md(to)}`;
+}
+
+// 「伏せたい名前」の入力(改行・読点・カンマ区切り)を、名前の配列にする。空の要素と重複は除く。
+export function parseMaskedNames(text: string): string[] {
+  const names = text
+    .split(/[\n,、，]/)
+    .map((n) => n.trim())
+    .filter(Boolean);
+  return [...new Set(names)];
 }

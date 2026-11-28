@@ -20,6 +20,7 @@ export interface Rule {
 export interface Concern {
   id: string;
   user_id: string;
+  child_id: string | null; // null = 子ども全員(#298)
   title: string;
   resolved_at: string | null;
   created_at: string;
@@ -77,10 +78,12 @@ export async function getConcerns(): Promise<Concern[]> {
   return (data ?? []) as Concern[];
 }
 
-export async function createConcern(title: string): Promise<void> {
-  const trimmed = validateTitle(title, CONCERN_TITLE_MAX, "内容");
+export async function createConcern(input: { title: string; childId: string | null }): Promise<void> {
+  const trimmed = validateTitle(input.title, CONCERN_TITLE_MAX, "内容");
   const userId = await requireUserId();
-  const { error } = await getSupabaseClient().from("evening_concerns").insert({ user_id: userId, title: trimmed });
+  const { error } = await getSupabaseClient()
+    .from("evening_concerns")
+    .insert({ user_id: userId, title: trimmed, child_id: input.childId });
   if (error) throw error;
 }
 

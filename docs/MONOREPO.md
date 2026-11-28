@@ -22,6 +22,7 @@
 | `ci-oya.yml` | おやノート | 共通ジョブ(`_app-ci.yml`)を呼ぶ + おやノート固有の E2E・DB の権限(RLS)のテスト・型ずれの検査 |
 | `_app-ci.yml` | 共通(再利用ワークフロー) | 依存の検査・lint・型・単体テスト・ビルド、更新履歴の検査。`app` で対象アプリを渡す。`working-directory` はアプリ、`npm ci` はルートで実行 |
 | `ci-core.yml` | 共通コード | `packages/core` の lint・型検査・テスト |
+| `ci-edge-functions.yml` | Edge Function(両アプリ) | `supabase/functions/*/index.ts`・`apps/yoru/supabase/functions/*/index.ts` の `deno check`(#301)。関数・その取り込み先の変更時だけ走る。ドラフトでは走らない。ローカルの `verify.steps` には含めない(Deno が要るため) |
 | `_db-types-check.yml` | 共通(再利用ワークフロー) | 型ずれの検査(素の Postgres 16 へ `schema.sql` を2回適用し、生成した型とコミット済みの型を比べる)。`ci.yml`・`ci-yoru.yml` が、SQL・型定義のパスを入力として渡して呼ぶ。Supabase CLI の版はここの1か所だけ |
 | `db-deploy.yml` | あさノート → 本番DB | **変更していない**。`supabase/schema.sql` の変更で自動適用 |
 | `db-deploy-oya.yml` | おやノート → **おやノート専用の**本番DB | `apps/oya/supabase/schema.sql` の変更で自動適用。Secret は `OYA_SUPABASE_DB_URL`(`SUPABASE_DB_URL` とは別)。リポジトリ変数 `OYA_DB_DEPLOY_ENABLED=true` まで未稼働(警告のみ)。接続先にあさノート・よるノートの表があれば中止する |

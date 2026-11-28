@@ -31,14 +31,14 @@ NEXT_PUBLIC_VAPID_PUBLIC_KEY=<公開鍵>
 
 ```bash
 npx supabase login
-npx supabase link --project-ref <PROJECT_REF>
+npx supabase link <PROJECT_REF>
 ```
 
 > **コマンドを実行する場所に注意。** よるノートの関数は `apps/yoru/supabase/functions/` にある(あさノートの関数は、リポジトリのルートの `supabase/functions/`)。
 > `supabase functions deploy` は、実行した場所の `supabase/functions/` を探すので、ルートで実行すると
 > `Entrypoint path does not exist` で失敗する(何も反映されないので、やり直せばよい)。
-> よるノートの関数は、**`apps/yoru` に移動して、`--project-ref <PROJECT_REF>` を付けて**デプロイする(`apps/yoru` には `supabase link` の設定が無いため)。
-> `supabase secrets set` は、プロジェクト単位なので、どこで実行してもよい(`link` 済みの場所、または `--project-ref` 付き)。
+> よるノートの関数は、**`apps/yoru` に移動して、`--remote=<PROJECT_REF>` を付けて**デプロイする(`apps/yoru` には `supabase link` の設定が無いため)。
+> `supabase secrets set` は、プロジェクト単位なので、どこで実行してもよい(`link` 済みの場所、または `--remote=<PROJECT_REF>` 付き)。
 
 ## 4. Edge Functionのシークレットを設定する
 
@@ -58,7 +58,7 @@ npx supabase secrets set EVENING_CRON_SECRET=<合言葉>
 
 ```bash
 cd apps/yoru
-npx supabase functions deploy send-evening-reminders --project-ref <PROJECT_REF>
+npx supabase functions deploy send-evening-reminders --remote=<PROJECT_REF>
 ```
 
 `send-evening-reminders` は、`x-cron-secret` ヘッダが、手順4で設定した `EVENING_CRON_SECRET` と一致する呼び出しだけを
@@ -107,7 +107,7 @@ SQL Editor で `supabase/cron-evening-reminders.sql` の `<PROJECT_REF>`・`<SER
 
    ```bash
    cd apps/yoru
-   npx supabase functions deploy notify-evening-partner --project-ref <PROJECT_REF>
+   npx supabase functions deploy notify-evening-partner --remote=<PROJECT_REF>
    ```
 
    `x-notify-secret` ヘッダが `EVENING_NOTIFY_SECRET` と一致しない呼び出しは `401`(未設定なら `500`)。
@@ -129,7 +129,7 @@ SQL Editor で `supabase/cron-evening-reminders.sql` の `<PROJECT_REF>`・`<SER
 
    ```bash
    cd apps/yoru
-   npx supabase functions deploy notify-evening-comment --project-ref <PROJECT_REF>
+   npx supabase functions deploy notify-evening-comment --remote=<PROJECT_REF>
    ```
 
 3. SQL Editor で `supabase/evening-comment-notify-trigger.sql` の `<PROJECT_REF>`・`<SERVICE_ROLE_KEY>`・`<NOTIFY_SECRET>` を置き換えて実行する
@@ -148,16 +148,16 @@ SQL Editor で `supabase/cron-evening-reminders.sql` の `<PROJECT_REF>`・`<SER
 2. Claude API のキーを設定する(Claude Console で発行。公開してはいけない値)。
 
    ```bash
-   npx supabase secrets set ANTHROPIC_API_KEY=<Claude API のキー> --project-ref <PROJECT_REF>
+   npx supabase secrets set ANTHROPIC_API_KEY=<Claude API のキー> --remote=<PROJECT_REF>
    # 任意: モデルを変えるとき(既定は claude-opus-5-5)
-   # npx supabase secrets set LIAISON_MEMO_MODEL=<モデル名> --project-ref <PROJECT_REF>
+   # npx supabase secrets set LIAISON_MEMO_MODEL=<モデル名> --remote=<PROJECT_REF>
    ```
 
 3. Edge Function をデプロイする。
 
    ```bash
    cd apps/yoru
-   npx supabase functions deploy generate-liaison-memos --project-ref <PROJECT_REF>
+   npx supabase functions deploy generate-liaison-memos --remote=<PROJECT_REF>
    ```
 
    画面の「今すぐ作る」「作り直す」は、ログイン中の人の JWT で、この関数を直接呼ぶ(関数の側で、その子どもが見える人かを確かめる)。

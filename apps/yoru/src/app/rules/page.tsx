@@ -144,6 +144,7 @@ export default function RulesPage() {
   const [ruleStart, setRuleStart] = useState(today);
   const [ruleChild, setRuleChild] = useState<string>("");
   const [concernTitle, setConcernTitle] = useState("");
+  const [concernChild, setConcernChild] = useState<string>("");
   const [pendingConcernDelete, setPendingConcernDelete] = useState<Concern | null>(null);
 
   const reload = useCallback(async () => {
@@ -261,27 +262,49 @@ export default function RulesPage() {
           <section className="flex flex-col gap-3">
             <h2 className="text-sm font-bold">検討事項ボード</h2>
             <form
-              className={`${CARD} flex gap-2`}
+              className={`${CARD} flex flex-col gap-2.5`}
               onSubmit={(e) => {
                 e.preventDefault();
-                void submit(() => createConcern(concernTitle), "追加に失敗しました", () => setConcernTitle(""));
+                void submit(
+                  () => createConcern({ title: concernTitle, childId: concernChild || null }),
+                  "追加に失敗しました",
+                  () => setConcernTitle("")
+                );
               }}
             >
-              <input
-                className={INPUT}
-                placeholder="困っていること"
-                maxLength={CONCERN_TITLE_MAX}
-                value={concernTitle}
-                onChange={(e) => setConcernTitle(e.target.value)}
-                aria-label="困っていること"
-              />
-              <button type="submit" className={`${BTN} flex-none`} disabled={!concernTitle.trim()}>
-                追加
-              </button>
+              <div className="flex gap-2">
+                <input
+                  className={INPUT}
+                  placeholder="困っていること"
+                  maxLength={CONCERN_TITLE_MAX}
+                  value={concernTitle}
+                  onChange={(e) => setConcernTitle(e.target.value)}
+                  aria-label="困っていること"
+                />
+                <button type="submit" className={`${BTN} flex-none`} disabled={!concernTitle.trim()}>
+                  追加
+                </button>
+              </div>
+              {childList.length >= 2 && (
+                <select
+                  className={INPUT}
+                  value={concernChild}
+                  onChange={(e) => setConcernChild(e.target.value)}
+                  aria-label="検討事項の対象の子ども"
+                >
+                  <option value="">全員</option>
+                  {childList.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              )}
             </form>
             <ul className="flex flex-col gap-2">
               {[...open, ...resolved].map((c) => {
                 const done = !!c.resolved_at;
+                const target = childList.length >= 2 ? childName(c.child_id) : null;
                 return (
                   <li key={c.id} className={`${CARD} flex items-center gap-3 py-3`}>
                     <input
@@ -291,7 +314,10 @@ export default function RulesPage() {
                       aria-label={`${c.title}を解決済みにする`}
                       onChange={() => void submit(() => setConcernResolved(c.id, !done), "更新に失敗しました", () => {})}
                     />
-                    <span className={`flex-1 text-sm ${done ? "text-[var(--sub)] line-through" : ""}`}>{c.title}</span>
+                    <span className="flex-1">
+                      <span className={`text-sm ${done ? "text-[var(--sub)] line-through" : ""}`}>{c.title}</span>
+                      {target && <span className="ml-2 text-[11px] text-[var(--sub)]">{target}</span>}
+                    </span>
                     <button
                       type="button"
                       className={SUBTLE}

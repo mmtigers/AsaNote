@@ -125,7 +125,7 @@ export function createLiaisonStore(db: SupabaseLike): LiaisonStore {
 
     openConcerns: (userIds) =>
       rows(
-        db.from("evening_concerns").select("title").in("user_id", userIds).is("resolved_at", null).order("created_at"),
+        db.from("evening_concerns").select("title, child_id").in("user_id", userIds).is("resolved_at", null).order("created_at"),
         "evening_concerns"
       ),
 
