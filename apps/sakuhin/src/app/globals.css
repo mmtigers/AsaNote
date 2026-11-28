@@ -1,0 +1,96 @@
+@import url("https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&family=Noto+Sans+JP:wght@400;500;700&display=swap");
+@import "tailwindcss";
+
+/* Tailwind は、このアプリのディレクトリの外にある共通コード(packages/core)を自動では走査しない。
+   core の部品が使うクラスが CSS に入るよう、明示的に走査の対象にする。
+   無いと、core へ移した部品のスタイルが、本番だけ静かに欠ける(ビルドも型検査も通ってしまう)。 */
+@source "../../../../packages/core/src";
+/* テストファイルの文字(例: container.firstChild)を、Tailwind がクラス名と誤解して余計なスタイルを作るのを防ぐ。 */
+@source not "../../../../packages/core/src/**/*.test.{ts,tsx}";
+
+/* 色の名前はあさノート・よるノートと同じにして、値だけ変える(docs/SPEC.md §6.3)。
+   さくひんノートの色は緑(あさ=ピンク、よる=藍色、おや=赤茶と重ならないように)。
+   --mat は額縁の内側の台紙の色(ダークモードでも明るいまま、作品が沈まないように)。 */
+:root {
+  --bg: #f2f7f0;
+  --surface: #ffffff;
+  --surface-2: #e4f0e1;
+  --ink: #2e3a31;
+  --sub: #728676;
+  --line: #d4e5d0;
+  --accent: #3d8c5c;
+  --accent-ink: #ffffff;
+  --accent-soft: #d9eedd;
+  --amber: #e08a4f;
+  --amber-soft: #fbe6d5;
+  --calm: #d9a43a;
+  --calm-soft: #f6ead0;
+  --holiday: #d6455a;
+  --holiday-soft: #f9dee1;
+  --mat: #fbfaf7;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #162019;
+    --surface: #1e2a21;
+    --surface-2: #27362b;
+    --ink: #e5f1e6;
+    --sub: #a2b8a7;
+    --line: #33463a;
+    --accent: #7cc69a;
+    --accent-ink: #0e2415;
+    --accent-soft: #234030;
+    --amber: #f0aa77;
+    --amber-soft: #4a3325;
+    --calm: #ecc46b;
+    --calm-soft: #463a1f;
+    --holiday: #f0899a;
+    --holiday-soft: #4a2830;
+    --mat: #f4f2ed;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #162019;
+  --surface: #1e2a21;
+  --surface-2: #27362b;
+  --ink: #e5f1e6;
+  --sub: #a2b8a7;
+  --line: #33463a;
+  --accent: #7cc69a;
+  --accent-ink: #0e2415;
+  --accent-soft: #234030;
+  --amber: #f0aa77;
+  --amber-soft: #4a3325;
+  --calm: #ecc46b;
+  --calm-soft: #463a1f;
+  --holiday: #f0899a;
+  --holiday-soft: #4a2830;
+  --mat: #f4f2ed;
+  color-scheme: dark;
+}
+
+body {
+  background:
+    radial-gradient(circle at 15% 0%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 55%),
+    radial-gradient(circle at 100% 20%, color-mix(in srgb, var(--calm) 12%, transparent), transparent 45%),
+    var(--bg);
+  color: var(--ink);
+  font-family: "Zen Maru Gothic", "Noto Sans JP", system-ui, sans-serif;
+}
+
+h1,
+h2,
+h3 {
+  font-family: "Zen Maru Gothic", "Noto Sans JP", sans-serif;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition-duration: 0.001ms !important;
+    animation-duration: 0.001ms !important;
+  }
+}

@@ -10,11 +10,13 @@
     "dev:asa": "npm run dev --workspace apps/asa",
     "dev:yoru": "npm run dev --workspace apps/yoru",
     "dev:oya": "npm run dev --workspace apps/oya",
+    "dev:sakuhin": "npm run dev --workspace apps/sakuhin",
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "build:asa": "npm run build --workspace apps/asa",
     "build:yoru": "npm run build --workspace apps/yoru",
     "build:oya": "npm run build --workspace apps/oya",
+    "build:sakuhin": "npm run build --workspace apps/sakuhin",
     "typecheck:core": "npm run typecheck --workspace packages/core"
   }
 }

@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- さくひんノートのアプリアイコン。全面塗りの正方形(maskable/apple-touch もこのまま使える)。
+       中身は中心から半径約205(maskable の安全領域=直径の80%)に収めてある。
+       PNG は scripts/generate-icons.mjs で書き出す。 -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7cc69a"/>
+      <stop offset="1" stop-color="#3d8c5c"/>
+    </linearGradient>
+    <linearGradient id="wood" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e0b583"/>
+      <stop offset="0.5" stop-color="#b98447"/>
+      <stop offset="1" stop-color="#d7a771"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <!-- 額縁 -->
+  <rect x="136" y="132" width="240" height="248" rx="10" fill="url(#wood)"/>
+  <rect x="160" y="156" width="192" height="200" rx="4" fill="#fbfaf7"/>
+  <!-- 子どもの絵(太陽と草原) -->
+  <rect x="176" y="172" width="160" height="168" fill="#fdfbf4"/>
+  <circle cx="294" cy="214" r="24" fill="#f5b83b"/>
+  <g stroke="#f5b83b" stroke-width="7" stroke-linecap="round">
+    <line x1="294" y1="178" x2="294" y2="184"/>
+    <line x1="330" y1="214" x2="324" y2="214"/>
+    <line x1="319" y1="189" x2="315" y2="193"/>
+    <line x1="319" y1="239" x2="315" y2="235"/>
+  </g>
+  <path d="M176 298 C 214 278, 254 284, 290 292 C 310 296, 326 292, 336 288 L 336 340 L 176 340 Z" fill="#6dbb4e"/>
+  <circle cx="214" cy="262" r="15" fill="#e94e77"/>
+  <line x1="214" y1="277" x2="214" y2="300" stroke="#3e9a3a" stroke-width="6" stroke-linecap="round"/>
+</svg>
