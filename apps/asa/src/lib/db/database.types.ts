@@ -332,6 +332,79 @@ export type Database = {
           },
         ]
       }
+      morning_concerns: {
+        Row: {
+          child_id: string | null
+          created_at: string
+          id: string
+          resolved_at: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          child_id?: string | null
+          created_at?: string
+          id?: string
+          resolved_at?: string | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          child_id?: string | null
+          created_at?: string
+          id?: string
+          resolved_at?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "morning_concerns_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      morning_rules: {
+        Row: {
+          child_id: string | null
+          created_at: string
+          ended_on: string | null
+          id: string
+          started_on: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          child_id?: string | null
+          created_at?: string
+          ended_on?: string | null
+          id?: string
+          started_on: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          child_id?: string | null
+          created_at?: string
+          ended_on?: string | null
+          id?: string
+          started_on?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "morning_rules_child_id_fkey"
+            columns: ["child_id"]
+            isOneToOne: false
+            referencedRelation: "children"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       notification_settings: {
         Row: {
           enabled: boolean
