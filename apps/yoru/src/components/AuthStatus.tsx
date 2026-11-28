@@ -5,15 +5,11 @@ import Link from "next/link";
 import { useState } from "react";
 import { ConfirmDialog } from "@note/core/components/ConfirmDialog";
 import { useAuth } from "@/lib/auth/AuthProvider";
-import { clearLocalData } from "@/lib/db/localDb";
+import { clearThisDevice } from "@/lib/auth/clearThisDevice";
 import { removeThisDevicePushSubscription } from "@/lib/db/notificationSettings";
-import { clearReminderDismissal } from "@/lib/db/reminderDismissal";
-import { setSelectedChildId } from "@/lib/db/selectedChild";
-import { clearDraft } from "@/app/_home/draftStorage";
 import { usePendingSyncCount } from "@/lib/db/queries";
 import { countUnsyncedChanges } from "@/lib/db/records";
 import { syncPendingChanges } from "@/lib/db/sync";
-import { clearChildrenCache } from "@note/core/db/children";
 import { getSupabaseClient } from "@note/core/supabase/client";
 
 // ホーム画面のヘッダーに置く、ログイン状態の表示。
@@ -38,20 +34,8 @@ export function AuthStatus() {
       console.error(error);
       reportHandledError("auth/sign-out", error);
     } finally {
-      // 共有端末で前ユーザーのローカルデータが残り、次にログインした別ユーザーのアカウントへ
-      // 誤同期されるのを防ぐため、ログアウト時にローカルDBを全テーブルクリアする。
-      try {
-        await clearLocalData();
-      } catch (error) {
-        console.error(error);
-        reportHandledError("auth/clear-local-data", error);
-      }
-      // localStorage 側の入力途中の下書き(メモを含む)と選択中の子どもも消す。
-      // 共有端末で、前の人の内容が次の人の画面に出ないようにする。
-      clearDraft();
-      setSelectedChildId(null);
-      clearReminderDismissal();
-      clearChildrenCache();
+      // ログアウトしたら、この端末のデータを消す(退会と共通。clearThisDevice.ts)。
+      await clearThisDevice();
     }
   }
 

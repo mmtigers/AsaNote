@@ -4,6 +4,9 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Skeleton } from "@note/core/components/Skeleton";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { clearThisDevice } from "@/lib/auth/clearThisDevice";
+import { removeThisDevicePushSubscription } from "@/lib/db/notificationSettings";
+import { DeleteAccountSection } from "@note/core/components/DeleteAccountSection";
 import { APP_NAME } from "@/lib/appConfig";
 import { pullFromCloud } from "@/lib/db/sync";
 import { ChildrenSection } from "@note/core/components/group/ChildrenSection";
@@ -113,6 +116,15 @@ export default function GroupPage() {
       ) : (
         <GroupOnboardingSections admin={groupAdmin} />
       )}
+
+      {/* 退会(#290)。元に戻せないので、画面の最後に置く。 */}
+      <DeleteAccountSection
+        appName={APP_NAME}
+        otherAppName="あさノート"
+        exportHref="/export"
+        prepare={removeThisDevicePushSubscription}
+        clearLocal={clearThisDevice}
+      />
     </main>
   );
 }

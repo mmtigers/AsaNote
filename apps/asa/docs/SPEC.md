@@ -42,7 +42,7 @@ CIが強制しないもの（レビューで担保する。PRを出すときの�
 | 間接的な受け手 | 学校の先生・スクールカウンセラー等。エクスポート（印刷/PDF/CSV）を受け取る（`src/app/export/page.tsx` の説明文） |
 | 利用形態 | スマートフォンのホーム画面に追加したPWA（縦向き。`public/manifest.webmanifest`）。ブラウザでも使える |
 
-利用範囲（家族内の限定運用か、一般公開か）はコードから確証が取れない。**要確認 Q13**
+利用範囲は**一般公開**とする（オーナー判断、2026-11-13。#291）。公開に向けた運用の見直し（Vercel・Supabase のプラン、ログインのメールの送信、招待コードの総当たり対策、プライバシーポリシー・利用規約）は #291 で進める。プライバシーポリシー・利用規約の下書きは `docs/privacy-policy-draft.md`・`docs/terms-draft.md`（未公開）。
 
 ### 1.3 設計原則
 
@@ -543,7 +543,9 @@ stateDiagram-v2
 | Push購読 | `endpoint` と鍵を本人のみ読み書きできる形で保存 |
 | 外部への通信 | Supabase、Push配信（ブラウザベンダのPushサービス）、Google Fonts（`globals.css` の `@import`。**要確認 Q18**） |
 
-退会（アカウント・データの削除）の機能はコードに無い。ログの保持期間は決めた（`client_errors` は90日、`reminder_deliveries` は7日、`analytics_events` は365日。`cleanup_old_logs()`、§8.3、`docs/log-retention.md`）が、記録データ本体の保持期間は決まっていない。**要確認 Q13**
+**退会**（#290）: 「共有」画面の最後の「退会」から、アカウントと記録を**削除する**（オーナー判断、2026-11-13）。あさノート・よるノートは同じアカウントなので、両方の記録（よるノートの写真を含む）が消える。画面で消えるものを示し、「退会する」と入力してから実行する。退会前に書き出し（§9）を案内する。
+処理はサーバーの Edge Function `delete-account`（手動デプロイ。`docs/push-notifications-setup.md` の「退会」）が、ログイン中の本人だけを対象に、①よるノートの写真の実体（Storage）→ ②グループの所属（`group_members`。退会者が作った子どもは `transfer_children_on_group_leave` でパートナーへ引き継ぐ）→ ③アカウント（`auth.users`。記録・コメント・通知設定などは連鎖して削除、グループ・招待コードの作成者は null。#289）の順に消す。退会できたら、この端末のデータもログアウトと同じく消す（§6.6）。Supabase のバックアップに残る期間は、プライバシーポリシーに書く（#291）。
+ログの保持期間は決めた（`client_errors` は90日、`reminder_deliveries` は7日、`analytics_events` は365日。`cleanup_old_logs()`、§8.3、`docs/log-retention.md`）が、記録データ本体の保持期間は決まっていない。**要確認 Q13**
 
 ### 6.6 端末内データの扱い
 
@@ -943,7 +945,7 @@ npm run test:e2e:supabase  # 実Supabaseテストプロジェクト向けE2E（S
 | Q9（解決済み #125） | 前面に戻ったとき、前回の取り込みから5分以上空いていれば `pullFromCloud` を呼ぶようにした。定期取得と Realtime は使わない | §7.3 | `src/lib/db/sync.ts`, `packages/core/src/pullOnResume.ts`, `packages/core/src/cloudSync.ts` |
 | Q11（解決済み #208） | 招待コード（8文字×32種）にアプリ側の試行回数制限が無い。→ 家族内の限定運用のため許容する。利用者の増加・公開範囲の拡大（Q13）の際にロックまたはレート制限を入れる | §6.4 | `src/lib/db/groups.ts`, `schema.sql` |
 | Q12 | 対応ブラウザ・OSの公式な範囲（ホスティング先は Vercel、本番URLは `asa-note.vercel.app` と確認済み） | §8.1, §12 | `docs/push-notifications-setup.md`、PRのVercelプレビュー |
-| Q13 | 想定利用者の範囲（家族内の限定運用か一般公開か）、記録データ本体の保持期間（ログは決定済み: `client_errors` 90日・`reminder_deliveries` 7日・`analytics_events` 365日）、退会（アカウント・データ削除）の方針。退会機能はコードに無い | §1.2, §6.5 | README、コード全般 |
+| Q13 | （一部解消）利用範囲は一般公開（#291）、退会はデータを削除する（#290 で実装）。残り: 記録データ本体の保持期間（ログは決定済み: `client_errors` 90日・`reminder_deliveries` 7日・`analytics_events` 365日） | §1.2, §6.5 | README、コード全般 |
 | Q14（解決済み #127） | タイムラインのカードに子ども名が出ない／エクスポートが子どもで分かれない。→ タイムライン・傾向は #180 でカードに子ども名と「未分類」の絞り込みを追加。エクスポートは子どもの絞り込みと、CSVの末尾の「子ども」列、印刷/PDFの子ども名を追加した | §3.2, §3.4 | `src/app/timeline/page.tsx`, `src/app/export/page.tsx`, `src/app/export/selectEntries.ts` |
 | Q15 | 初回訪問直後にオフラインで起動できるか（プリキャッシュは `/` とアイコンのみで、JS等は遅延キャッシュ）。未検証 | §7.7 | `public/sw.js` |
 | Q16（解消済み #131） | ログアウトで、IndexedDBに加え、`localStorage` の下書き・選択中の子ども・リマインドを閉じた日付も消すようにした | §3.6, §5.3, §6.6 | `src/lib/db/localDb.ts`, `src/components/AuthStatus.tsx` |

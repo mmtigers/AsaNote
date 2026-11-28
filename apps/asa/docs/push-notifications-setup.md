@@ -206,3 +206,17 @@ ONにしている人へ通知する。VAPID鍵・シークレット(手順1〜4)
 
 `notify-comment`も`notify-partner`と同じく、`x-notify-secret`ヘッダが`PARTNER_NOTIFY_SECRET`と一致する呼び出しだけを
 受け付ける(それ以外は`401`、未設定なら`500`)。コメントの編集・削除では通知しない(INSERTだけ)。
+
+## 退会(アカウントとデータの削除)の関数(#290)
+
+「共有」→「退会」から呼ぶ `delete-account` は、ほかの関数と同じく**手動でデプロイする**(リポジトリのルートで実行。あさノート・よるノートの両方の画面から使う)。追加の secrets は要らない(`SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY` は Supabase が自動で入れる)。
+
+```bash
+npx supabase functions deploy delete-account --remote=<PROJECT_REF>
+```
+
+- 呼び出した人の JWT(Authorization: Bearer)で本人を確かめ、本人のアカウントだけを消す。body の `confirm` が「退会する」でなければ何もしない(`400`)。
+- 消す順: よるノートの写真の実体(Storage `evening-photos`)→ グループの所属(`group_members`。退会者が作った子どもをパートナーへ引き継ぐ)→ アカウント(`auth.users`。記録などは連鎖して消える)。途中で失敗したら、その先は行わずに `500` を返す(もう一度押せば続きから消せる)。
+- デプロイ前に画面から退会しようとすると、関数が無いため失敗する(何も消えない)。**アプリのデプロイ(main へのマージ)と同じ日に、関数もデプロイする。**
+- ログに個人の情報は出さない(どの段階で失敗したかだけ)。うまくいかないときは、Edge Functions の Logs を見る。
+
