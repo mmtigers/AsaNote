@@ -1,0 +1,94 @@
+name: Deploy DB schema (sakuhinnote)
+
+# さくひんノートの apps/sakuhin/supabase/schema.sql を、本番の Supabase へ適用する。
+# **共有モード**: あさノート・よるノートと同じ Supabase プロジェクト(同じ Secret SUPABASE_DB_URL)へ流す
+# (apps/sakuhin/docs/SPEC.md §9・§11 D7)。schema.sql は sakuhin_* の表・関数・写真のバケットだけに触れる決まりで、
+# 適用前に scripts/check-schema-safety.mjs でそれを検査する(例外は children の削除を止めるトリガー1つ)。
+# 共通表(children の誕生日の列・更新の権限など)の変更は、ルートの supabase/schema.sql(db-deploy.yml)で流す。
+#
+# **自分自身のパスは paths に含めない**: このワークフローを追加・更新するだけで、本番DBへの適用が
+# 走らないようにするため(適用したい時は schema.sql を変更するか、手動実行する。db-deploy-yoru.yml と同じ)。
+#
+# 有効にするまでは何もしない: さくひんノートを公開する準備ができるまで、本番DBに表を作らない。
+# リポジトリ変数 SAKUHIN_DB_DEPLOY_ENABLED = true を足すまでは、理由を ::warning:: と job summary に出して終える
+# (db-deploy-oya.yml と同じ「実行していないことが見える」方式)。
+#
+# 前提: 共通表の children(と birth_date の列)が先に本番にあること。ルートの supabase/schema.sql の変更と
+# 同じ PR でマージした場合も、concurrency で db-deploy.yml と直列化されるので、有効にした後の手動実行で流せば足りる。
+#
+# schema.sql は何度流しても同じ結果になる書き方(drop table を含まない)なので、毎回まるごと流す。
+# 列の削除・改名はこの仕組みでは届かないので、SQL Editor から手動で行う。
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/sakuhin/supabase/schema.sql"
+  # 有効にした直後の初回の適用や、反映漏れに気づいたときに、手動で流せるようにしておく。
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# 本番DBへの適用を直列化する。あさノート・よるノートと同じ本番DB(SUPABASE_DB_URL)へ流すので、
+# db-deploy.yml・db-deploy-yoru.yml と同じ group にする(#203。片方だけ変えないこと)。途中で打ち切らない。
+concurrency:
+  group: db-deploy-production
+  cancel-in-progress: false
+
+jobs:
+  apply-schema:
+    name: Apply schema.sql to production (sakuhinnote)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check deploy is enabled
+        id: gate
+        env:
+          ENABLED: ${{ vars.SAKUHIN_DB_DEPLOY_ENABLED }}
+        run: |
+          if [ "$ENABLED" != "true" ]; then
+            msg="さくひんノートの本番DBへの適用は未稼働です(リポジトリ変数 SAKUHIN_DB_DEPLOY_ENABLED が true ではない)。公開の準備ができたら有効にして、このワークフローを手動で実行してください(apps/sakuhin/docs/SPEC.md §13)。"
+            echo "::warning::$msg"
+            echo "### ⚠️ 未実行: $msg" >> "$GITHUB_STEP_SUMMARY"
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: steps.gate.outputs.enabled == 'true'
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: steps.gate.outputs.enabled == 'true'
+        with:
+          node-version-file: .nvmrc
+
+      # 共通表・ほかのアプリの表に触れる変更を、本番へ流す前に必ず止める。
+      - name: Check schema.sql only touches sakuhin_* objects
+        if: steps.gate.outputs.enabled == 'true'
+        run: node apps/sakuhin/scripts/check-schema-safety.mjs apps/sakuhin/supabase/schema.sql
+
+      # 有効にしたのに未設定のまま「成功した」ように見えるのが一番危ないので、先に落とす。
+      - name: Check secret is configured
+        if: steps.gate.outputs.enabled == 'true'
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "::error::SUPABASE_DB_URL が未設定です。リポジトリの Settings > Secrets and variables > Actions に、SupabaseのSession poolerの接続文字列(パスワード込み)を登録してください。"
+            exit 1
+          fi
+
+      # SUPABASE_DB_URL は Supabase の「Connect」→ Session pooler の接続文字列(GitHub Actions のランナーは
+      # IPv4 のみで、direct connection は IPv6 のため接続できない。db-deploy-yoru.yml と同じ)。
+      # ON_ERROR_STOP: 途中で失敗したら後続を流さない。single-transaction: 失敗時は何も適用しない。
+      - name: Apply schema.sql
+        if: steps.gate.outputs.enabled == 'true'
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          psql "$SUPABASE_DB_URL" \
+            --set ON_ERROR_STOP=1 \
+            --single-transaction \
+            --file apps/sakuhin/supabase/schema.sql

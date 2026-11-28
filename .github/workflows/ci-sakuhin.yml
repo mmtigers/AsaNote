@@ -1,8 +1,8 @@
 name: CI (sakuhinnote)
 
 # さくひんノート(apps/sakuhin)の CI。共通のジョブ(依存の検査・lint・型・単体テスト・ビルド、更新履歴の検査)は
-# _app-ci.yml にあり、ここにはさくひんノート固有のもの(E2E)だけを置く。
-# DB(docs/SPEC.md §13 タスク4)を足すときに、型ずれの検査と権限のテストを追加する。
+# _app-ci.yml にあり、ここにはさくひんノート固有のもの(E2E・DB の権限のテスト・型ずれの検査)だけを置く。
+# schema.sql が sakuhin_* 以外に触れていないかの検査(scripts/check-schema-safety.mjs)は、単体テストに含まれる。
 
 on:
   # main への push では走らせない(マージ前の PR の CI で済ませる。#225)。
@@ -84,3 +84,46 @@ jobs:
             apps/sakuhin/playwright-report/
             apps/sakuhin/test-results/
           retention-days: 7
+
+  # DB の権限(RLS・列の権限・Storage・トリガー)のテスト。素の Postgres へスタブ → 共通表の正(ルートの supabase/schema.sql)→
+  # schema.sql(2回)を適用し、家族・ひとり・別の家族・未ログインごとに、読める行・書ける行を確かめる
+  # (apps/sakuhin/supabase/tests/rls.test.sql)。
+  db-test:
+    # ドラフトの PR では走らせない(Issue #225。ready にした時と、その後の push で走る)。
+    if: ${{ !github.event.pull_request.draft }}
+    name: DB permission tests (RLS)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: apps/sakuhin
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: RLS tests
+        env:
+          DB_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: bash scripts/test-db.sh
+
+  db-types-check:
+    # ドラフトの PR では走らせない(Issue #225。ready にした時と、その後の push で走る)。
+    if: ${{ !github.event.pull_request.draft }}
+    uses: ./.github/workflows/_db-types-check.yml
+    with:
+      # 素のPostgresへ、auth・storage のスタブ → 共通表の正 → schema.sql(2回)の順に適用する(scripts/gen-db-types.sh と同じ順)。
+      sql-files: apps/sakuhin/supabase/ci/supabase-stub.sql supabase/schema.sql apps/sakuhin/supabase/schema.sql apps/sakuhin/supabase/schema.sql
+      types-file: apps/sakuhin/src/lib/db/database.types.ts
+      app: apps/sakuhin
+      schema-file: apps/sakuhin/supabase/schema.sql

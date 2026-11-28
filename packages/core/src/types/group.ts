@@ -35,4 +35,6 @@ export interface Child {
   created_by: string;
   name: string;
   created_at: string;
+  /** 誕生日(YYYY-MM-DD。任意)。さくひんノートが年齢・学年に使う。あさノート・よるノートの画面では使わない。 */
+  birth_date?: string | null;
 }

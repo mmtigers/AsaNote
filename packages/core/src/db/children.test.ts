@@ -1,7 +1,16 @@
 import { renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Child } from "../types/group";
-import { createChild, deleteChild, getChildren, resolveEffectiveChildId, updateChild, useChildren, clearChildrenCache } from "./children";
+import {
+  CHILD_HAS_SAKUHIN_WORKS_MESSAGE,
+  createChild,
+  deleteChild,
+  getChildren,
+  resolveEffectiveChildId,
+  updateChild,
+  useChildren,
+  clearChildrenCache,
+} from "./children";
 
 const { useAuthMock, reportHandledErrorMock } = vi.hoisted(() => ({ useAuthMock: vi.fn(), reportHandledErrorMock: vi.fn() }));
 vi.mock("../clientErrors", () => ({ reportHandledError: reportHandledErrorMock }));
@@ -170,6 +179,11 @@ describe("deleteChild", () => {
   it("Supabase のエラーはそのまま投げる", async () => {
     fromMock.mockReturnValue(makeQueryBuilder({ data: null, error: new Error("rls denied") }));
     await expect(deleteChild("c1")).rejects.toThrow("rls denied");
+  });
+
+  it("さくひんノートに作品があって DB が止めたときは、日本語の案内にして投げる", async () => {
+    fromMock.mockReturnValue(makeQueryBuilder({ data: null, error: { message: "sakuhin_child_has_works", code: "P0001" } }));
+    await expect(deleteChild("c1")).rejects.toThrow(CHILD_HAS_SAKUHIN_WORKS_MESSAGE);
   });
 });
 

@@ -43,7 +43,7 @@ describe(".github/workflows のアクション参照", () => {
   it("ワークフローを検出できている(あさノート・よるノート・共通・core・DB反映)", () => {
     const names = workflows().map(([name]) => name);
     expect(names).toEqual(
-      expect.arrayContaining(["ci.yml", "ci-yoru.yml", "ci-oya.yml", "ci-sakuhin.yml", "ci-core.yml", "_app-ci.yml", "db-deploy.yml", "db-deploy-yoru.yml"]),
+      expect.arrayContaining(["ci.yml", "ci-yoru.yml", "ci-oya.yml", "ci-sakuhin.yml", "ci-core.yml", "_app-ci.yml", "db-deploy.yml", "db-deploy-yoru.yml", "db-deploy-sakuhin.yml"]),
     );
   });
 
@@ -86,7 +86,7 @@ describe("DBスキーマを適用するワークフローの psql(#196)", () => 
   // ローカルで型を再生成するスクリプトも同じ(#227)。途中までしか適用されていない DB から型を作ってしまう。
   it("ローカルの型の再生成スクリプト(apps/*/scripts/gen-db-types.sh)の psql -f も、ON_ERROR_STOP=1 を付けている", () => {
     const ROOT = fileURLToPath(new URL("../../../../", import.meta.url));
-    for (const app of ["asa", "yoru", "oya"]) {
+    for (const app of ["asa", "yoru", "oya", "sakuhin"]) {
       const sh = readFileSync(`${ROOT}apps/${app}/scripts/gen-db-types.sh`, "utf8");
       const commands = sh.split("\n").filter((line) => !line.trim().startsWith("#") && /\bpsql\b[^\n]*\s-f\s/.test(line));
       expect(commands.length, app).toBeGreaterThan(0);
@@ -168,13 +168,14 @@ describe("本番DBへの反映ワークフローの concurrency(#203)", () => {
   const group = (name: string) =>
     readFileSync(`${WORKFLOWS_DIR}${name}`, "utf8").match(/concurrency:\s*\n\s*group:\s*(\S+)/)?.[1];
 
-  it("db-deploy.yml と db-deploy-yoru.yml は同じ concurrency group で直列化されている", () => {
+  it("db-deploy.yml・db-deploy-yoru.yml・db-deploy-sakuhin.yml は同じ concurrency group で直列化されている", () => {
     expect(group("db-deploy.yml")).toBeTruthy();
     expect(group("db-deploy-yoru.yml")).toBe(group("db-deploy.yml"));
+    expect(group("db-deploy-sakuhin.yml")).toBe(group("db-deploy.yml"));
   });
 
   it("どちらも途中で打ち切らない(cancel-in-progress: false)", () => {
-    for (const name of ["db-deploy.yml", "db-deploy-yoru.yml"]) {
+    for (const name of ["db-deploy.yml", "db-deploy-yoru.yml", "db-deploy-sakuhin.yml"]) {
       expect(readFileSync(`${WORKFLOWS_DIR}${name}`, "utf8")).toMatch(/cancel-in-progress:\s*false/);
     }
   });
@@ -239,8 +240,8 @@ describe("バージョンの散在を防ぐ(#206)", () => {
     expect(users[0]?.[1]).toMatch(/version:\s*\d+\.\d+\.\d+/);
   });
 
-  it("あさノート・よるノート・おやノートの CI は、型ずれの検査を再利用ワークフローから呼ぶ", () => {
-    for (const name of ["ci.yml", "ci-yoru.yml", "ci-oya.yml"]) {
+  it("あさノート・よるノート・おやノート・さくひんノートの CI は、型ずれの検査を再利用ワークフローから呼ぶ", () => {
+    for (const name of ["ci.yml", "ci-yoru.yml", "ci-oya.yml", "ci-sakuhin.yml"]) {
       const yaml = readFileSync(`${WORKFLOWS_DIR}${name}`, "utf8");
       expect(yaml, name).toContain("uses: ./.github/workflows/_db-types-check.yml");
       expect(yaml, name).not.toContain("supabase gen types");
