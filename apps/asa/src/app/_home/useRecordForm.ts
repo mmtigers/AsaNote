@@ -24,13 +24,16 @@ interface Options {
   cameFromEditLink: RefObject<boolean>;
   restoreStep: (target: Step) => void;
   goHome: () => void;
+  // フォームを開いてから今までの放置の秒数(useIdleMeter)。record_savedのidle_secondsに付け、
+  // 所要時間から放置を差し引けるようにする。渡さなければ付けない。
+  getIdleSeconds?: () => number;
 }
 
 // 選択中の日付の記録フォーム(状態の読み込み・編集・保存)を管理する。
 // 保存前の下書き(localStorage)があればそれを優先し、無ければDexieの既存記録
 // (無ければ空フォーム)を読み込む。タイムラインの「編集する」から来た場合は、
 // 記録フォームを開いた状態にする。
-export function useRecordForm({ date, today, userId, childId, cameFromEditLink, restoreStep, goHome }: Options) {
+export function useRecordForm({ date, today, userId, childId, cameFromEditLink, restoreStep, goHome, getIdleSeconds }: Options) {
   const [form, setForm] = useState(emptyForm);
   const [loaded, setLoaded] = useState(false);
   const [customReasonTags, setCustomReasonTags] = useState<string[]>([]);
@@ -184,6 +187,7 @@ export function useRecordForm({ date, today, userId, childId, cameFromEditLink, 
       has_memo: !!memo,
       depart_time_set: !!form.departTime,
     };
+    if (getIdleSeconds) properties.idle_seconds = getIdleSeconds();
     if (existingOutcomeAtLoadRef.current !== undefined) {
       properties.is_edit = existingOutcomeAtLoadRef.current !== null;
     }

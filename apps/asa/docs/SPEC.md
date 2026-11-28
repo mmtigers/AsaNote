@@ -824,10 +824,11 @@ npm run test:e2e:supabase  # 実Supabaseテストプロジェクト向けE2E（S
 | `record_flow_started` | ホームの開始ボタン、要約カードの編集ボタン、アプリ内リマインドの「記録する」、タイムライン等の編集リンクで既存記録を開いたとき | `entry_point`（`home_start_button` / `home_edit_existing` / `in_app_reminder` / `timeline_edit_link`）、`is_edit`、`date_offset_days`（今日=0、過去日は負） |
 | `record_step_viewed` | ホームからフォームへ**ユーザー操作で**進んだとき（下書き復元・編集リンクでは発火しない） | `step`（現行は `form` のみ）、`direction` |
 | `record_outcome_selected` | 結果を選んだとき | `outcome`、`changed_from_existing` |
-| `record_saved` | 保存したとき | `reason_tag_count`、`has_memo`、`depart_time_set`、`is_edit`（下書き復元経由のセッションでは不明のため省略） |
+| `record_saved` | 保存したとき | `reason_tag_count`、`has_memo`、`depart_time_set`、`is_edit`（下書き復元経由のセッションでは不明のため省略）、`idle_seconds`（フォームを開いてから保存までの**放置の秒数**。下の注） |
 | `record_flow_paused` | 保存せずにホームへ戻ったとき（戻る・下部ナビ） | `last_step`、`reason`（`bottom_nav_reset` / `back_navigation`） |
 | `record_flow_resumed` | 下書きから復元したとき | `resumed_step` |
 
+- `idle_seconds`（放置の秒数）: 記録フォームを開いている間、操作（タップ・キー入力・スクロール）の間隔が**60秒を超えたら、超えた分**を放置として足し、保存時に送る（最後の操作から保存までも同じ。`src/lib/idleMeter.ts`、`src/app/_home/useIdleMeter.ts`）。所要時間（`analytics_flow_duration_daily` の秒数）は、フォームを開いたまま放置すると数十分〜数日になるため、**放置を差し引いた所要時間**は `docs/analytics-queries.md` の A2 で出す（ビューは変えていない）。この項目が付くのは、この機能を入れた版以降の保存だけ。それ以前の行には無い（A2 の対象外）。端末を閉じて下書きから再開したセッション（`record_flow_resumed`）は、再開した時点から測り直すので、閉じていた間は含まない。
 - `entry_point: in_app_reminder` は**アプリ内リマインド**（§4.1）の「記録する」経由を指す（Push通知のタップは計測していない）。旧名 `push_reminder` で送信済みのイベントは、ビュー `analytics_record_flow_sessions` が `in_app_reminder` に読み替える（元データは書き換えない）。
 - `record_flow_paused` と `record_flow_resumed` は対にならない。戻る・リセットで離脱すると下書きも消えるため、その入力が再開されることはない。`record_flow_resumed` が対応するのは、タブ/アプリを閉じて（ホームを経由せず）離れ、下書きが残ったまま再訪したケースのみで、そちらは `paused` 側では検知しない（`beforeunload` 等は未実装）。
 

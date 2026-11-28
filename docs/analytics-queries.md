@@ -16,6 +16,28 @@ select * from analytics_flow_duration_daily
 order by day desc, entry_point
 limit 100;
 
+-- A2. 放置を除いた所要時間(中央値・p90)。record_saved の idle_seconds(放置の秒数)を差し引く。
+--     idle_seconds が付いた版より前の行は対象外。新規記録・中断なしで完走したセッションのみ
+with s as (
+  select * from analytics_record_flow_sessions
+  where saved and not paused and not is_resume and is_edit is not true
+), idle as (
+  select record_id, max((properties->>'idle_seconds')::numeric) as idle_seconds
+  from analytics_events
+  where event_name = 'record_saved' and properties->>'idle_seconds' is not null
+  group by record_id
+)
+select
+  (s.started_at at time zone 'Asia/Tokyo')::date as day,
+  s.entry_point,
+  count(*) as saved_count,
+  round(percentile_cont(0.5) within group (order by greatest(s.duration_seconds - idle.idle_seconds, 0))) as median_active_seconds,
+  round(percentile_cont(0.9) within group (order by greatest(s.duration_seconds - idle.idle_seconds, 0))) as p90_active_seconds,
+  round(avg(idle.idle_seconds)) as avg_idle_seconds
+from s join idle using (record_id)
+group by day, s.entry_point
+order by day desc, s.entry_point;
+
 -- B. 各ステップの到達数(離脱率用)。現行のフローは1画面なので、有効なのは reached_form
 select * from analytics_step_funnel_daily
 order by day desc
@@ -75,16 +97,16 @@ order by day desc;
 
 ### 結果の読み方の注意(2026-11-28 の分析で分かったこと)
 
-- **SQL Editor は、複数の文をまとめて実行すると最後の文の結果しか表示しない。** A〜E は1つずつ選択して実行する(まとめて取るなら、`select 'A' as q, to_jsonb(t) as row from (...) t union all ...` の形にする)。
+- **SQL Editor は、複数の文をまとめて実行すると最後の文の結果しか表示しない。** A〜E(A2 を含む)は1つずつ選択して実行する(まとめて取るなら、`select 'A' as q, to_jsonb(t) as row from (...) t union all ...` の形にする)。
 - **C はビューを使わない。** `analytics_pause_resume_daily` は、2026-11-28 の本番で、B(`analytics_step_funnel_daily`)や `analytics_events` の直接集計より離脱を少なく数えていた(10/6 以降で、直接は12回、ビューは7行)。原因は未調査。
 - **離脱の大半は、数秒で戻る動き。** 2026-11-28 時点で、10/6 以降の離脱12回は、フォームを開いてから離脱まで1〜14秒だった(E)。入力してから諦めた離脱は見当たらない。「開始に対する保存の割合」は、離脱をそのまま諦めとして読まない。
-- **A の所要時間は、放置した時間を含む。** 無操作の検知が無いため、フォームを開いたまま放置すると、数十分〜数日の行になる(10/28 の約5日など)。平均は使わず、中央値と分布で見る。1日に2件ある日の行は、平均で1行になっている。
+- **A の所要時間は、放置した時間を含む。** フォームを開いたまま放置すると、数十分〜数日の行になる(10/28 の約5日など)。平均は使わず、中央値と分布で見る。1日に2件ある日の行は、平均で1行になっている。**放置を差し引いた値は A2**(`idle_seconds` が付いた版以降の保存だけが対象。それ以前の行は、A のまま放置を含む)。放置は、操作の間隔が60秒を超えた分を数える。
 - **`record_step_viewed` は、1回の開始で複数回出ることがある。** B の `reached_form` が `flow_started` より多い日がある。ファネルの分母は `flow_started` を使う。
 - **2026-10-05 を境に、記録フローは複数画面から1画面に変わった。** それ以前は `reached_form` が0で、`reached_result` / `reached_reason` が動く。期間をまたぐ比較は、そのつもりで見る(旧フローの期間は開発中のテストも混ざる)。
 
 ## 2. 分析プロンプト
 
-上の A〜E の結果を「# データ」に貼って、Claude に渡す。
+上の A〜E(A2 を含む)の結果を「# データ」に貼って、Claude に渡す。
 
 ````
 あなたはプロダクトのUX分析担当です。育児記録アプリ「あさノート」の
