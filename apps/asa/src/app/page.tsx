@@ -15,6 +15,7 @@ import { HomeStepView } from "./_home/HomeStepView";
 import { RecordFormView } from "./_home/RecordFormView";
 import { useStepNavigation } from "./_home/useStepNavigation";
 import { useRecordForm } from "./_home/useRecordForm";
+import { useIdleMeter } from "./_home/useIdleMeter";
 import { useDraftPersistence } from "./_home/useDraftPersistence";
 import type { Step } from "./_home/types";
 import { addDays, clampToToday, diffInDays, isFutureDate, formatDateLabel, toDateInputValue, toMonthOf } from "@note/core/date";
@@ -82,6 +83,9 @@ export default function HomePage() {
   const monthKey = `${displayMonth.year}-${String(displayMonth.month).padStart(2, "0")}`;
   const statusByDate = useRecordStatusForMonth(monthKey, effectiveChildId);
 
+  // 記録フォームを開いている間の放置の時間を測り、保存時に record_saved へ付ける(所要時間から差し引く用)。
+  const getIdleSeconds = useIdleMeter(step === "form");
+
   const {
     form,
     setForm,
@@ -103,6 +107,7 @@ export default function HomePage() {
     cameFromEditLink,
     restoreStep,
     goHome,
+    getIdleSeconds,
   });
 
   useDraftPersistence({ loaded, date, step, form });

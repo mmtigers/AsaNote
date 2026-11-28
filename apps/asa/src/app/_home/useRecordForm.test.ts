@@ -52,7 +52,14 @@ function makeExisting(overrides: Partial<LocalRecord> = {}): LocalRecord {
 }
 
 function renderUseRecordForm(
-  overrides: Partial<{ date: string; today: string; userId: string | null; childId: string | null; cameFromEditLink: boolean }> = {}
+  overrides: Partial<{
+    date: string;
+    today: string;
+    userId: string | null;
+    childId: string | null;
+    cameFromEditLink: boolean;
+    getIdleSeconds: () => number;
+  }> = {}
 ) {
   const restoreStep = vi.fn();
   const goHome = vi.fn();
@@ -67,6 +74,7 @@ function renderUseRecordForm(
       cameFromEditLink,
       restoreStep,
       goHome,
+      getIdleSeconds: overrides.getIdleSeconds,
     })
   );
 
@@ -295,5 +303,24 @@ describe("useRecordForm", () => {
     // 日付Aの既存記録(outcome入り)由来のis_edit=trueが、日付Bの保存にまで
     // 引き継がれてはいけない(日付Bでは不明なのでis_editキー自体が無いのが正しい)。
     expect(savedCall![1]).not.toHaveProperty("is_edit");
+  });
+
+  it("getIdleSecondsを渡すと、record_savedにidle_secondsを付ける(渡さなければ付けない)", async () => {
+    const withIdle = renderUseRecordForm({ getIdleSeconds: () => 240 });
+    await waitFor(() => expect(withIdle.result.current.loaded).toBe(true));
+    await act(async () => {
+      await withIdle.result.current.handleSave();
+    });
+    const saved = trackMock.mock.calls.find(([eventName]) => eventName === "record_saved");
+    expect(saved![1]).toMatchObject({ idle_seconds: 240 });
+
+    trackMock.mockClear();
+    const withoutIdle = renderUseRecordForm();
+    await waitFor(() => expect(withoutIdle.result.current.loaded).toBe(true));
+    await act(async () => {
+      await withoutIdle.result.current.handleSave();
+    });
+    const saved2 = trackMock.mock.calls.find(([eventName]) => eventName === "record_saved");
+    expect(saved2![1]).not.toHaveProperty("idle_seconds");
   });
 });
