@@ -11,7 +11,16 @@ import { getSupabaseClient } from "../supabase/client";
  * ログイン画面(メールにマジックリンクを送る)。あさノート・よるノート共通。
  * 再送クールダウンの保存先はアプリごとのキーなので、`createOtpCooldown(APP_ID)` のインスタンスを受け取る。
  */
-export function LoginView({ cooldown: otpCooldown }: { cooldown: OtpCooldown }) {
+const DEFAULT_NOTE = "ログインしなくてもこの端末での記録・閲覧は可能です。ログインすると家族と記録が同期されます。";
+
+export function LoginView({
+  cooldown: otpCooldown,
+  note = DEFAULT_NOTE,
+}: {
+  cooldown: OtpCooldown;
+  /** 画面の最後の補足。ログインが必須のアプリ(さくひんノート)は、アプリに合った文言を渡す。 */
+  note?: string;
+}) {
   const { getRemainingCooldown, rememberSentAt } = otpCooldown;
   const { session, loading } = useAuth();
   const router = useRouter();
@@ -122,9 +131,7 @@ export function LoginView({ cooldown: otpCooldown }: { cooldown: OtpCooldown }) 
         </form>
       )}
 
-      <p className="text-xs text-[var(--sub)]">
-        ログインしなくてもこの端末での記録・閲覧は可能です。ログインすると家族と記録が同期されます。
-      </p>
+      <p className="text-xs text-[var(--sub)]">{note}</p>
     </main>
   );
 }

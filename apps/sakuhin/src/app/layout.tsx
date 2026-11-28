@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { ServiceWorkerRegister } from "@note/core/components/ServiceWorkerRegister";
+import { AppBottomNav } from "@/components/AppBottomNav";
+import { AuthProvider } from "@/lib/auth/AuthProvider";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -28,14 +30,16 @@ export const viewport: Viewport = {
   themeColor: "#f2f7f0",
 };
 
-// 土台の段階では、ログイン・DB にはまだ接続しない(docs/SPEC.md §13 タスク3)。
-// 下のタブ(core の BottomNav)は、各画面を作るときに足す。
+// ログインはあさノート・よるノートと同じ Supabase(@note/core/auth)。下のタブは core の BottomNav(SPEC §6.3)。
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="ja" className="h-full antialiased">
       <body className="min-h-full flex flex-col bg-[var(--bg)] text-[var(--ink)]">
         <ServiceWorkerRegister />
-        <div className="flex-1">{children}</div>
+        <AuthProvider>
+          <div className="flex-1 pb-20">{children}</div>
+          <AppBottomNav />
+        </AuthProvider>
       </body>
     </html>
   );

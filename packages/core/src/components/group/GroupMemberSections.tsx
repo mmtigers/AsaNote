@@ -7,9 +7,12 @@ import { ConfirmDialog } from "../ConfirmDialog";
 export function GroupMemberSections({
   admin,
   currentUserId,
+  leaveMessage = "グループを抜けますか？実行後は相手の記録がすぐに見えなくなります。この操作は取り消せません。",
 }: {
   admin: GroupAdmin;
   currentUserId: string;
+  /** 「グループを抜ける」の確認の文言。アプリに合った文言を渡せる(既定はあさノート・よるノートの文言)。 */
+  leaveMessage?: string;
 }) {
   return (
     <>
@@ -82,7 +85,7 @@ export function GroupMemberSections({
 
       <ConfirmDialog
         open={admin.confirmingLeave}
-        message="グループを抜けますか？実行後は相手の記録がすぐに見えなくなります。この操作は取り消せません。"
+        message={leaveMessage}
         confirmLabel="抜ける"
         onConfirm={() => void admin.confirmLeave()}
         onCancel={admin.cancelLeave}

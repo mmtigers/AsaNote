@@ -3,7 +3,7 @@
 子どもが幼稚園・保育園・小学校で作って持ち帰った絵や工作を、写真に撮って「収蔵」し、
 額縁に入れて見返せる、家族向けのスマホアプリ(PWA)。
 
-> 状態: 土台と DB(要件 §13 のタスク3・4)。画面(ログイン・作品の収蔵)はまだ無い。DB は本番へ未適用(`SAKUHIN_DB_DEPLOY_ENABLED`)。
+> 状態: 土台・DB・ログインと子どもの登録(要件 §13 のタスク3〜5)。作品の収蔵の画面はまだ無い。DB は本番へ未適用(`SAKUHIN_DB_DEPLOY_ENABLED`)。
 
 - 要件: [docs/SPEC.md](docs/SPEC.md)
 - 見た目のモック: [docs/mock.html](docs/mock.html)(ブラウザで開くと操作できる)
@@ -29,3 +29,9 @@ npm run check:schema   # schema.sql が sakuhin_* 以外に触れていないか
 
 `src/data/releases.ts` に新しい順で書く。ユーザーに見える変更を入れるときは追加して、`package.json` /
 `package-lock.json` の version も同じ値に上げる(CI の Release notes check が検査する。ほかのアプリと同じ)。
+
+## ログイン
+
+あさノート・よるノートと同じ Supabase のログイン(メールのリンク。`@note/core` の `LoginView`)。
+リンクの戻り先にさくひんノートの URL を使うので、公開するときは Supabase の Authentication → URL Configuration の
+**Redirect URLs に、さくひんノートの本番 URL(`https://<本番のドメイン>/**`)を足す**(無いと Site URL=あさノートへ戻る。`docs/MONOREPO.md`)。

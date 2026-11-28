@@ -3,14 +3,19 @@
 import type { GroupAdmin } from "../../group/useGroupAdmin";
 
 // まだグループに属していないときの2択(作る / 招待コードで参加する)(#62)。
-export function GroupOnboardingSections({ admin }: { admin: GroupAdmin }) {
+export function GroupOnboardingSections({
+  admin,
+  createDescription = "作成すると、あなたの記録が今後グループメンバーと自動的に共有されます。",
+}: {
+  admin: GroupAdmin;
+  /** 「グループを作る」の説明。アプリに合った文言を渡せる(既定はあさノート・よるノートの文言)。 */
+  createDescription?: string;
+}) {
   return (
     <>
       <section className="flex flex-col gap-3 rounded-2xl bg-[var(--surface-2)] p-4">
         <h2 className="text-sm font-semibold text-[var(--sub)]">グループを作る</h2>
-        <p className="text-xs text-[var(--sub)]">
-          作成すると、あなたの記録が今後グループメンバーと自動的に共有されます。
-        </p>
+        <p className="text-xs text-[var(--sub)]">{createDescription}</p>
         <button
           type="button"
           onClick={() => void admin.create()}

@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
-// 土台の段階(Supabase に未接続)の本番ビルドで、画面・セキュリティヘッダ・PWA の配信を確かめる。
+// Supabase に接続しない本番ビルド(placeholder の URL)で、画面・セキュリティヘッダ・PWA の配信と、
+// 未ログインのときの画面を確かめる(ログイン後の操作は、実際の Supabase が要るので単体テストで確かめる)。
 // ビルド時の NEXT_PUBLIC_SUPABASE_URL(CI では placeholder)が接続先として許可される。
 const SUPABASE_ORIGIN = "https://placeholder.supabase.co";
 
@@ -54,4 +55,27 @@ test("ホーム画面に追加するための manifest とアイコンを配信�
   }
   expect((await request.get("/apple-touch-icon.png")).status()).toBe(200);
   expect((await request.get("/sw.js")).status()).toBe(200);
+});
+
+test("未ログインでは、ホームと共有からログイン画面へ進め、下のタブで画面を移れる", async ({ page }) => {
+  const violations = await collectViolations(page);
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+
+  await page.goto("/");
+  await page.getByRole("link", { name: "ログインする" }).click();
+  await expect(page.getByLabel("メールアドレス")).toBeVisible();
+
+  const nav = page.getByRole("navigation", { name: "メインメニュー" });
+  await nav.getByRole("link", { name: /共有/ }).click();
+  await expect(page.getByText("お子さまの登録と、家族との共有には、ログインが必要です。")).toBeVisible();
+
+  await nav.getByRole("link", { name: /収蔵する/ }).click();
+  await expect(page.getByText(/作品の写真を撮って収蔵する機能は、これから追加します/)).toBeVisible();
+
+  await nav.getByRole("link", { name: /常設展/ }).click();
+  await expect(page.getByText(/お気に入りの作品を集めた部屋は/)).toBeVisible();
+
+  expect(await violations()).toEqual([]);
+  expect(pageErrors).toEqual([]);
 });
