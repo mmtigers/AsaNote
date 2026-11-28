@@ -41,18 +41,21 @@ export type Database = {
       }
       children: {
         Row: {
+          birth_date: string | null
           created_at: string
           created_by: string
           id: string
           name: string
         }
         Insert: {
+          birth_date?: string | null
           created_at?: string
           created_by: string
           id?: string
           name: string
         }
         Update: {
+          birth_date?: string | null
           created_at?: string
           created_by?: string
           id?: string

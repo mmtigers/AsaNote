@@ -19,3 +19,8 @@ oya-typegen | apps/oya | npx next typegen
 oya-typecheck | apps/oya | npx tsc --noEmit
 oya-test | apps/oya | npm run test:coverage
 oya-build | apps/oya | npm run build
+sakuhin-lint | apps/sakuhin | npm run lint
+sakuhin-typegen | apps/sakuhin | npx next typegen
+sakuhin-typecheck | apps/sakuhin | npx tsc --noEmit
+sakuhin-test | apps/sakuhin | npm run test:coverage
+sakuhin-build | apps/sakuhin | npm run build

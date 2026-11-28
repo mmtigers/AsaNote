@@ -1,0 +1,129 @@
+name: CI (sakuhinnote)
+
+# さくひんノート(apps/sakuhin)の CI。共通のジョブ(依存の検査・lint・型・単体テスト・ビルド、更新履歴の検査)は
+# _app-ci.yml にあり、ここにはさくひんノート固有のもの(E2E・DB の権限のテスト・型ずれの検査)だけを置く。
+# schema.sql が sakuhin_* 以外に触れていないかの検査(scripts/check-schema-safety.mjs)は、単体テストに含まれる。
+
+on:
+  # main への push では走らせない(マージ前の PR の CI で済ませる。#225)。
+  pull_request:
+    branches: [main, master]
+    # ラベル・PR本文による例外指定(release-notes-check)を、付けた/書き換えた直後に反映させる(ci.yml と同じ)。
+    types: [opened, synchronize, reopened, labeled, unlabeled, edited, ready_for_review]
+    # Issue #225: Actions の無料枠(月2,000分)を守るため、関係のない変更では走らせない。
+    paths:
+      - "apps/sakuhin/**"
+      - "packages/core/**"
+      # 共通表(groups・children など)は、ルートの supabase/schema.sql が正(docs/SPEC.md §9)。
+      - "supabase/**"
+      - "scripts/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".nvmrc"
+      - ".github/**"
+      - ".claude/**"
+
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Issue #60: 明示しないとリポジトリ設定次第で write 権限のトークンが供給される。全ジョブ読み取り専用。
+permissions:
+  contents: read
+
+jobs:
+  lint-build-test:
+    # ドラフトの PR では走らせない(Issue #225。ready にした時と、その後の push で走る)。
+    if: ${{ !github.event.pull_request.draft }}
+    uses: ./.github/workflows/_app-ci.yml
+    with:
+      app: apps/sakuhin
+
+  e2e:
+    # ドラフトの PR では走らせない(Issue #225。ready にした時と、その後の push で走る)。
+    if: ${{ !github.event.pull_request.draft }}
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apps/sakuhin
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        # モノレポ: package-lock.json はルートにあるので、ルートで全ワークスペースを入れる。
+        working-directory: .
+        run: npm ci
+
+      # Supabase の URL は CSP の接続先の許可に使われるため、placeholder を渡す(通信は発生しない)。
+      - name: Build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+        run: npm run build
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: E2E tests
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: playwright-report
+          path: |
+            apps/sakuhin/playwright-report/
+            apps/sakuhin/test-results/
+          retention-days: 7
+
+  # DB の権限(RLS・列の権限・Storage・トリガー)のテスト。素の Postgres へスタブ → 共通表の正(ルートの supabase/schema.sql)→
+  # schema.sql(2回)を適用し、家族・ひとり・別の家族・未ログインごとに、読める行・書ける行を確かめる
+  # (apps/sakuhin/supabase/tests/rls.test.sql)。
+  db-test:
+    # ドラフトの PR では走らせない(Issue #225。ready にした時と、その後の push で走る)。
+    if: ${{ !github.event.pull_request.draft }}
+    name: DB permission tests (RLS)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: apps/sakuhin
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: RLS tests
+        env:
+          DB_URL: postgresql://postgres:postgres@localhost:5432/postgres
+        run: bash scripts/test-db.sh
+
+  db-types-check:
+    # ドラフトの PR では走らせない(Issue #225。ready にした時と、その後の push で走る)。
+    if: ${{ !github.event.pull_request.draft }}
+    uses: ./.github/workflows/_db-types-check.yml
+    with:
+      # 素のPostgresへ、auth・storage のスタブ → 共通表の正 → schema.sql(2回)の順に適用する(scripts/gen-db-types.sh と同じ順)。
+      sql-files: apps/sakuhin/supabase/ci/supabase-stub.sql supabase/schema.sql apps/sakuhin/supabase/schema.sql apps/sakuhin/supabase/schema.sql
+      types-file: apps/sakuhin/src/lib/db/database.types.ts
+      app: apps/sakuhin
+      schema-file: apps/sakuhin/supabase/schema.sql

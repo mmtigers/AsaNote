@@ -223,14 +223,14 @@ describe("GroupPage: お子さま", () => {
     expect(screen.queryByRole("button", { name: "保存" })).toBeNull();
   });
 
-  it("他の人が登録した子どもには、名前を変える・削除のボタンを出さない(#128)", async () => {
+  it("他の人が登録した子どもは、名前を変えられるが、削除のボタンは出さない(#128)", async () => {
     setupSignedIn({ children: [{ ...child("c1", "はなこ"), created_by: "user-partner" }, child("c2", "たろう")] });
 
     render(<GroupPage />);
     await waitFor(() => expect(screen.getByText("はなこ")).toBeTruthy());
 
-    // 自分が登録した「たろう」の分だけ、ボタンが出る
-    expect(screen.getAllByRole("button", { name: "名前を変える" })).toHaveLength(1);
+    // 名前の変更は家族の誰でもできる。削除は、自分が登録した「たろう」の分だけ
+    expect(screen.getAllByRole("button", { name: "名前を変える" })).toHaveLength(2);
     expect(screen.getAllByRole("button", { name: "削除" })).toHaveLength(1);
   });
 

@@ -1,0 +1,851 @@
+<title>さくひんノート モック</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700&family=Noto+Sans+JP:wght@400;500;700&family=Shippori+Mincho:wght@700&family=Zen+Kaku+Gothic+New:wght@700&display=swap">
+<style>
+/* Layout: あさノート・よるノートと同じ骨格(スマホ幅1列・上のヘッダー・下のタブ・丸いカードとピル)。色だけアプリごと(さくひんノートは緑)。 */
+:root {
+  --bg: #f2f7f0;
+  --surface: #ffffff;
+  --surface-2: #e4f0e1;
+  --ink: #2e3a31;
+  --sub: #728676;
+  --line: #d4e5d0;
+  --accent: #3d8c5c;
+  --accent-ink: #ffffff;
+  --accent-soft: #d9eedd;
+  --amber: #e08a4f;
+  --amber-soft: #fbe6d5;
+  --calm: #d9a43a;
+  --holiday: #d6455a;
+  --shadow: rgba(40, 60, 40, .22);
+  --mat: #fbfaf7;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #162019; --surface: #1e2a21; --surface-2: #27362b; --ink: #e5f1e6; --sub: #a2b8a7; --line: #33463a;
+    --accent: #7cc69a; --accent-ink: #0e2415; --accent-soft: #234030; --amber: #f0aa77; --amber-soft: #4a3325;
+    --calm: #ecc46b; --holiday: #f0899a; --shadow: rgba(0, 0, 0, .5); --mat: #f4f2ed; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #162019; --surface: #1e2a21; --surface-2: #27362b; --ink: #e5f1e6; --sub: #a2b8a7; --line: #33463a;
+  --accent: #7cc69a; --accent-ink: #0e2415; --accent-soft: #234030; --amber: #f0aa77; --amber-soft: #4a3325;
+  --calm: #ecc46b; --holiday: #f0899a; --shadow: rgba(0, 0, 0, .5); --mat: #f4f2ed; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background:
+    radial-gradient(circle at 15% 0%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 55%),
+    radial-gradient(circle at 100% 20%, color-mix(in srgb, var(--calm) 12%, transparent), transparent 45%),
+    var(--bg);
+  background-attachment: fixed;
+  color: var(--ink);
+  font-family: "Zen Maru Gothic", "Noto Sans JP", system-ui, sans-serif;
+  font-size: 15px; line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.app { max-width: 448px; margin: 0 auto; padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
+
+/* ヘッダー(RecordHeader と同じ形) */
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+.hdr { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10; border-bottom: 1px solid var(--line); background: color-mix(in srgb, var(--bg) 95%, transparent); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); padding: 20px max(16px, env(safe-area-inset-right, 0px)) 12px max(16px, env(safe-area-inset-left, 0px)); }
+.hdr-top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; }
+.hdr h1 { margin: 0; font-size: 20px; font-weight: 700; white-space: nowrap; }
+.auth { font-size: 12px; color: var(--sub); }
+.hdr-sub { margin-top: 12px; display: flex; align-items: center; gap: 10px; min-width: 0; }
+.hdr-sub p { margin: 0; font-size: 15px; font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.back { flex: none; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); padding: 6px 12px; font-size: 13px; font-weight: 500; color: var(--sub); }
+
+main { display: flex; flex-direction: column; gap: 12px; padding: 16px max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px)); }
+
+/* ピル(ChildSwitcher・絞り込みと同じ形) */
+.pills { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+.pills.wrap { flex-wrap: wrap; overflow: visible; }
+.pill { flex: none; border: 0; border-radius: 999px; padding: 6px 14px; font-size: 13px; font-weight: 700; background: var(--surface-2); color: var(--sub); white-space: nowrap; }
+.pill[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.pill small { font-weight: 500; opacity: .8; margin-left: 4px; font-size: 11px; }
+
+.card { border-radius: 16px; border: 1px solid var(--line); background: var(--surface); padding: 14px 16px; }
+.card h2 { margin: 0; font-size: 17px; font-weight: 700; }
+.card .muted, .muted { color: var(--sub); font-size: 13px; margin: 0; }
+.sec-title { font-size: 13px; font-weight: 700; color: var(--sub); margin: 4px 2px -2px; }
+.empty { border-radius: 16px; background: var(--surface-2); padding: 24px 16px; text-align: center; color: var(--sub); font-size: 14px; margin: 0; }
+
+.btn-main { display: flex; width: 100%; align-items: center; justify-content: center; gap: 8px; border: 0; border-radius: 999px; background: var(--accent); color: var(--accent-ink); padding: 14px 16px; font-size: 16px; font-weight: 700; text-decoration: none; box-shadow: 0 8px 18px -8px var(--shadow); }
+.btn-main:disabled { opacity: .6; cursor: default; }
+.btn-sub { display: flex; width: 100%; align-items: center; justify-content: center; gap: 6px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); padding: 12px 16px; font-size: 14px; font-weight: 700; }
+.row { display: flex; gap: 8px; }
+.row > * { flex: 1; }
+.sticky-cta { position: sticky; bottom: calc(76px + env(safe-area-inset-bottom, 0px)); z-index: 5; }
+
+/* 美術館の見出し */
+.museum { display: flex; align-items: center; gap: 12px; }
+.museum .ico { flex: none; width: 44px; height: 44px; border-radius: 14px; background: var(--accent-soft); display: grid; place-items: center; font-size: 22px; }
+.museum h2 { font-size: 18px; }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.stats div { border-radius: 12px; background: var(--surface-2); padding: 8px 6px; text-align: center; }
+.stats b { display: block; font-size: 18px; font-variant-numeric: tabular-nums; }
+.stats span { font-size: 11px; color: var(--sub); }
+
+/* 作品の並び(2列) */
+.grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 14px; align-items: end; }
+.piece { border: 0; background: none; padding: 0; text-align: left; display: grid; gap: 8px; min-width: 0; }
+.piece .frame { transition: transform .2s ease; }
+.piece:active .frame { transform: scale(.98); }
+.cap { display: grid; gap: 1px; min-width: 0; padding: 0 2px; }
+.cap b { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cap small { color: var(--sub); font-size: 11px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-variant-numeric: tabular-nums; }
+.badge { display: inline-block; border-radius: 999px; padding: 1px 8px; font-size: 10px; font-weight: 700; line-height: 1.6; }
+.badge.keep { background: var(--amber-soft); color: var(--amber); }
+.badge.star { background: var(--accent-soft); color: var(--accent); }
+
+/* 額縁(画像に焼き込まず、表示で付ける) */
+.frame { --fw: 7px; --mw: 8%; display: block; padding: var(--fw); box-shadow: 0 6px 12px -5px var(--shadow), 0 1px 3px var(--shadow); }
+.frame .mat { display: block; background: var(--mat); padding: var(--mw); box-shadow: inset 1px 1px 4px rgba(0,0,0,.16); }
+.frame img { display: block; width: 100%; height: auto; }
+.frame[data-frame="wood"] { background: linear-gradient(135deg, #D2A877, #A9783F 38%, #CDA06C 60%, #98693A); }
+.frame[data-frame="white"] { --fw: 5px; background: #F7F7F4; box-shadow: inset 0 0 0 1px rgba(0,0,0,.1), 0 6px 12px -5px var(--shadow), 0 1px 3px var(--shadow); }
+.frame[data-frame="black"] { --fw: 5px; background: #222220; }
+.frame[data-frame="gold"] { --fw: 10px; --mw: 6%; background: linear-gradient(135deg, #7E5A1B, #E6C46E 22%, #9C7226 45%, #F2DA90 68%, #85601E); box-shadow: inset 0 0 0 2px rgba(80,50,10,.5), inset 0 0 0 4px rgba(255,236,170,.45), 0 6px 12px -5px var(--shadow), 0 1px 3px var(--shadow); }
+.frame[data-frame="color"] { --fw: 8px; --mw: 6%; border-radius: 8px; background: hsl(var(--hue, 140) 65% 64%); }
+.frame[data-frame="color"] .mat { border-radius: 3px; }
+.big .frame { --fw: 11px; }
+.big .frame[data-frame="gold"] { --fw: 15px; }
+.big .frame[data-frame="white"], .big .frame[data-frame="black"] { --fw: 7px; }
+
+/* 作品の詳細 */
+.showcase { border-radius: 20px; background: var(--surface-2); padding: 26px 22px; display: grid; place-items: center; position: relative; }
+.showcase .frame { width: min(100%, var(--maxw)); }
+.pager { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.pager span { font-size: 12px; color: var(--sub); font-variant-numeric: tabular-nums; }
+.pager button { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 14px; font-size: 13px; font-weight: 700; color: var(--ink); }
+.pager button:disabled { opacity: .35; cursor: default; }
+.caption .t { font-size: 18px; font-weight: 700; margin: 0 0 4px; text-wrap: balance; }
+.caption dl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 12px; margin: 8px 0 0; font-size: 14px; }
+.caption dt { color: var(--sub); font-size: 12px; padding-top: 2px; }
+.caption dd { margin: 0; }
+.caption .memo { margin: 12px 0 0; padding: 10px 12px; border-radius: 12px; background: var(--surface-2); font-size: 14px; }
+.setting { display: grid; gap: 12px; }
+.setting .lbl { font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+.switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 14px; font-weight: 500; }
+.switch small { display: block; color: var(--sub); font-size: 12px; font-weight: 400; }
+.switch input { appearance: none; -webkit-appearance: none; flex: none; width: 46px; height: 28px; border-radius: 999px; background: var(--line); position: relative; cursor: pointer; transition: background .15s; }
+.switch input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: var(--surface); box-shadow: 0 1px 2px var(--shadow); transition: transform .15s; }
+.switch input:checked { background: var(--accent); }
+.switch input:checked::after { transform: translateX(18px); }
+.danger { border: 0; background: none; color: var(--holiday); font-size: 13px; font-weight: 700; padding: 8px; justify-self: center; }
+
+/* 収蔵 */
+.steps { display: flex; gap: 6px; }
+.steps i { flex: 1; height: 5px; border-radius: 999px; background: var(--line); }
+.steps i.on { background: var(--accent); }
+.choice { display: flex; align-items: center; gap: 14px; width: 100%; border-radius: 16px; border: 1px solid var(--line); background: var(--surface); padding: 16px; text-align: left; cursor: pointer; }
+.choice .ico { flex: none; width: 48px; height: 48px; border-radius: 14px; background: var(--accent-soft); display: grid; place-items: center; font-size: 24px; }
+.choice b { display: block; font-size: 15px; }
+.choice small { color: var(--sub); font-size: 12px; }
+.choice input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.cropper { position: relative; touch-action: none; user-select: none; -webkit-user-select: none; margin: 0 auto; width: fit-content; max-width: 100%; }
+.cropper canvas.src { display: block; max-width: 100%; height: auto; border-radius: 12px; }
+.cropper svg { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.handle { position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px; touch-action: none; background: transparent; border: 0; padding: 0; }
+.handle::after { content: ""; position: absolute; inset: 12px; border-radius: 50%; background: #fff; border: 3px solid #3d8c5c; box-shadow: 0 1px 4px rgba(0,0,0,.4); }
+.loupe { position: absolute; width: 112px; height: 112px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 4px 14px rgba(0,0,0,.45); pointer-events: none; background: #000; }
+.tools { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
+.tools button { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 6px 14px; font-size: 13px; font-weight: 500; color: var(--sub); }
+.field { display: grid; gap: 6px; }
+.field > span { font-size: 13px; font-weight: 700; }
+.field > span em { font-style: normal; color: var(--sub); font-weight: 500; font-size: 12px; margin-left: 6px; }
+.field input[type="text"], .field input[type="date"], .field textarea { border: 1px solid var(--line); background: var(--surface); border-radius: 12px; padding: 10px 12px; width: 100%; font-size: 15px; }
+.field textarea { resize: vertical; min-height: 70px; }
+.age { font-size: 12px; color: var(--accent); font-weight: 700; }
+.done { text-align: center; display: grid; gap: 12px; justify-items: center; padding: 22px 16px; }
+.done .emoji { font-size: 34px; line-height: 1; }
+.done h2 { font-size: 20px; }
+.done p { margin: 0; font-size: 14px; }
+.done .frame { width: min(62%, 220px); margin: 4px 0; }
+.enter { animation: step-in .26s cubic-bezier(.16, 1, .3, 1) both; }
+@keyframes step-in { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: none; } }
+
+/* 共有 */
+.member { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.member:first-of-type { border-top: 0; }
+.avatar { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font-size: 13px; font-weight: 700; background: var(--accent-soft); color: var(--accent); }
+.mocknote { font-size: 11px; color: var(--sub); text-align: center; margin: 8px 0 0; }
+
+/* 下のタブ(core の BottomNav と同じ形) */
+.nav { position: fixed; inset: auto 0 0; z-index: 40; border-top: 1px solid var(--line); background: color-mix(in srgb, var(--surface) 95%, transparent); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); padding-bottom: env(safe-area-inset-bottom, 0px); padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
+.nav ul { list-style: none; margin: 0 auto; max-width: 448px; display: flex; gap: 4px; padding: 6px 8px; }
+.nav li { flex: 1; }
+.nav a { display: flex; flex-direction: column; align-items: center; gap: 2px; border-radius: 16px; padding: 8px 0; font-size: 11px; color: var(--sub); text-decoration: none; }
+.nav a span { font-size: 18px; line-height: 1; }
+.nav a[aria-current="page"] { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+@media (prefers-reduced-motion: reduce) { * { transition-duration: .001ms !important; animation-duration: .001ms !important; } }
+</style>
+
+<div class="app">
+  <header class="hdr">
+    <div class="hdr-top"><h1>🎨 さくひんノート</h1><span class="auth">まま でログイン中</span></div>
+    <div class="hdr-sub" id="hdrSub"></div>
+  </header>
+  <main id="app"></main>
+  <p class="mocknote">見た目を確かめるモックです。作品はサンプルで、保存はされません。</p>
+</div>
+<nav class="nav" aria-label="メインメニュー">
+  <ul>
+    <li><a href="#gallery" data-view="gallery"><span aria-hidden="true">🖼️</span>美術館</a></li>
+    <li><a href="#collect" data-view="collect"><span aria-hidden="true">📷</span>収蔵する</a></li>
+    <li><a href="#featured" data-view="featured"><span aria-hidden="true">⭐</span>常設展</a></li>
+    <li><a href="#group" data-view="group"><span aria-hidden="true">👨‍👩‍👧</span>共有</a></li>
+  </ul>
+</nav>
+
+<script>
+(() => {
+"use strict";
+// ---------- データ ----------
+const CHILDREN = [
+  { id: "hana", name: "はな", birth: "2021-08-20", museum: "はなちゃん美術館" },
+  { id: "sota", name: "そうた", birth: "2019-06-03", museum: "そうたくん美術館" },
+];
+const KINDS = ["絵", "工作", "書写・文字", "その他"];
+const FRAMES = [
+  { id: "wood", name: "木" }, { id: "white", name: "白" }, { id: "black", name: "黒" },
+  { id: "gold", name: "金" }, { id: "color", name: "カラフル" },
+];
+const autoFrame = (kind) => (kind === "書写・文字" ? "black" : "wood");
+
+// ---------- 年齢と部屋(SPEC §5.3・§5.4) ----------
+function parse(d) { const [y, m, day] = d.split("-").map(Number); return { y, m, d: day }; }
+function ageAt(birth, date) {
+  const b = parse(birth), t = parse(date);
+  let months = (t.y - b.y) * 12 + (t.m - b.m);
+  if (t.d < b.d) months -= 1;
+  return { y: Math.floor(months / 12), m: months % 12 };
+}
+function fiscalYear(date) { const t = parse(date); return t.m >= 4 ? t.y : t.y - 1; }
+function roomName(birth, fy) {
+  if (!birth) return `${fy}年度の部屋`;
+  const a = ageAt(birth, `${fy}-04-01`).y;
+  if (a < 0) return `${fy}年度の部屋`;
+  if (a <= 2) return `${a}歳児の部屋`;
+  if (a <= 5) return ["年少", "年中", "年長"][a - 3] + "の部屋";
+  if (a <= 11) return `${a - 5}年生の部屋`;
+  return `${fy}年度の部屋`;
+}
+const fmtDate = (d) => { const t = parse(d); return `${t.y}年${t.m}月${t.d}日`; };
+const ageText = (child, d) => { if (!child.birth) return ""; const a = ageAt(child.birth, d); return `${a.y}歳${a.m}か月`; };
+
+// ---------- クレヨン風の絵(サンプル) ----------
+function rng(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
+function makeCanvas(w, h) { const c = document.createElement("canvas"); c.width = w; c.height = h; return c; }
+function kit(ctx, W, H, seed) {
+  const r = rng(seed);
+  const j = (n) => (r() - .5) * n;
+  const k = {
+    r, W, H,
+    paper(tone = "#FBF8F1") {
+      ctx.fillStyle = tone; ctx.fillRect(0, 0, W, H);
+      for (let i = 0; i < W * H / 260; i++) { ctx.fillStyle = `rgba(120,100,70,${r() * .05})`; ctx.fillRect(r() * W, r() * H, 1.5, 1.5); }
+    },
+    line(pts, col, w = 6, passes = 3) {
+      ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = col;
+      for (let p = 0; p < passes; p++) {
+        ctx.globalAlpha = .55; ctx.lineWidth = w * (.7 + r() * .5); ctx.beginPath();
+        pts.forEach(([x, y], i) => (i ? ctx.lineTo(x * W + j(5), y * H + j(5)) : ctx.moveTo(x * W + j(5), y * H + j(5))));
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+    },
+    ring(cx, cy, rx, ry = rx, a0 = 0, a1 = Math.PI * 2) {
+      const pts = []; const n = 36;
+      for (let i = 0; i <= n; i++) { const a = a0 + (a1 - a0) * i / n; pts.push([cx + Math.cos(a) * rx, cy + Math.sin(a) * ry * W / H]); }
+      return pts;
+    },
+    fill(pts, col, density = 1, w = 7) {
+      ctx.save(); ctx.beginPath(); pts.forEach(([x, y], i) => (i ? ctx.lineTo(x * W, y * H) : ctx.moveTo(x * W, y * H))); ctx.closePath(); ctx.clip();
+      const xs = pts.map((p) => p[0] * W), ys = pts.map((p) => p[1] * H);
+      const x0 = Math.min(...xs) - 20, x1 = Math.max(...xs) + 20, y0 = Math.min(...ys) - 20, y1 = Math.max(...ys) + 20;
+      ctx.strokeStyle = col; ctx.lineCap = "round"; ctx.globalAlpha = .38;
+      const step = 7 / density;
+      for (let t = x0 - (y1 - y0); t < x1; t += step) {
+        ctx.lineWidth = w * (.6 + r() * .7); ctx.beginPath(); ctx.moveTo(t + j(6), y1 + j(6)); ctx.lineTo(t + (y1 - y0) + j(6), y0 + j(6)); ctx.stroke();
+      }
+      ctx.restore(); ctx.globalAlpha = 1;
+    },
+    blob(pts, col, w = 8) { k.fill(pts, col); k.line([...pts, pts[0]], col, w * .6, 2); },
+    paint(pts, col, w = 40) {
+      ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = col; ctx.globalAlpha = .78; ctx.lineWidth = w;
+      ctx.beginPath(); pts.forEach(([x, y], i) => (i ? ctx.lineTo(x * W, y * H) : ctx.moveTo(x * W, y * H))); ctx.stroke(); ctx.globalAlpha = 1;
+    },
+    text(s, x, y, size, col, font = '700 FONT "Zen Kaku Gothic New", sans-serif') {
+      ctx.fillStyle = col; ctx.font = font.replace("FONT", `${size}px`); ctx.textAlign = "center"; ctx.textBaseline = "middle";
+      [...s].forEach((ch, i) => { ctx.save(); ctx.translate(x * W + (i - (s.length - 1) / 2) * size * 1.05, y * H + j(size * .2)); ctx.rotate(j(.4)); ctx.globalAlpha = .8; ctx.fillText(ch, 0, 0); ctx.restore(); });
+      ctx.globalAlpha = 1;
+    },
+    dot(x, y, s, col) { ctx.fillStyle = col; ctx.globalAlpha = .85; ctx.beginPath(); ctx.arc(x * W, y * H, s, 0, 7); ctx.fill(); ctx.globalAlpha = 1; },
+  };
+  return k;
+}
+const SIZE = { portrait: [600, 822], landscape: [822, 600], hanshi: [560, 772], square: [640, 640] };
+
+const ART = {
+  rabbitMama(ctx, W, H) {
+    const k = kit(ctx, W, H, 11); k.paper();
+    k.blob(k.ring(.82, .12, .09), "#F29A2E"); for (let i = 0; i < 10; i++) { const a = i * .63; k.line([[.82 + Math.cos(a) * .12, .12 + Math.sin(a) * .09], [.82 + Math.cos(a) * .17, .12 + Math.sin(a) * .13]], "#F2B43A", 5, 2); }
+    k.fill([[0, .86], [1, .84], [1, 1], [0, 1]], "#6DBB4E"); k.line([[0, .86], [.5, .84], [1, .85]], "#3E9A3A", 7);
+    k.blob(k.ring(.3, .34, .1), "#F6D2B0"); k.line([[.2, .3], [.17, .5]], "#6B4423", 9); k.line([[.4, .3], [.43, .5]], "#6B4423", 9); k.line(k.ring(.3, .3, .11, .1, Math.PI, Math.PI * 2), "#6B4423", 12);
+    k.dot(.26, .34, 5, "#222"); k.dot(.34, .34, 5, "#222"); k.line(k.ring(.3, .37, .04, .02, .2, 2.9), "#D0443C", 4);
+    k.blob([[.3, .44], [.15, .74], [.45, .74]], "#E2453F"); k.line([[.22, .52], [.1, .62]], "#F0B48A", 6); k.line([[.38, .52], [.52, .58]], "#F0B48A", 6);
+    k.line([[.25, .74], [.24, .86]], "#333", 6); k.line([[.35, .74], [.36, .86]], "#333", 6);
+    k.blob(k.ring(.68, .66, .15, .14), "#F7B9CF"); k.blob(k.ring(.68, .44, .1), "#F7B9CF");
+    k.blob(k.ring(.62, .24, .03, .11), "#F7B9CF"); k.blob(k.ring(.74, .24, .03, .11), "#F7B9CF");
+    k.dot(.65, .43, 6, "#222"); k.dot(.72, .43, 6, "#222"); k.dot(.685, .47, 5, "#E05A7A"); k.line(k.ring(.685, .49, .03, .015, .3, 2.8), "#333", 3);
+    [[.1, .82, "#E94E77"], [.48, .8, "#F2C200"], [.9, .8, "#8E5BD0"]].forEach(([x, y, c]) => { k.line([[x, y], [x, .88]], "#3E9A3A", 4); k.blob(k.ring(x, y, .025), c); });
+    k.text("まま", .3, .93, 34, "#555");
+  },
+  house(ctx, W, H) {
+    const k = kit(ctx, W, H, 22); k.paper();
+    k.fill([[0, 0], [1, 0], [1, .55], [0, .55]], "#9CCDF0", .6);
+    k.blob(k.ring(.12, .14, .07), "#F5C21B"); for (let i = 0; i < 9; i++) { const a = i * .7; k.line([[.12 + Math.cos(a) * .09, .14 + Math.sin(a) * .12], [.12 + Math.cos(a) * .13, .14 + Math.sin(a) * .18]], "#F5A81B", 5, 2); }
+    k.fill([[0, .78], [1, .76], [1, 1], [0, 1]], "#73C04F");
+    k.blob([[.36, .48], [.66, .48], [.66, .8], [.36, .8]], "#F7D774");
+    k.blob([[.32, .5], [.51, .22], [.7, .5]], "#D9473B");
+    k.blob([[.47, .62], [.55, .62], [.55, .8], [.47, .8]], "#8A5A33"); k.blob([[.39, .56], [.45, .56], [.45, .64], [.39, .64]], "#5DA9E9"); k.blob([[.58, .56], [.64, .56], [.64, .64], [.58, .64]], "#5DA9E9");
+    k.blob([[.82, .5], [.86, .5], [.86, .8], [.82, .8]], "#8A5A33"); k.blob(k.ring(.84, .42, .08), "#3F9B3C");
+    k.line([[.2, .3], [.24, .27], [.28, .3]], "#555", 4); k.line([[.72, .2], [.76, .17], [.8, .2]], "#555", 4);
+  },
+  family(ctx, W, H) {
+    const k = kit(ctx, W, H, 33); k.paper("#FCF9F2");
+    const ppl = [[.17, .42, .11, "#4A3520", "ぱぱ"], [.4, .42, .1, "#8A4B2A", "まま"], [.62, .5, .08, "#2F2418", "そうた"], [.83, .54, .07, "#5A3A22", "はな"]];
+    ppl.forEach(([x, y, r, hair, nm], i) => {
+      k.blob(k.ring(x, y, r), "#F7D4B4"); k.line(k.ring(x, y - .02, r * 1.05, r * .95, Math.PI * 1.05, Math.PI * 1.95), hair, 14);
+      k.dot(x - r * .35, y, 5, "#222"); k.dot(x + r * .35, y, 5, "#222"); k.line(k.ring(x, y + r * .25 * W / H, r * .4, r * .2, .3, 2.8), "#D0443C", 4);
+      k.dot(x - r * .55, y + .05, 8, "rgba(240,120,120,.5)"); k.dot(x + r * .55, y + .05, 8, "rgba(240,120,120,.5)");
+      k.text(nm, x, .84, 30, ["#3A6EC9", "#E2453F", "#3E9A3A", "#E94E77"][i]);
+    });
+    k.blob(k.ring(.9, .12, .05), "#F5C21B"); k.line([[.05, .1], [.12, .07], [.2, .1]], "#7DB6E8", 6);
+  },
+  rainbowCar(ctx, W, H) {
+    const k = kit(ctx, W, H, 44); k.paper();
+    ["#E2453F", "#F29A2E", "#F5D31B", "#5CB84B", "#3A8AD9", "#8E5BD0"].forEach((c, i) => k.line(k.ring(.5, .72, .42 - i * .045, .5 - i * .05, Math.PI, Math.PI * 2), c, 16));
+    k.line([[0, .86], [1, .86]], "#888", 10);
+    k.blob([[.3, .66], [.4, .56], [.6, .56], [.68, .66], [.74, .66], [.74, .8], [.26, .8], [.26, .66]], "#3A7BD5");
+    k.blob([[.42, .6], [.5, .6], [.5, .66], [.4, .66]], "#BFE3FF"); k.blob([[.53, .6], [.59, .6], [.64, .66], [.53, .66]], "#BFE3FF");
+    k.blob(k.ring(.36, .82, .045), "#333"); k.blob(k.ring(.64, .82, .045), "#333");
+    k.text("ぶーん", .16, .55, 32, "#666");
+  },
+  fish(ctx, W, H) {
+    const k = kit(ctx, W, H, 55); k.paper();
+    for (let i = 0; i < 9; i++) k.paint([[-.05, .08 + i * .11], [.35, .05 + i * .11 + k.r() * .04], [.7, .1 + i * .11], [1.05, .07 + i * .11]], i % 2 ? "#4C9BE0" : "#3A86D1", 70);
+    k.paint([[.1, 1], [.13, .8], [.09, .65], [.13, .5]], "#3E9A3A", 18); k.paint([[.88, 1], [.85, .78], [.9, .6]], "#3E9A3A", 18);
+    k.blob(k.ring(.5, .5, .2, .14), "#F28C28"); k.blob([[.68, .5], [.84, .36], [.84, .64]], "#F28C28");
+    k.dot(.38, .46, 12, "#fff"); k.dot(.38, .46, 6, "#222"); k.line([[.46, .38], [.48, .5], [.46, .62]], "#D9631B", 6);
+    [[.25, .3, 14], [.22, .2, 10], [.27, .12, 7], [.7, .2, 9]].forEach(([x, y, s]) => k.line(k.ring(x, y, s / W * 2.2), "#E9F4FF", 3, 2));
+    k.blob(k.ring(.25, .8, .06, .04), "#F6CD3A"); k.blob([[.31, .8], [.36, .75], [.36, .85]], "#F6CD3A");
+  },
+  lionCraft(ctx, W, H) {
+    const k = kit(ctx, W, H, 66);
+    const g = ctx.createLinearGradient(0, 0, W, H); g.addColorStop(0, "#C9A27A"); g.addColorStop(1, "#A9805A"); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    for (let i = 0; i < 60; i++) { ctx.strokeStyle = `rgba(80,50,20,${.04 + k.r() * .06})`; ctx.lineWidth = 2; ctx.beginPath(); const y = k.r() * H; ctx.moveTo(0, y); ctx.bezierCurveTo(W * .3, y + 10, W * .6, y - 10, W, y + 4); ctx.stroke(); }
+    ctx.fillStyle = "rgba(0,0,0,.25)"; ctx.beginPath(); ctx.ellipse(W * .52, H * .54, W * .4, H * .4, 0, 0, 7); ctx.fill();
+    for (let i = 0; i < 26; i++) { const a = i / 26 * Math.PI * 2; ctx.fillStyle = i % 2 ? "#E8792A" : "#F09A3A"; ctx.beginPath(); ctx.moveTo(W * (.5 + Math.cos(a - .14) * .3), H * (.5 + Math.sin(a - .14) * .3)); ctx.lineTo(W * (.5 + Math.cos(a) * .44), H * (.5 + Math.sin(a) * .44)); ctx.lineTo(W * (.5 + Math.cos(a + .14) * .3), H * (.5 + Math.sin(a + .14) * .3)); ctx.fill(); }
+    ctx.fillStyle = "#F4F1EA"; ctx.beginPath(); ctx.arc(W * .5, H * .5, W * .31, 0, 7); ctx.fill();
+    ctx.strokeStyle = "rgba(0,0,0,.08)"; ctx.lineWidth = 10; ctx.beginPath(); ctx.arc(W * .5, H * .5, W * .26, 0, 7); ctx.stroke();
+    k.blob(k.ring(.5, .5, .22), "#F6CD4A"); k.dot(.42, .45, 13, "#222"); k.dot(.58, .45, 13, "#222"); k.blob([[.46, .53], [.54, .53], [.5, .58]], "#7A3E1C");
+    k.line([[.5, .58], [.5, .62]], "#333", 4); k.line(k.ring(.46, .62, .04, .03, .2, 2.6), "#333", 4); k.line(k.ring(.54, .62, .04, .03, .5, 2.9), "#333", 4);
+    [[-1, .54], [-1, .58], [1, .54], [1, .58]].forEach(([s, y]) => k.line([[.5 + s * .08, y], [.5 + s * .2, y - .02]], "#333", 3, 2));
+  },
+  dino(ctx, W, H) {
+    const k = kit(ctx, W, H, 77); k.paper();
+    k.fill([[0, 0], [1, 0], [1, .7], [0, .7]], "#FBD9A8", .5);
+    k.blob([[.62, .7], [.78, .22], [.95, .7]], "#8A5A33"); k.blob([[.74, .3], [.78, .22], [.82, .3], [.8, .34], [.76, .34]], "#E2453F");
+    k.line([[.78, .2], [.74, .08]], "#E2453F", 8); k.line([[.79, .2], [.84, .06]], "#F29A2E", 8);
+    k.fill([[0, .78], [1, .76], [1, 1], [0, 1]], "#7FBF5A");
+    k.blob([[.08, .62], [.22, .5], [.4, .48], [.48, .3], [.6, .28], [.62, .4], [.52, .44], [.5, .6], [.42, .74], [.3, .74], [.18, .7]], "#4CAF50");
+    [[.24, .5], [.3, .47], [.36, .46], [.42, .42]].forEach(([x, y]) => k.blob([[x - .025, y + .02], [x, y - .07], [x + .025, y + .02]], "#2E7D32"));
+    k.line([[.32, .74], [.32, .86]], "#2E7D32", 14); k.line([[.42, .72], [.43, .86]], "#2E7D32", 14);
+    k.dot(.56, .33, 7, "#222"); k.line([[.56, .4], [.61, .39]], "#fff", 4); k.line([[.5, .5], [.46, .56]], "#2E7D32", 8);
+    k.text("がおー", .2, .2, 40, "#C0392B");
+  },
+  undoukai(ctx, W, H) {
+    const k = kit(ctx, W, H, 88); k.paper();
+    k.line([[0, .12], [.25, .2], [.5, .14], [.75, .2], [1, .12]], "#666", 3, 2);
+    for (let i = 0; i < 12; i++) { const x = i / 12 + .03, y = .14 + Math.abs(Math.sin(i * 1.3)) * .04; k.blob([[x - .025, y], [x + .025, y], [x, y + .09]], ["#E2453F", "#F5C21B", "#3A8AD9", "#5CB84B"][i % 4]); }
+    k.line(k.ring(.5, .68, .44, .2), "#D58C3C", 10); k.line(k.ring(.5, .68, .36, .14), "#D58C3C", 6);
+    [[.3, .62, "#E2453F"], [.5, .58, "#3A8AD9"], [.7, .63, "#F5C21B"]].forEach(([x, y, c]) => {
+      k.blob(k.ring(x, y - .1, .03), "#F6D2B0"); k.line([[x, y - .06], [x, y + .04]], c, 10); k.line([[x, y - .04], [x - .05, y]], c, 6); k.line([[x, y - .04], [x + .05, y - .07]], c, 6);
+      k.line([[x, y + .04], [x - .04, y + .12]], "#333", 6); k.line([[x, y + .04], [x + .05, y + .1]], "#333", 6);
+    });
+    k.text("よーいどん", .5, .92, 34, "#555");
+  },
+  rocket(ctx, W, H) {
+    const k = kit(ctx, W, H, 99); k.paper();
+    k.fill([[0, 0], [1, 0], [1, 1], [0, 1]], "#26326B", 1.4, 9);
+    for (let i = 0; i < 30; i++) k.dot(k.r(), k.r(), 2 + k.r() * 3, "#FFE57A");
+    k.blob(k.ring(.18, .2, .07), "#EADFB8");
+    k.blob([[.42, .3], [.58, .3], [.6, .7], [.4, .7]], "#D7DCE2"); k.blob([[.42, .3], [.5, .12], [.58, .3]], "#E2453F");
+    k.blob([[.4, .58], [.3, .74], [.4, .7]], "#E2453F"); k.blob([[.6, .58], [.7, .74], [.6, .7]], "#E2453F");
+    k.blob(k.ring(.5, .42, .05), "#7CC4F2"); k.blob([[.43, .72], [.5, .92], [.57, .72]], "#F29A2E"); k.blob([[.46, .72], [.5, .84], [.54, .72]], "#F5D31B");
+  },
+  shodo(text) {
+    return (ctx, W, H) => {
+      const k = kit(ctx, W, H, text.length * 7); k.paper("#FDFDFB");
+      ctx.strokeStyle = "rgba(0,0,0,.05)"; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(W / 2, 0); ctx.lineTo(W / 2, H); ctx.stroke();
+      ctx.fillStyle = "#151515"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.shadowColor = "rgba(0,0,0,.35)"; ctx.shadowBlur = 3;
+      const chars = [...text]; const size = Math.min(W * .62, H * .78 / chars.length);
+      ctx.font = `700 ${size}px "Shippori Mincho", serif`;
+      chars.forEach((ch, i) => { ctx.save(); ctx.translate(W * .52, H * .1 + size * (i + .5)); ctx.rotate((k.r() - .5) * .08); ctx.fillText(ch, 0, 0); ctx.restore(); });
+      ctx.font = `700 ${size * .2}px "Shippori Mincho", serif`; ctx.fillText("そうた", W * .17, H * .88);
+      ctx.shadowBlur = 0;
+    };
+  },
+  asagao(ctx, W, H) {
+    const k = kit(ctx, W, H, 111); k.paper("#FEFEFC");
+    ctx.strokeStyle = "rgba(60,110,200,.25)"; ctx.lineWidth = 1.5; for (let y = .62; y < .96; y += .055) { ctx.beginPath(); ctx.moveTo(W * .08, H * y); ctx.lineTo(W * .92, H * y); ctx.stroke(); }
+    k.text("あさがお", .5, .07, 40, "#3A3A3A");
+    k.line([[.5, .58], [.46, .45], [.54, .35], [.48, .22], [.52, .14]], "#3E9A3A", 6);
+    [[.42, .44], [.6, .3], [.4, .22]].forEach(([x, y]) => k.blob([[x, y], [x + .08, y - .04], [x + .1, y + .03]], "#5CB84B"));
+    [[.3, .3, "#8E5BD0"], [.68, .44, "#3A6EC9"], [.62, .18, "#D9479C"]].forEach(([x, y, c]) => { k.blob(k.ring(x, y, .09), c); k.blob(k.ring(x, y, .025), "#FFF7FA"); });
+    ["むらさきのはながさいた", "おおきかった"].forEach((s, i) => k.text(s, .5, .65 + i * .11, 26, "#444"));
+  },
+  scribble(ctx, W, H) {
+    const k = kit(ctx, W, H, 121); k.paper();
+    ["#E2453F", "#3A8AD9", "#F5C21B", "#5CB84B", "#8E5BD0"].forEach((c, ci) => {
+      const cx = .2 + k.r() * .6, cy = .25 + k.r() * .5; const pts = [];
+      for (let i = 0; i < 70; i++) { const a = i * .5, rr = .05 + (i / 70) * .18 + (k.r() - .5) * .03; pts.push([cx + Math.cos(a) * rr * .8, cy + Math.sin(a) * rr]); }
+      k.line(pts, c, 6, 1);
+    });
+  },
+  tegata(ctx, W, H) {
+    const k = kit(ctx, W, H, 131); k.paper("#F3EDE0");
+    k.text("めりーくりすます", .5, .1, 36, "#2E7D32");
+    [[.32, .45, "#D9473B", -.2], [.68, .62, "#3A6EC9", .25]].forEach(([x, y, c, rot]) => {
+      ctx.save(); ctx.translate(x * W, y * H); ctx.rotate(rot); ctx.fillStyle = c; ctx.globalAlpha = .85;
+      ctx.beginPath(); ctx.ellipse(0, 0, W * .1, W * .12, 0, 0, 7); ctx.fill();
+      [[-.08, -.18, -.35], [-.03, -.22, -.1], [.03, -.22, .08], [.08, -.18, .3]].forEach(([fx, fy, fr]) => { ctx.beginPath(); ctx.ellipse(fx * W, fy * W, W * .025, W * .07, fr, 0, 7); ctx.fill(); });
+      ctx.beginPath(); ctx.ellipse(.11 * W, .02 * W, W * .025, W * .06, 1, 0, 7); ctx.fill(); ctx.restore(); ctx.globalAlpha = 1;
+    });
+    [[.15, .8], [.85, .25], [.5, .88]].forEach(([x, y]) => k.dot(x, y, 10, "#F5C21B"));
+  },
+  leaves(ctx, W, H) {
+    const k = kit(ctx, W, H, 141); k.paper();
+    k.blob([[.12, .95], [.16, .4], [.2, .95]], "#8A5A33");
+    for (let i = 0; i < 16; i++) { const x = .25 + k.r() * .7, y = .1 + k.r() * .75, c = ["#E2453F", "#F29A2E", "#F5C21B", "#C0392B"][i % 4]; k.blob(k.ring(x, y, .04, .025), c); k.line([[x - .03, y + .03], [x + .03, y - .03]], "#7A4A1F", 3, 1); }
+    [[.4, .82], [.55, .86], [.7, .8]].forEach(([x, y]) => { k.blob(k.ring(x, y, .035, .045), "#9B6A3A"); k.blob(k.ring(x, y - .05, .04, .02), "#6B4423"); });
+    k.text("どんぐり", .7, .1, 36, "#6B4423");
+  },
+};
+
+function render(fn, size) {
+  const [w, h] = SIZE[size]; const c = makeCanvas(w, h); fn(c.getContext("2d"), w, h); return c;
+}
+
+// ---------- 射影変換(四隅合わせ) ----------
+function solve(A, b) {
+  const n = b.length;
+  for (let i = 0; i < n; i++) {
+    let p = i; for (let r = i + 1; r < n; r++) if (Math.abs(A[r][i]) > Math.abs(A[p][i])) p = r;
+    [A[i], A[p]] = [A[p], A[i]]; [b[i], b[p]] = [b[p], b[i]];
+    for (let r = i + 1; r < n; r++) { const f = A[r][i] / A[i][i]; for (let c = i; c < n; c++) A[r][c] -= f * A[i][c]; b[r] -= f * b[i]; }
+  }
+  const x = new Array(n);
+  for (let i = n - 1; i >= 0; i--) { let s = b[i]; for (let c = i + 1; c < n; c++) s -= A[i][c] * x[c]; x[i] = s / A[i][i]; }
+  return x;
+}
+/** from の4点を to の4点へ写す 3x3 の行列(最後は1) */
+function homography(from, to) {
+  const A = [], b = [];
+  for (let i = 0; i < 4; i++) {
+    const [x, y] = from[i], [u, v] = to[i];
+    A.push([x, y, 1, 0, 0, 0, -u * x, -u * y]); b.push(u);
+    A.push([0, 0, 0, x, y, 1, -v * x, -v * y]); b.push(v);
+  }
+  return solve(A, b);
+}
+function sampler(srcCanvas) {
+  const w = srcCanvas.width, h = srcCanvas.height; const d = srcCanvas.getContext("2d").getImageData(0, 0, w, h).data;
+  return (x, y, out, o) => {
+    if (x < 0 || y < 0 || x > w - 1 || y > h - 1) return false;
+    const x0 = Math.floor(x), y0 = Math.floor(y), x1 = Math.min(x0 + 1, w - 1), y1 = Math.min(y0 + 1, h - 1), fx = x - x0, fy = y - y0;
+    for (let c = 0; c < 3; c++) {
+      const a = d[(y0 * w + x0) * 4 + c], bb = d[(y0 * w + x1) * 4 + c], cc = d[(y1 * w + x0) * 4 + c], dd = d[(y1 * w + x1) * 4 + c];
+      out[o + c] = (a * (1 - fx) + bb * fx) * (1 - fy) + (cc * (1 - fx) + dd * fx) * fy;
+    }
+    out[o + 3] = 255; return true;
+  };
+}
+/** 写真の中の四角形 quad を、outW×outH の長方形に引き伸ばす */
+function warpToRect(src, quad, outW, outH) {
+  const H = homography([[0, 0], [outW, 0], [outW, outH], [0, outH]], quad);
+  const out = makeCanvas(outW, outH); const ctx = out.getContext("2d"); const img = ctx.createImageData(outW, outH); const s = sampler(src);
+  for (let y = 0; y < outH; y++) for (let x = 0; x < outW; x++) {
+    const w = H[6] * x + H[7] * y + 1; const sx = (H[0] * x + H[1] * y + H[2]) / w, sy = (H[3] * x + H[4] * y + H[5]) / w;
+    s(sx, sy, img.data, (y * outW + x) * 4);
+  }
+  ctx.putImageData(img, 0, 0); return out;
+}
+/** サンプル: 絵を机の上に置いて、斜めから撮ったような写真を作る */
+function fakePhoto(drawing) {
+  const W = 960, Hh = 720; const c = makeCanvas(W, Hh); const ctx = c.getContext("2d");
+  const g = ctx.createLinearGradient(0, 0, W, Hh); g.addColorStop(0, "#B89470"); g.addColorStop(1, "#8F6B49"); ctx.fillStyle = g; ctx.fillRect(0, 0, W, Hh);
+  const r = rng(7); for (let i = 0; i < 70; i++) { ctx.strokeStyle = `rgba(60,35,15,${.04 + r() * .07})`; ctx.lineWidth = 2; ctx.beginPath(); const y = r() * Hh; ctx.moveTo(0, y); ctx.bezierCurveTo(W * .3, y + 14, W * .7, y - 14, W, y + 6); ctx.stroke(); }
+  const quad = [[250, 118], [760, 150], [842, 600], [168, 566]];
+  ctx.save(); ctx.filter = "blur(10px)"; ctx.fillStyle = "rgba(0,0,0,.35)"; ctx.beginPath(); quad.forEach(([x, y], i) => (i ? ctx.lineTo(x + 10, y + 14) : ctx.moveTo(x + 10, y + 14))); ctx.closePath(); ctx.fill(); ctx.restore();
+  const img = ctx.getImageData(0, 0, W, Hh); const Hm = homography(quad, [[0, 0], [drawing.width, 0], [drawing.width, drawing.height], [0, drawing.height]]); const s = sampler(drawing); const px = [0, 0, 0, 0];
+  for (let y = 0; y < Hh; y++) for (let x = 0; x < W; x++) {
+    const w = Hm[6] * x + Hm[7] * y + 1; const sx = (Hm[0] * x + Hm[1] * y + Hm[2]) / w, sy = (Hm[3] * x + Hm[4] * y + Hm[5]) / w;
+    if (s(sx, sy, px, 0)) { const light = .86 + .14 * (1 - x / W) - .05 * (y / Hh); const o = (y * W + x) * 4; img.data[o] = px[0] * light; img.data[o + 1] = px[1] * light; img.data[o + 2] = px[2] * light * .97; }
+  }
+  ctx.putImageData(img, 0, 0); return c;
+}
+
+// ---------- 状態 ----------
+const state = {
+  child: "hana", room: null, frameOverride: null, workId: null,
+  works: [],
+  collect: { step: 1, src: null, pts: null, corrected: null, noCorrect: false, sampleIdx: 0, keepValues: null, saved: null },
+};
+const SAMPLES = [["leaves", "landscape"], ["fish", "landscape"], ["house", "landscape"]];
+let nextId = 100;
+
+function addWork(o) {
+  const canvas = o.canvas; const url = canvas.toDataURL("image/jpeg", .86);
+  const w = { id: o.id || ++nextId, child: o.child, title: o.title || "", kind: o.kind, date: o.date, memo: o.memo || "", frame: o.frame || "auto", featured: !!o.featured, keep: !!o.keep, src: url, w: canvas.width, h: canvas.height, hue: o.hue ?? Math.floor(rng(o.date.length * 97 + canvas.width)() * 360), added: Date.now() + (o.order || 0) };
+  state.works.push(w); return w;
+}
+function seed() {
+  const L = [
+    ["hana", "2026-11-20", "ママとうさぎ", "絵", "rabbitMama", "portrait", { featured: 1, memo: "「うさぎがママをおむかえにきたところ」", hue: 340 }],
+    ["hana", "2026-10-04", "かぞく", "絵", "family", "landscape", { featured: 1, keep: 1, memo: "運動会のあと、家族4人を描いてくれた", hue: 30 }],
+    ["hana", "2026-09-12", "うみのさかな", "絵", "fish", "landscape", { memo: "はじめての絵の具", hue: 200 }],
+    ["hana", "2026-07-01", "かみざらのライオン", "工作", "lionCraft", "square", { keep: 1, memo: "園の夏まつりで作った", hue: 35 }],
+    ["hana", "2026-06-10", "にじとくるま", "絵", "rainbowCar", "landscape", { hue: 120 }],
+    ["hana", "2026-05-08", "おうちとたいよう", "絵", "house", "landscape", { hue: 50 }],
+    ["hana", "2025-12-15", "てがたのクリスマス", "絵", "tegata", "portrait", { featured: 1, memo: "クリスマスカードの台紙", hue: 0 }],
+    ["hana", "2025-09-20", "", "絵", "scribble", "landscape", { hue: 260 }],
+    ["sota", "2026-11-10", "やま", "書写・文字", ["shodo", "やま"], "hanshi", { featured: 1, memo: "はじめての書写の授業" }],
+    ["sota", "2026-10-01", "うんどうかい", "絵", "undoukai", "landscape", { hue: 10 }],
+    ["sota", "2026-07-15", "あさがおのかんさつ", "絵", "asagao", "portrait", { keep: 1, memo: "夏休みの宿題", hue: 280 }],
+    ["sota", "2026-05-20", "ロケット", "絵", "rocket", "portrait", { hue: 220 }],
+    ["sota", "2025-11-05", "きょうりゅう", "絵", "dino", "landscape", { featured: 1, memo: "ティラノサウルスとかざん", hue: 100 }],
+  ];
+  L.forEach(([child, date, title, kind, art, size, extra], i) => {
+    const fn = Array.isArray(art) ? ART[art[0]](art[1]) : ART[art];
+    addWork({ child, date, title, kind, canvas: render(fn, size), order: -i, ...extra });
+  });
+}
+
+// ---------- 描画 ----------
+const $app = document.getElementById("app");
+const $sub = document.getElementById("hdrSub");
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const childOf = (id) => CHILDREN.find((c) => c.id === id);
+const frameOf = (w) => state.frameOverride || (w.frame === "auto" ? autoFrame(w.kind) : w.frame);
+function frameHTML(w, extraStyle = "") {
+  return `<span class="frame" data-frame="${frameOf(w)}" style="--hue:${w.hue};${extraStyle}"><span class="mat"><img src="${w.src}" alt="${esc(w.title || "無題")}" width="${w.w}" height="${w.h}"></span></span>`;
+}
+function sortWorks(list) { return list.sort((a, b) => (b.date.localeCompare(a.date)) || (b.added - a.added)); }
+function roomsFor(childId) {
+  const child = childOf(childId); const map = new Map();
+  state.works.filter((w) => w.child === childId).forEach((w) => { const fy = fiscalYear(w.date); if (!map.has(fy)) map.set(fy, []); map.get(fy).push(w); });
+  return [...map.entries()].sort((a, b) => b[0] - a[0]).map(([fy, list]) => ({ key: String(fy), name: roomName(child.birth, fy).replace(/の部屋$/, ""), fy, list: sortWorks(list) }));
+}
+function listFor(view) {
+  const childWorks = state.works.filter((w) => w.child === state.child);
+  if (view === "featured") return sortWorks(childWorks.filter((w) => w.featured));
+  if (state.room === "keep") return sortWorks(childWorks.filter((w) => w.keep));
+  const room = roomsFor(state.child).find((r) => r.key === state.room); return room ? room.list : [];
+}
+const childPills = () => CHILDREN.length > 1 ? `<div class="pills" role="group" aria-label="子ども">${CHILDREN.map((c) => `<button type="button" class="pill" data-child="${c.id}" aria-pressed="${c.id === state.child}">${esc(c.name)}</button>`).join("")}</div>` : "";
+function bindChildPills(rerender) { $app.querySelectorAll("[data-child]").forEach((b) => b.onclick = () => { state.child = b.dataset.child; state.room = null; rerender(); }); }
+function gridHTML(list, child) {
+  if (!list.length) return `<p class="empty">まだ作品がありません。<br>「収蔵する」から、最初の作品を飾りましょう。</p>`;
+  return `<div class="grid">${list.map((w) => `
+    <button type="button" class="piece" data-work="${w.id}">
+      ${frameHTML(w)}
+      <span class="cap"><b>${esc(w.title || "無題")}</b><small><span>${w.date.slice(5).replace("-", "/")}</span><span>${ageText(child, w.date)}</span>${w.featured ? '<span class="badge star">常設展</span>' : ""}${w.keep ? '<span class="badge keep">実物保管</span>' : ""}</small></span>
+    </button>`).join("")}</div>`;
+}
+function bindGrid(from) { $app.querySelectorAll("[data-work]").forEach((b) => b.onclick = () => { state.workId = Number(b.dataset.work); state.from = from; location.hash = "work"; }); }
+
+function viewGallery() {
+  const child = childOf(state.child); const rooms = roomsFor(state.child);
+  if (!state.room || (state.room !== "keep" && !rooms.some((r) => r.key === state.room))) state.room = rooms[0]?.key || "keep";
+  const all = state.works.filter((w) => w.child === state.child);
+  const list = listFor("gallery");
+  $sub.innerHTML = `<p>${fmtDate(today).replace(/^\d+年/, "")}の美術館</p>`;
+  $app.innerHTML = `
+    ${childPills()}
+    <section class="card">
+      <div class="museum"><span class="ico" aria-hidden="true">🖼️</span><div><h2>${esc(child.museum)}</h2><p class="muted">${esc(child.name)} ・ いま ${ageText(child, today)}</p></div></div>
+      <div class="stats">
+        <div><b>${all.length}</b><span>収蔵した作品</span></div>
+        <div><b>${all.filter((w) => w.date.slice(0, 7) === today.slice(0, 7)).length}</b><span>今月</span></div>
+        <div><b>${all.filter((w) => w.keep).length}</b><span>実物保管</span></div>
+      </div>
+    </section>
+    <div class="pills" role="group" aria-label="部屋">
+      ${rooms.map((r) => `<button type="button" class="pill" data-room="${r.key}" aria-pressed="${state.room === r.key}">${esc(r.name)}の部屋<small>${r.list.length}</small></button>`).join("")}
+      <button type="button" class="pill" data-room="keep" aria-pressed="${state.room === "keep"}">実物保管<small>${all.filter((w) => w.keep).length}</small></button>
+    </div>
+    <p class="sec-title">${state.room === "keep" ? "実物も手元に残している作品" : `${state.room}年度 ・ 新しい順`}</p>
+    ${gridHTML(list, child)}
+    <div class="sticky-cta"><a class="btn-main" href="#collect">📷 作品を収蔵する</a></div>
+    <section class="card">
+      <p class="sec-title" style="margin:0 0 8px">額縁を見比べる(モック用)</p>
+      <div class="pills wrap" role="group" aria-label="額縁">
+        <button type="button" class="pill" data-fo="" aria-pressed="${!state.frameOverride}">作品ごと</button>
+        ${FRAMES.map((f) => `<button type="button" class="pill" data-fo="${f.id}" aria-pressed="${state.frameOverride === f.id}">${f.name}</button>`).join("")}
+      </div>
+    </section>`;
+  bindChildPills(viewGallery); bindGrid("gallery");
+  $app.querySelectorAll("[data-room]").forEach((b) => b.onclick = () => { state.room = b.dataset.room; viewGallery(); });
+  $app.querySelectorAll("[data-fo]").forEach((b) => b.onclick = () => { state.frameOverride = b.dataset.fo || null; viewGallery(); });
+}
+
+function viewFeatured() {
+  const child = childOf(state.child); const list = listFor("featured");
+  $sub.innerHTML = `<p>⭐ ${esc(child.name)}の常設展</p>`;
+  $app.innerHTML = `
+    ${childPills()}
+    <p class="muted" style="padding:0 2px">お気に入りの作品を、年度を問わず集めた部屋です。作品の詳細で「常設展に飾る」をオンにすると、ここに並びます。</p>
+    ${gridHTML(list, child)}`;
+  bindChildPills(viewFeatured); bindGrid("featured");
+}
+
+function viewWork() {
+  let w = state.works.find((x) => x.id === state.workId) || state.works[0];
+  state.workId = w.id; state.child = w.child;
+  const from = state.from || "gallery";
+  let list = listFor(from);
+  if (!list.includes(w)) { state.room = String(fiscalYear(w.date)); list = listFor("gallery"); }
+  const i = list.indexOf(w); const child = childOf(w.child);
+  $sub.innerHTML = `<button type="button" class="back" id="back">← もどる</button><p>${esc(w.title || "無題")}</p>`;
+  $sub.querySelector("#back").onclick = () => { location.hash = from; };
+  $app.innerHTML = `
+    <div class="showcase big">${frameHTML(w, `--maxw:${w.w >= w.h ? 400 : 290}px`)}</div>
+    <div class="pager"><button type="button" id="prev" ${i <= 0 ? "disabled" : ""}>← 前の作品</button><span>${i + 1} / ${list.length}</span><button type="button" id="next" ${i >= list.length - 1 ? "disabled" : ""}>次の作品 →</button></div>
+    <section class="card caption">
+      <p class="t">『${esc(w.title || "無題")}』</p>
+      <dl>
+        <dt>作者</dt><dd>${esc(child.name)}${child.birth ? `(${ageText(child, w.date)})` : ""}</dd>
+        <dt>制作日</dt><dd>${fmtDate(w.date)}</dd>
+        <dt>種類</dt><dd>${esc(w.kind)}</dd>
+        <dt>部屋</dt><dd>${esc(roomName(child.birth, fiscalYear(w.date)))}</dd>
+      </dl>
+      ${w.memo ? `<p class="memo">${esc(w.memo)}</p>` : ""}
+    </section>
+    <section class="card setting">
+      <div><div class="lbl">額縁</div>
+        <div class="pills wrap" role="group" aria-label="額縁">
+          <button type="button" class="pill" data-frame="auto" aria-pressed="${w.frame === "auto"}">自動(${FRAMES.find((f) => f.id === autoFrame(w.kind)).name})</button>
+          ${FRAMES.map((f) => `<button type="button" class="pill" data-frame="${f.id}" aria-pressed="${w.frame === f.id}">${f.name}</button>`).join("")}
+        </div>
+      </div>
+      <label class="switch"><span>常設展に飾る<small>お気に入りの部屋に並べます</small></span><input type="checkbox" id="d-featured" ${w.featured ? "checked" : ""}></label>
+      <label class="switch"><span>実物保管<small>実物も手元に残している印</small></span><input type="checkbox" id="d-keep" ${w.keep ? "checked" : ""}></label>
+    </section>
+    <div class="row"><button type="button" class="btn-sub" id="edit">✏️ 情報を直す</button></div>
+    <button type="button" class="danger" id="del">この作品を削除する</button>`;
+  const go = (d) => { const n = list[i + d]; if (n) { state.workId = n.id; viewWork(); } };
+  $app.querySelector("#prev").onclick = () => go(-1);
+  $app.querySelector("#next").onclick = () => go(1);
+  $app.querySelectorAll("[data-frame]").forEach((b) => b.onclick = () => { w.frame = b.dataset.frame; state.frameOverride = null; viewWork(); });
+  $app.querySelector("#d-featured").onchange = (e) => { w.featured = e.target.checked; };
+  $app.querySelector("#d-keep").onchange = (e) => { w.keep = e.target.checked; };
+  $app.querySelector("#edit").onclick = (e) => { e.target.textContent = "(モックでは編集できません)"; };
+  $app.querySelector("#del").onclick = (e) => { e.target.textContent = "(実際は確認のあとで削除します)"; };
+}
+
+function viewGroup() {
+  $sub.innerHTML = `<p>家族で共有</p>`;
+  $app.innerHTML = `
+    <section class="card">
+      <h2>わが家</h2>
+      <p class="muted" style="margin-bottom:8px">同じ家族のメンバーは、同じ美術館を見て、作品を収蔵できます。あさノート・よるノートと同じ家族です。</p>
+      <div class="member"><span class="avatar">ま</span>まま(あなた)</div>
+      <div class="member"><span class="avatar">ぱ</span>ぱぱ</div>
+    </section>
+    <section class="card">
+      <h2>子ども</h2>
+      ${CHILDREN.map((c) => `<div class="member"><span class="avatar">${esc(c.name[0])}</span><div style="flex:1">${esc(c.name)}<br><small class="muted">${fmtDate(c.birth)}生まれ ・ ${esc(c.museum)}</small></div></div>`).join("")}
+    </section>
+    <button type="button" class="btn-sub">招待コードを発行する</button>`;
+}
+
+// ---------- 収蔵 ----------
+const today = "2026-11-28";
+const stepsBar = (n) => `<div class="steps" aria-label="ステップ ${n} / 3">${[1, 2, 3].map((i) => `<i class="${i <= n ? "on" : ""}"></i>`).join("")}</div>`;
+function collectHeader(label, onBack) {
+  $sub.innerHTML = onBack ? `<button type="button" class="back" id="back">← もどる</button><p>${label}</p>` : `<p>${label}</p>`;
+  if (onBack) $sub.querySelector("#back").onclick = onBack;
+}
+function viewCollect() {
+  const c = state.collect;
+  if (c.step === 1) return collectPick();
+  if (c.step === 2) return collectCrop();
+  if (c.step === 3) return collectForm();
+  return collectDone();
+}
+function loadSource(canvas) {
+  const c = state.collect; c.src = canvas; c.noCorrect = false;
+  const W = canvas.width, H = canvas.height, m = .08;
+  c.pts = [[W * m, H * m], [W * (1 - m), H * m], [W * (1 - m), H * (1 - m)], [W * m, H * (1 - m)]];
+  c.step = 2; viewCollect();
+}
+function collectPick() {
+  const c = state.collect;
+  collectHeader(c.keepValues ? "続けて収蔵する" : "作品を収蔵する");
+  $app.innerHTML = `<div class="enter" style="display:grid;gap:12px">
+    ${stepsBar(1)}
+    <p class="muted">${c.keepValues ? "作者・制作日・種類は、前の作品と同じにします。" : "持ち帰った作品を写真に撮って、美術館に飾りましょう。"}</p>
+    <label class="choice" for="file"><input type="file" id="file" accept="image/*"><span class="ico" aria-hidden="true">📷</span><span><b>撮影する・写真を選ぶ</b><small>手元の写真で試せます(送信はしません)</small></span></label>
+    <button type="button" class="choice" id="sample"><span class="ico" aria-hidden="true">🖼️</span><span><b>サンプルの写真で試す</b><small>机に置いた絵を、ななめから撮った写真</small></span></button>
+  </div>`;
+  $app.querySelector("#sample").onclick = () => {
+    const [name, size] = SAMPLES[c.sampleIdx % SAMPLES.length]; c.sampleIdx++;
+    const btn = $app.querySelector("#sample"); btn.disabled = true; btn.querySelector("b").textContent = "写真を用意しています…";
+    setTimeout(() => loadSource(fakePhoto(render(ART[name], size))), 30);
+  };
+  $app.querySelector("#file").onchange = (e) => {
+    const f = e.target.files?.[0]; if (!f) return;
+    const img = new Image(); const url = URL.createObjectURL(f);
+    img.onload = () => { const s = Math.min(1, 1200 / Math.max(img.width, img.height)); const cv = makeCanvas(Math.round(img.width * s), Math.round(img.height * s)); cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height); URL.revokeObjectURL(url); loadSource(cv); };
+    img.onerror = () => { URL.revokeObjectURL(url); const p = document.createElement("p"); p.className = "muted"; p.style.color = "var(--holiday)"; p.textContent = "この写真は読み込めませんでした。別の写真を選んでください。"; $app.firstElementChild.append(p); };
+    img.src = url;
+  };
+}
+
+function collectCrop() {
+  const c = state.collect;
+  collectHeader("四隅を合わせる", () => { c.step = 1; viewCollect(); });
+  $app.innerHTML = `<div class="enter" style="display:grid;gap:12px">
+    ${stepsBar(2)}
+    <p class="muted">4つの点を、作品の角に合わせてください。ななめに撮った写真も、まっすぐに直ります。</p>
+    <div class="cropper" id="cropper"><canvas class="src" id="srcCanvas"></canvas><svg aria-hidden="true"><polygon id="poly" fill="rgba(61,140,92,.14)" stroke="#fff" stroke-width="2" stroke-dasharray="6 4"></polygon></svg></div>
+    <div class="tools"><button type="button" id="rot">↻ 90°回す</button><button type="button" id="reset">点を元に戻す</button><button type="button" id="skip">補正しない(立体の作品)</button></div>
+    <button type="button" class="btn-main" id="apply">この形で直す</button>
+  </div>`;
+  const cv = $app.querySelector("#srcCanvas"); cv.width = c.src.width; cv.height = c.src.height; cv.getContext("2d").drawImage(c.src, 0, 0);
+  const box = $app.querySelector("#cropper"); const poly = $app.querySelector("#poly"); const svg = box.querySelector("svg");
+  svg.setAttribute("viewBox", `0 0 ${c.src.width} ${c.src.height}`); svg.setAttribute("preserveAspectRatio", "none");
+  const handles = c.pts.map((_, i) => { const h = document.createElement("button"); h.type = "button"; h.className = "handle"; h.setAttribute("aria-label", ["左上", "右上", "右下", "左下"][i] + "の角"); box.append(h); return h; });
+  const loupe = makeCanvas(224, 224); loupe.className = "loupe"; loupe.hidden = true; box.append(loupe);
+  const scale = () => cv.getBoundingClientRect().width / c.src.width;
+  function place() {
+    const s = scale(); handles.forEach((h, i) => { h.style.left = c.pts[i][0] * s + "px"; h.style.top = c.pts[i][1] * s + "px"; });
+    poly.setAttribute("points", c.pts.map((p) => p.join(",")).join(" ")); poly.setAttribute("stroke-width", String(2 / s));
+  }
+  function drawLoupe(i) {
+    const s = scale(); const [x, y] = c.pts[i]; const half = 112 / 3 / s;
+    const g = loupe.getContext("2d"); g.fillStyle = "#000"; g.fillRect(0, 0, 224, 224);
+    g.drawImage(c.src, x - half, y - half, half * 2, half * 2, 0, 0, 224, 224);
+    g.strokeStyle = "#fff"; g.lineWidth = 2; g.beginPath(); g.moveTo(112, 90); g.lineTo(112, 134); g.moveTo(90, 112); g.lineTo(134, 112); g.stroke();
+    const bw = box.getBoundingClientRect().width; let lx = x * s - 56, ly = y * s - 140; if (ly < 0) ly = y * s + 36; lx = Math.max(0, Math.min(bw - 112, lx));
+    loupe.style.left = lx + "px"; loupe.style.top = ly + "px";
+  }
+  handles.forEach((h, i) => {
+    h.addEventListener("pointerdown", (e) => {
+      e.preventDefault(); h.setPointerCapture(e.pointerId); loupe.hidden = false; drawLoupe(i);
+      const move = (ev) => { const r = cv.getBoundingClientRect(); const s = scale(); c.pts[i] = [Math.max(0, Math.min(c.src.width, (ev.clientX - r.left) / s)), Math.max(0, Math.min(c.src.height, (ev.clientY - r.top) / s))]; place(); drawLoupe(i); };
+      const up = () => { h.removeEventListener("pointermove", move); h.removeEventListener("pointerup", up); h.removeEventListener("pointercancel", up); loupe.hidden = true; };
+      h.addEventListener("pointermove", move); h.addEventListener("pointerup", up); h.addEventListener("pointercancel", up);
+    });
+    h.addEventListener("keydown", (e) => { const d = { ArrowLeft: [-4, 0], ArrowRight: [4, 0], ArrowUp: [0, -4], ArrowDown: [0, 4] }[e.key]; if (d) { e.preventDefault(); c.pts[i] = [c.pts[i][0] + d[0], c.pts[i][1] + d[1]]; place(); } });
+  });
+  place(); new ResizeObserver(place).observe(cv);
+  $app.querySelector("#rot").onclick = () => { const s = c.src; const r = makeCanvas(s.height, s.width); const g = r.getContext("2d"); g.translate(r.width, 0); g.rotate(Math.PI / 2); g.drawImage(s, 0, 0); loadSource(r); };
+  $app.querySelector("#reset").onclick = () => loadSource(c.src);
+  $app.querySelector("#skip").onclick = () => { c.corrected = c.src; c.noCorrect = true; c.step = 3; viewCollect(); };
+  $app.querySelector("#apply").onclick = (e) => {
+    e.target.disabled = true; e.target.textContent = "直しています…";
+    setTimeout(() => {
+      const p = c.pts, d = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+      const w = (d(p[0], p[1]) + d(p[3], p[2])) / 2, h = (d(p[0], p[3]) + d(p[1], p[2])) / 2; const s = Math.min(1, 900 / Math.max(w, h));
+      c.corrected = warpToRect(c.src, p, Math.max(1, Math.round(w * s)), Math.max(1, Math.round(h * s))); c.noCorrect = false; c.step = 3; viewCollect();
+    }, 30);
+  };
+}
+
+function collectForm() {
+  const c = state.collect; const kv = c.keepValues || {};
+  const f = c.form || (c.form = { child: kv.child || state.child, date: kv.date || today, title: "", kind: kv.kind || (c.noCorrect ? "工作" : "絵"), memo: "", frame: "auto", featured: false, keep: false });
+  if (!c.previewUrl) c.previewUrl = c.corrected.toDataURL("image/jpeg", .86);
+  const preview = { w: c.corrected.width, h: c.corrected.height, src: c.previewUrl, title: f.title, kind: f.kind, frame: f.frame, hue: 140 };
+  const child = childOf(f.child);
+  collectHeader("作品の情報", () => { c.step = 2; c.previewUrl = null; viewCollect(); });
+  $app.innerHTML = `<div style="display:grid;gap:14px">
+    ${stepsBar(3)}
+    <div class="showcase big">${frameHTML(preview, `--maxw:${preview.w >= preview.h ? 300 : 210}px`)}</div>
+    ${CHILDREN.length > 1 ? `<div class="field"><span>作者</span><div class="pills" role="group" aria-label="作者">${CHILDREN.map((x) => `<button type="button" class="pill" data-fc="${x.id}" aria-pressed="${x.id === f.child}">${esc(x.name)}</button>`).join("")}</div></div>` : ""}
+    <label class="field"><span>制作日</span><input type="date" id="f-date" value="${f.date}" max="${today}"><span class="age">${child.birth ? `${ageText(child, f.date)}のとき ・ ${roomName(child.birth, fiscalYear(f.date))}に飾ります` : ""}</span></label>
+    <label class="field"><span>タイトル<em>任意</em></span><input type="text" id="f-title" maxlength="50" value="${esc(f.title)}" placeholder="例: ママとうさぎ"></label>
+    <div class="field"><span>種類</span><div class="pills wrap" role="group" aria-label="種類">${KINDS.map((k) => `<button type="button" class="pill" data-kind="${k}" aria-pressed="${k === f.kind}">${k}</button>`).join("")}</div></div>
+    <label class="field"><span>ひとことメモ<em>任意</em></span><textarea id="f-memo" maxlength="200" placeholder="例: うさぎがママをおむかえにきたところ">${esc(f.memo)}</textarea></label>
+    <div class="field"><span>額縁</span><div class="pills wrap" role="group" aria-label="額縁"><button type="button" class="pill" data-ff="auto" aria-pressed="${f.frame === "auto"}">自動(${FRAMES.find((x) => x.id === autoFrame(f.kind)).name})</button>${FRAMES.map((x) => `<button type="button" class="pill" data-ff="${x.id}" aria-pressed="${f.frame === x.id}">${x.name}</button>`).join("")}</div></div>
+    <section class="card setting">
+      <label class="switch"><span>常設展に飾る<small>お気に入りの部屋に並べます</small></span><input type="checkbox" id="f-featured" ${f.featured ? "checked" : ""}></label>
+      <label class="switch"><span>実物保管<small>実物も手元に残す作品</small></span><input type="checkbox" id="f-keep" ${f.keep ? "checked" : ""}></label>
+    </section>
+    <div class="sticky-cta"><button type="button" class="btn-main" id="save">収蔵する</button></div>
+  </div>`;
+  const rerender = () => { const y = window.scrollY; collectForm(); window.scrollTo(0, y); };
+  const sync = () => { f.title = $app.querySelector("#f-title").value; f.memo = $app.querySelector("#f-memo").value; };
+  $app.querySelectorAll("[data-fc]").forEach((b) => b.onclick = () => { sync(); f.child = b.dataset.fc; rerender(); });
+  $app.querySelector("#f-date").onchange = (e) => { sync(); if (e.target.value) f.date = e.target.value; rerender(); };
+  $app.querySelector("#f-title").oninput = sync; $app.querySelector("#f-memo").oninput = sync;
+  $app.querySelectorAll("[data-kind]").forEach((b) => b.onclick = () => { sync(); f.kind = b.dataset.kind; rerender(); });
+  $app.querySelectorAll("[data-ff]").forEach((b) => b.onclick = () => { sync(); f.frame = b.dataset.ff; rerender(); });
+  $app.querySelector("#f-featured").onchange = (e) => { f.featured = e.target.checked; };
+  $app.querySelector("#f-keep").onchange = (e) => { f.keep = e.target.checked; };
+  $app.querySelector("#save").onclick = (e) => {
+    sync(); e.target.disabled = true; e.target.textContent = "保存しています…";
+    // 実際のアプリでは、サーバーへの保存の成功を確かめてから完了の案内を出す(SPEC §5.6)
+    setTimeout(() => {
+      const w = addWork({ child: f.child, date: f.date, title: f.title.trim(), kind: f.kind, memo: f.memo.trim(), frame: f.frame, featured: f.featured, keep: f.keep, canvas: c.corrected, hue: 140 });
+      c.saved = w; c.step = 4; c.previewUrl = null; viewCollect(); window.scrollTo(0, 0);
+    }, 500);
+  };
+}
+function collectDone() {
+  const c = state.collect; const w = c.saved; const child = childOf(w.child);
+  collectHeader("収蔵しました");
+  $app.innerHTML = `
+    <section class="card done enter">
+      <span class="emoji" aria-hidden="true">🎉</span>
+      <h2>収蔵しました</h2>
+      ${frameHTML(w)}
+      <p>${w.keep ? `${esc(child.museum)}に飾りました。<br>実物も大切に保管しましょう。` : `${esc(child.museum)}に飾りました。<br>実物は手放しても大丈夫です。`}</p>
+    </section>
+    <button type="button" class="btn-main" id="more">📷 続けて収蔵する</button>
+    <button type="button" class="btn-sub" id="see">作品を見る</button>`;
+  const reset = (keep) => Object.assign(c, { step: 1, src: null, pts: null, corrected: null, form: null, saved: null, previewUrl: null, keepValues: keep });
+  $app.querySelector("#more").onclick = () => { const f = c.form; reset({ child: f.child, date: f.date, kind: f.kind }); viewCollect(); };
+  $app.querySelector("#see").onclick = () => { state.child = w.child; state.room = String(fiscalYear(w.date)); state.workId = w.id; state.from = "gallery"; reset(null); location.hash = "work"; };
+}
+
+// ---------- 画面の切り替え ----------
+const VIEWS = { gallery: viewGallery, featured: viewFeatured, work: viewWork, collect: viewCollect, group: viewGroup };
+function route() {
+  const v = VIEWS[location.hash.slice(1)] ? location.hash.slice(1) : "gallery";
+  const tab = v === "work" ? (state.from || "gallery") : v;
+  document.querySelectorAll(".nav a").forEach((a) => { if (a.dataset.view === tab) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
+  VIEWS[v](); window.scrollTo(0, 0);
+}
+window.addEventListener("hashchange", route);
+document.querySelector('.nav a[data-view="collect"]').addEventListener("click", () => { if (location.hash === "#collect" && state.collect.step !== 1) { Object.assign(state.collect, { step: 1, src: null, pts: null, corrected: null, form: null, saved: null, previewUrl: null, keepValues: null }); route(); } });
+
+const fontsReady = Promise.race([
+  Promise.all([document.fonts.load('700 100px "Shippori Mincho"', "やまそうた"), document.fonts.load('700 30px "Zen Kaku Gothic New"', "ままぱぱはな"), document.fonts.load('700 16px "Zen Maru Gothic"', "さくひん")]).catch(() => {}),
+  new Promise((r) => setTimeout(r, 1500)),
+]);
+$app.innerHTML = '<p class="empty">作品を並べています…</p>';
+fontsReady.then(() => { seed(); route(); });
+})();
+</script>

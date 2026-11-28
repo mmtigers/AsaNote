@@ -23,7 +23,8 @@ create table if not exists children (
   id uuid primary key default gen_random_uuid(),
   created_by uuid not null references auth.users(id) on delete cascade,
   name text not null check (char_length(name) between 1 and 50),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  birth_date date
 );
 
 -- 連絡メモの下書き(liaison_memo_settings / liaison_memos。apps/yoru/docs/liaison-memo.md)。

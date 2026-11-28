@@ -110,15 +110,25 @@ export async function updateChild(id: string, name: string): Promise<Child> {
   return data as Child;
 }
 
+// さくひんノートに作品がある子どもの削除を、DB のトリガーが止めたときのエラー
+// (apps/sakuhin/supabase/schema.sql の sakuhin_prevent_child_delete_with_works)。
+const SAKUHIN_HAS_WORKS = "sakuhin_child_has_works";
+export const CHILD_HAS_SAKUHIN_WORKS_MESSAGE =
+  "さくひんノートにこのお子さまの作品があるため、削除できません。削除するときは、先にさくひんノートで作品を削除してください";
+
 /**
  * 子どもを削除する(#59)。SPEC 4.5 の「子どもを削除しても記録は残る」は、
  * records.child_id が `on delete set null`(supabase/schema.sql)であることで担保される
  * ため、ここでは records に触らない。RLS 上、削除できるのは作成者のみ。
+ * さくひんノートに作品がある子どもは削除できない(記念の作品を巻き込んで消さないため)。
  */
 export async function deleteChild(id: string): Promise<void> {
   const supabase = getSupabaseClient();
   const { error } = await supabase.from("children").delete().eq("id", id);
-  if (error) throw error;
+  if (error) {
+    if (error.message?.includes(SAKUHIN_HAS_WORKS)) throw new Error(CHILD_HAS_SAKUHIN_WORKS_MESSAGE);
+    throw error;
+  }
 }
 
 // ホーム・タイムライン・傾向で使う、子ども一覧の軽量フック。未ログインの間はnull、

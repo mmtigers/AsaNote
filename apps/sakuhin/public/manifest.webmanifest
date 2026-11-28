@@ -1,0 +1,15 @@
+{
+  "name": "さくひんノート",
+  "short_name": "さくひんノート",
+  "description": "子どもが持ち帰った作品を写真で残して、額縁に入れて見返せる、おうちの美術館。",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f2f7f0",
+  "theme_color": "#f2f7f0",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -352,10 +352,17 @@ create table if not exists children (
   id uuid primary key default uuid_generate_v4(),
   created_by uuid not null references auth.users(id) on delete cascade,
   name text not null check (char_length(name) between 1 and 50),
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  -- 誕生日(任意)。既存の DB には下の alter table で足す(create table if not exists は既存の表を変えないため)。
+  birth_date date
 );
 
 create index if not exists idx_children_created_by on children(created_by);
+
+-- 誕生日(任意)。さくひんノートが、作品の制作時の年齢と学年(部屋)を求めるのに使う
+-- (apps/sakuhin/docs/SPEC.md §4・§11 D8)。null 可なので、あさノート・よるノートの既存の行・画面には影響しない。
+-- 未来の日付かどうかの検査は画面で行う(DB の current_date は UTC のため、日本時間の深夜0〜9時に「今日」を拒んでしまう)。
+alter table children add column if not exists birth_date date;
 
 -- 子どもの作成者がグループを脱退したとき、その子どもの所有(created_by)を、同じグループに
 -- 残る別のメンバーへ移す(Issue #128)。移さないと、children の SELECT が「作成者 または 作成者と
@@ -456,11 +463,40 @@ create policy "children are insertable by creator"
   with check (created_by = auth.uid());
 
 drop policy if exists "children are updatable by creator" on children;
+drop policy if exists "children are updatable by creator or group members" on children;
 
-create policy "children are updatable by creator"
+-- 更新は、登録した人に加えて、同じグループのメンバーもできる(読み取りと同じ条件。
+-- apps/sakuhin/docs/SPEC.md §11 D10)。家族の誰でも名前・誕生日を直せるようにするため。削除は登録した人だけのまま。
+-- with check も同じ条件にして、自分が読めない子どもへ書き換えられないようにする。
+create policy "children are updatable by creator or group members"
   on children for update
   to authenticated
-  using (created_by = auth.uid());
+  using (
+    auth.uid() = created_by
+    or exists (
+      select 1
+      from group_members gm_self
+      join group_members gm_owner on gm_owner.group_id = gm_self.group_id
+      where gm_self.user_id = auth.uid()
+        and gm_owner.user_id = children.created_by
+    )
+  )
+  with check (
+    auth.uid() = created_by
+    or exists (
+      select 1
+      from group_members gm_self
+      join group_members gm_owner on gm_owner.group_id = gm_self.group_id
+      where gm_self.user_id = auth.uid()
+        and gm_owner.user_id = children.created_by
+    )
+  );
+
+-- 画面から更新できる列は、名前と誕生日だけにする(列ごとの権限)。家族のメンバーが created_by を自分に
+-- 書き換えて削除の権限を移す、といった操作を DB で止める。所有の移し替え(transfer_children_on_group_leave)は
+-- security definer の関数で行うため、この制限を受けない。
+revoke update on children from anon, authenticated;
+grant update (name, birth_date) on children to authenticated;
 
 drop policy if exists "children are deletable by creator" on children;
 
