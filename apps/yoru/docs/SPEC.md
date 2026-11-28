@@ -134,6 +134,10 @@
 
 この約束はCIで守っている。`npm run check:schema` が `schema.sql` の `evening_*` 以外への操作を許可リスト方式で検査し、`Supabase type drift check` が素のPostgres(あさノート側の共通表の最小スタブつき)へ `schema.sql` を2回流して、型 `src/lib/db/database.types.ts` との差分を確かめる。あさノート側で共通表の列が変わったら、`supabase/ci/shared-tables-stub.sql` と型を追随させる。
 
+### 7.1 退会(#290)
+
+「共有」画面の最後の「退会」から、アカウントと記録を削除できる(あさノートと共通の画面。`packages/core` の `DeleteAccountSection`)。共有モードではあさノートと同じアカウントなので、**あさノートの記録も一緒に消える**(画面でそう示す)。写真の実体(Storage の `evening-photos`)も消す。処理の順序と手動デプロイは、あさノートの SPEC §6.5 と `apps/asa/docs/push-notifications-setup.md` の「退会」。
+
 ## 8. 技術スタック
 
 あさノートと同一。

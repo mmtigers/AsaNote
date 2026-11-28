@@ -5,15 +5,11 @@ import Link from "next/link";
 import { useState } from "react";
 import { ConfirmDialog } from "@note/core/components/ConfirmDialog";
 import { useAuth } from "@/lib/auth/AuthProvider";
-import { clearDraft } from "@/app/_home/draftStorage";
-import { clearLocalData } from "@/lib/db/localDb";
+import { clearThisDevice } from "@/lib/auth/clearThisDevice";
 import { removeThisDevicePushSubscription } from "@/lib/db/notificationSettings";
-import { clearReminderDismissal } from "@/lib/db/reminderDismissal";
 import { usePendingSyncCount } from "@/lib/db/queries";
-import { setSelectedChildId } from "@/lib/db/selectedChild";
 import { countUnsyncedChanges } from "@/lib/db/records";
 import { syncPendingChanges } from "@/lib/db/sync";
-import { clearChildrenCache } from "@note/core/db/children";
 import { getSupabaseClient } from "@note/core/supabase/client";
 
 export function AuthStatus() {
@@ -37,21 +33,8 @@ export function AuthStatus() {
       console.error(error);
       reportHandledError("auth/sign-out", error);
     } finally {
-      // 共有端末で前ユーザーのローカルデータが残り、次にログインした別ユーザーの
-      // アカウントへ誤同期されるのを防ぐため、ログアウト時にローカルDexie DBを
-      // 全テーブルクリアする。
-      try {
-        await clearLocalData();
-      } catch (error) {
-        console.error(error);
-        reportHandledError("auth/clear-local-data", error);
-      }
-      // localStorageに残る下書き(メモを含む)と選択中の子どもも、次に使う人へ
-      // 引き継がれないよう消す(#131)。
-      clearDraft();
-      setSelectedChildId(null);
-      clearReminderDismissal();
-      clearChildrenCache();
+      // ログアウトしたら、この端末のデータを消す(退会と共通。clearThisDevice.ts)。
+      await clearThisDevice();
     }
   }
 

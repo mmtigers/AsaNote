@@ -34,6 +34,7 @@ vi.mock("@note/core/db/children", () => ({
   createChild: mocks.createChild,
   updateChild: mocks.updateChild,
   deleteChild: mocks.deleteChild,
+  clearChildrenCache: vi.fn(),
 }));
 vi.mock("@/lib/db/sync", () => ({ pullFromCloud: mocks.pullFromCloud }));
 

@@ -89,9 +89,12 @@ export async function installFakeSupabase(
   const fake: FakeSupabase = { tables: { ...options.tables }, functionCalls: [], writes: [] };
   const table = (name: string) => (fake.tables[name] ??= []);
 
-  // ログイン済みの状態から始める(supabase-js が起動時に読むセッション)。
+  // ログイン済みの状態から始める(supabase-js が起動時に読むセッション)。入れるのはタブで最初の1回だけ
+  // (ページを移るたびに入れ直すと、ログアウト・退会でセッションが消えたことを確かめられないため)。
   await page.addInitScript(
     ([key, value]) => {
+      if (window.sessionStorage.getItem("fake-supabase-seeded")) return;
+      window.sessionStorage.setItem("fake-supabase-seeded", "1");
       window.localStorage.setItem(key, value);
     },
     [STORAGE_KEY, JSON.stringify(session())] as const

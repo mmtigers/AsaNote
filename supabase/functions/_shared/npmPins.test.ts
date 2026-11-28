@@ -32,9 +32,10 @@ const specifiers = FUNCTION_DIRS.flatMap((dir) =>
 );
 
 describe("Edge Function の依存(npm:)の版の固定(#204)", () => {
-  it("npm: の取り込みを検出できている(あさノート・よるノートの7関数が、supabase-js と web-push を使う)", () => {
+  it("npm: の取り込みを検出できている(あさノート・よるノートの8関数が supabase-js を、通知の7関数が web-push を使う)", () => {
     // 正規表現やディレクトリが壊れて、何も検査せずに通るのを防ぐ。
-    expect(specifiers.filter((s) => s.specifier.startsWith("npm:@supabase/supabase-js@"))).toHaveLength(7);
+    // 退会(delete-account。#290)は通知を送らないので、supabase-js だけを使う。
+    expect(specifiers.filter((s) => s.specifier.startsWith("npm:@supabase/supabase-js@"))).toHaveLength(8);
     expect(specifiers.filter((s) => s.specifier.startsWith("npm:web-push@"))).toHaveLength(7);
     // 連絡メモの下書き(generate-liaison-memos)だけが、Claude API の SDK を使う。
     expect(specifiers.filter((s) => s.specifier.startsWith("npm:@anthropic-ai/sdk@"))).toHaveLength(1);

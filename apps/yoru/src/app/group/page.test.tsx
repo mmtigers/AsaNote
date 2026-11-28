@@ -34,6 +34,7 @@ vi.mock("@note/core/db/children", () => ({
   createChild: mocks.createChild,
   updateChild: mocks.updateChild,
   deleteChild: mocks.deleteChild,
+  clearChildrenCache: vi.fn(),
 }));
 
 // 連絡メモの設定(この画面の一部)は、ここでは扱わない(LiaisonSection.test.tsx)。サーバーへは行かせない。
@@ -47,6 +48,7 @@ vi.mock("@/lib/db/notificationSettings", () => ({
   fetchNotificationSettings: vi.fn().mockResolvedValue({ reminderTime: "21:00", enabled: false }),
   saveNotificationSettings: vi.fn(),
   savePushSubscription: vi.fn(),
+  removeThisDevicePushSubscription: vi.fn(),
 }));
 
 vi.mock("@/lib/db/sync", () => ({ pullFromCloud: mocks.pullFromCloud }));
