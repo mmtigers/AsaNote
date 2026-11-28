@@ -8,7 +8,7 @@
 
 ## 1. 集計 SQL
 
-期間を絞るときは、各クエリの `where` に `day >= '2026-11-01'` のような条件を足す(D は `created_at`)。
+期間を絞るときは、各クエリの `where` に `day >= '2026-11-01'` のような条件を足す(C・D・E は `created_at` や `client_ts`、A・B は `day`)。
 
 ```sql
 -- A. 所要時間(主指標。新規記録・中断なしで完走したセッション)。日別・入り口別
@@ -21,10 +21,16 @@ select * from analytics_step_funnel_daily
 order by day desc
 limit 60;
 
--- C. 離脱(保存せずホームへ戻った)の理由別件数
-select * from analytics_pause_resume_daily
-order by day desc, pause_reason
-limit 100;
+-- C. 離脱(保存せずホームへ戻った)の理由別件数。`analytics_events` から直接数える
+--    (ビュー analytics_pause_resume_daily は、2026-11-28 の時点で離脱を実際より少なく数えていた。下の注意を参照)
+select
+  (client_ts at time zone 'Asia/Tokyo')::date as day,
+  properties->>'reason' as reason,
+  count(*) as n
+from analytics_events
+where event_name = 'record_flow_paused'
+group by 1, 2
+order by 1 desc, 2;
 
 -- D. 週別の、開始数・保存数と、保存時の入力の傾向(メモ・理由タグ・出発時刻)
 select
@@ -43,11 +49,42 @@ group by week
 order by week desc;
 ```
 
+```sql
+-- E. 離脱の前に、フォームに何秒いたか(誤タップ・確認だけか、入力してから諦めたか)と、
+--    その日のうちにあとで保存したか。識別子は出さない
+select
+  (p.client_ts at time zone 'Asia/Tokyo')::date as day,
+  p.properties->>'reason' as reason,
+  (select round(extract(epoch from p.client_ts - max(st.client_ts)))
+     from analytics_events st
+    where st.record_id = p.record_id
+      and st.event_name in ('record_flow_started', 'record_flow_resumed')
+      and st.client_ts <= p.client_ts) as secs_before_pause,
+  exists (select 1 from analytics_events s
+           where s.user_id = p.user_id
+             and s.event_name = 'record_saved'
+             and s.client_ts > p.client_ts
+             and (s.client_ts at time zone 'Asia/Tokyo')::date
+                 = (p.client_ts at time zone 'Asia/Tokyo')::date) as saved_later_same_day
+from analytics_events p
+where p.event_name = 'record_flow_paused'
+order by day desc;
+```
+
 分析に貼るのは**集計の結果だけ**にする。`user_id` と `record_id` は貼らない。
+
+### 結果の読み方の注意(2026-11-28 の分析で分かったこと)
+
+- **SQL Editor は、複数の文をまとめて実行すると最後の文の結果しか表示しない。** A〜E は1つずつ選択して実行する(まとめて取るなら、`select 'A' as q, to_jsonb(t) as row from (...) t union all ...` の形にする)。
+- **C はビューを使わない。** `analytics_pause_resume_daily` は、2026-11-28 の本番で、B(`analytics_step_funnel_daily`)や `analytics_events` の直接集計より離脱を少なく数えていた(10/6 以降で、直接は12回、ビューは7行)。原因は未調査。
+- **離脱の大半は、数秒で戻る動き。** 2026-11-28 時点で、10/6 以降の離脱12回は、フォームを開いてから離脱まで1〜14秒だった(E)。入力してから諦めた離脱は見当たらない。「開始に対する保存の割合」は、離脱をそのまま諦めとして読まない。
+- **A の所要時間は、放置した時間を含む。** 無操作の検知が無いため、フォームを開いたまま放置すると、数十分〜数日の行になる(10/28 の約5日など)。平均は使わず、中央値と分布で見る。1日に2件ある日の行は、平均で1行になっている。
+- **`record_step_viewed` は、1回の開始で複数回出ることがある。** B の `reached_form` が `flow_started` より多い日がある。ファネルの分母は `flow_started` を使う。
+- **2026-10-05 を境に、記録フローは複数画面から1画面に変わった。** それ以前は `reached_form` が0で、`reached_result` / `reached_reason` が動く。期間をまたぐ比較は、そのつもりで見る(旧フローの期間は開発中のテストも混ざる)。
 
 ## 2. 分析プロンプト
 
-上の A〜D の結果を「# データ」に貼って、Claude に渡す。
+上の A〜E の結果を「# データ」に貼って、Claude に渡す。
 
 ````
 あなたはプロダクトのUX分析担当です。育児記録アプリ「あさノート」の
@@ -70,7 +107,7 @@ order by week desc;
   - 利用者は家族単位で少人数。件数が少ない日・区分では、平均や率に意味がないことがある。
 
 # データ
-(ここに A〜D の結果を貼る)
+(ここに A〜E の結果を貼る)
 
 # 依頼
 1. 結論を3行で。「サッと記録できている」か、できていないか。根拠となる数値つき。
@@ -94,5 +131,5 @@ order by week desc;
 ### 使い方のコツ
 
 - 件数が少ないうちは、期間を週単位に広げて貼る(D が週別なのは、そのため)。
-- 改善の前後を比べるときは、A〜D を期間を分けて2回取り、「前」「後」として貼る。依頼の2番は「前後比較」に書き換える。
+- 改善の前後を比べるときは、A〜E を期間を分けて2回取り、「前」「後」として貼る。依頼の2番は「前後比較」に書き換える。
 - よるノートを見るときは、`analytics_events` のイベント名が `evening_` 始まりになる。`apps/yoru/src/lib/analytics.ts` を見て、D のイベント名と `properties` を合わせる。集計ビューは、あさノートのイベントだけを数える。
